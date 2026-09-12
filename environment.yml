@@ -1,0 +1,15 @@
+name: bulkRNAseq
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - fastqc
+  - multiqc
+  - fastp
+  - star=2.7.5c
+  - bowtie2
+  - samtools
+  - subread
+  - rseqc
+  - deeptools
