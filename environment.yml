@@ -10,6 +10,7 @@ dependencies:
   - star=2.7.5c
   - bowtie2
   - samtools
-  - subread
+  - subread   # featureCounts -- kept as a quick cross-check, RSEM is primary quant
+  - rsem      # ENCODE-standard quantification (see docs/star_index_notes.md context)
   - rseqc
   - deeptools
