@@ -111,7 +111,10 @@ for (cn in names(pairwise)) {
 # is whatever R's default factor ordering picked; we match coefficient names
 # by grep so this doesn't silently break if that ordering changes.
 rn <- resultsNames(dds)
-find_coef <- function(level) rn[grepl(paste0("group.*", level, "$"), rn)]
+# DESeq2 names coefficients "group_<level>_vs_<reference>", not "..._<level>"
+# (e.g. "group_D12_KO_GFP_vs_D12_Ctr_GFP") -- match the level right after the
+# factor prefix, not anchored at the end.
+find_coef <- function(level) rn[grepl(paste0("^group_", level, "_vs_"), rn)]
 c_d15_isl1 <- find_coef("D15_KO_ISL1"); c_d15_gfp <- find_coef("D15_KO_GFP")
 c_d12_isl1 <- find_coef("D12_KO_ISL1"); c_d12_gfp <- find_coef("D12_KO_GFP")
 
