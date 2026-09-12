@@ -16,11 +16,11 @@
 # transcript BAM + reference into memory; 24G is generous margin for this
 # genome without breaching the ceiling.
 #
-# NOTE on strandedness: --strandedness none is the RSEM default (unstranded).
-# If scripts/04_qc_bam.sb's rseqc infer_experiment.py shows this library is
-# actually stranded (fwd/rev), rerun with --strandedness forward or reverse
-# accordingly -- getting this wrong biases gene-level counts for genes with
-# overlapping antisense transcripts.
+# Strandedness: confirmed via scripts/04_qc_bam.sb's rseqc infer_experiment.py
+# across all 12 samples (85.9-87.5% "++,--" / sense-strand reads, consistent,
+# not the ~50/50 split unstranded data would show) -- this library IS
+# forward/sense-stranded, not unstranded. Was run with --strandedness none
+# in the original pass; corrected here.
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/config.sh
@@ -34,7 +34,7 @@ echo "[$(date)] RSEM quantify: ${s}"
 "${TOOLS}/rsem-calculate-expression" \
   --bam \
   --no-bam-output \
-  --strandedness none \
+  --strandedness forward \
   -p "${SLURM_CPUS_PER_TASK}" \
   --seed 12345 \
   "${STAR_OUT}/Aligned.toTranscriptome.out.bam" \
