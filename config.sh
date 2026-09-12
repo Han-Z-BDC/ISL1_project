@@ -14,6 +14,7 @@ LOGS="${OUT_DIR}/logs"
 GENOME_DIR=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0
 STAR_INDEX="${GENOME_DIR}/STARindex_2.7.5c"
 GTF="${GENOME_DIR}/genes/genes.gtf"
+RSEM_REF="${GENOME_DIR}/rsem_ref/GRCh38_2020A"  # built by scripts/rsem_prepare_reference.sb
 
 # --- Tools ---------------------------------------------------------------
 # Dedicated conda env for this pipeline (built via ../environment.yml):

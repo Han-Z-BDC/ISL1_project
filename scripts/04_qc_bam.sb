@@ -1,0 +1,60 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_rnaseq_bamqc
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=12G
+#SBATCH --time=02:00:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/bamqc.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/bamqc.%j.err
+
+# Step 5: post-alignment BAM QC -- samtools flagstat/idxstats, RSeQC
+# (strandedness via infer_experiment.py, gene-body coverage), then a second
+# MultiQC pass over the whole pipeline (raw fastqc + fastp + STAR logs + this).
+#
+# infer_experiment.py's output here is what scripts/03_rsem_quant.sb's
+# --strandedness should actually be set to -- check this BEFORE trusting the
+# RSEM counts if this step hasn't been run yet when RSEM was.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/config.sh
+
+BAMQC_DIR="${OUT_DIR}/qc/bam"
+mkdir -p "${BAMQC_DIR}" "${LOGS}"
+
+# RSeQC needs a BED12 gene model; derive once from the GTF if not already present.
+BED12="${GENOME_DIR}/genes/genes.bed12"
+if [[ ! -s "${BED12}" ]]; then
+  echo "[$(date)] Deriving BED12 gene model from GTF for RSeQC"
+  # gtfToGenePred/genePredToBed are UCSC kent tools; fall back to a simple
+  # python one-liner via gtfparse-free awk if kent tools aren't on PATH.
+  if command -v gtfToGenePred >/dev/null 2>&1 && command -v genePredToBed >/dev/null 2>&1; then
+    gtfToGenePred "${GTF}" /tmp/genes.genePred
+    genePredToBed /tmp/genes.genePred "${BED12}"
+  else
+    echo "WARNING: kent tools (gtfToGenePred/genePredToBed) not found -- skipping" \
+         "RSeQC gene-body-coverage/strandedness steps; flagstat/idxstats still run." >&2
+  fi
+fi
+
+for s in "${SAMPLES[@]}"; do
+  BAM="${OUT_DIR}/results/star/${s}/Aligned.sortedByCoord.out.bam"
+  echo "[$(date)] samtools QC: ${s}"
+  "${TOOLS}/samtools" flagstat "${BAM}" > "${BAMQC_DIR}/${s}.flagstat.txt"
+  "${TOOLS}/samtools" idxstats "${BAM}" > "${BAMQC_DIR}/${s}.idxstats.txt"
+
+  if [[ -s "${BED12}" ]]; then
+    echo "[$(date)] rseqc: ${s}"
+    "${TOOLS}/infer_experiment.py" -i "${BAM}" -r "${BED12}" \
+      > "${BAMQC_DIR}/${s}.infer_experiment.txt" 2>&1
+    "${TOOLS}/geneBody_coverage.py" -i "${BAM}" -r "${BED12}" \
+      -o "${BAMQC_DIR}/${s}.genebody" 2>&1 | tail -20
+  fi
+done
+
+echo "[$(date)] MultiQC (full pipeline)"
+"${TOOLS}/multiqc" "${OUT_DIR}/qc" -o "${OUT_DIR}/qc" --force -n multiqc_full_report
+
+echo "[$(date)] Done. Report: ${OUT_DIR}/qc/multiqc_full_report.html"
