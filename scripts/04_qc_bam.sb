@@ -43,8 +43,11 @@ if [[ -s "${BED12}" ]]; then
     > "${BAMQC_DIR}/${s}.infer_experiment.txt" 2>&1
 
   echo "[$(date)] rseqc geneBody_coverage (slow): ${s}"
-  "${TOOLS}/geneBody_coverage.py" -i "${BAM}" -r "${BED12}" \
-    -o "${BAMQC_DIR}/${s}.genebody" 2>&1 | tail -20
+  # geneBody_coverage.py writes a stray log.txt into the CWD (not -o's
+  # directory) -- cd into BAMQC_DIR first so 12 array tasks don't race on
+  # writing the same file at the repo root.
+  ( cd "${BAMQC_DIR}" && "${TOOLS}/geneBody_coverage.py" -i "${BAM}" -r "${BED12}" \
+      -o "${s}.genebody" 2>&1 | tail -20 )
 else
   echo "WARNING: ${BED12} not found -- skipping rseqc steps." >&2
 fi
