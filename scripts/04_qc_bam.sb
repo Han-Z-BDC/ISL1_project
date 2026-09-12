@@ -28,14 +28,14 @@ mkdir -p "${BAMQC_DIR}" "${LOGS}"
 BED12="${GENOME_DIR}/genes/genes.bed12"
 if [[ ! -s "${BED12}" ]]; then
   echo "[$(date)] Deriving BED12 gene model from GTF for RSeQC"
-  # gtfToGenePred/genePredToBed are UCSC kent tools; fall back to a simple
-  # python one-liner via gtfparse-free awk if kent tools aren't on PATH.
-  if command -v gtfToGenePred >/dev/null 2>&1 && command -v genePredToBed >/dev/null 2>&1; then
-    gtfToGenePred "${GTF}" /tmp/genes.genePred
-    genePredToBed /tmp/genes.genePred "${BED12}"
+  # gtfToGenePred/genePredToBed are UCSC kent tools, installed into this env
+  # (not on system PATH) -- check ${TOOLS} directly, not `command -v`.
+  if [[ -x "${TOOLS}/gtfToGenePred" && -x "${TOOLS}/genePredToBed" ]]; then
+    "${TOOLS}/gtfToGenePred" "${GTF}" /tmp/genes.genePred
+    "${TOOLS}/genePredToBed" /tmp/genes.genePred "${BED12}"
   else
-    echo "WARNING: kent tools (gtfToGenePred/genePredToBed) not found -- skipping" \
-         "RSeQC gene-body-coverage/strandedness steps; flagstat/idxstats still run." >&2
+    echo "WARNING: kent tools (gtfToGenePred/genePredToBed) not found in ${TOOLS} --" \
+         "skipping RSeQC gene-body-coverage/strandedness steps; flagstat/idxstats still run." >&2
   fi
 fi
 
