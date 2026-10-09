@@ -8,9 +8,10 @@ set -euo pipefail
 # Admera project 260924-0015 (delivered 2026-10-08); this delivery also contains
 # ISL1 CUT&RUN fastqs in the same folder -- only the *_scRNA_* files are used here.
 RAW_DIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0002-10082026_215649
-OUT_DIR=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq
-LOGS="${OUT_DIR}/logs"
-SCRATCH_DIR=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq  # outputs on scratch (purged after 90 days -- copy keepers to /pl/active)
+REPO_DIR=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq   # code + configs only, no outputs
+# All outputs (logs + results) on scratch -- purged after 90 days, copy keepers to /pl/active.
+SCRATCH_DIR=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq
+LOGS="${SCRATCH_DIR}/logs"
 CELLRANGER_OUT="${SCRATCH_DIR}/cellranger"
 
 # Same reference as the diff-multiome and earlier cellranger count runs, so gene

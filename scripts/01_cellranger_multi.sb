@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=200G
 #SBATCH --time=24:00:00
-#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/logs/cellranger_multi.%j.out
-#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/logs/cellranger_multi.%j.err
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.out
+#SBATCH --error=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.err
 
 # Step 1: cellranger multi on each OCM channel listed in RUNS (config.sh).
 # OCM data must go through `multi` (not `count`) -- the [samples] section of
@@ -28,7 +28,7 @@ cd "${CELLRANGER_OUT}"
 LOCALMEM=$(( SLURM_MEM_PER_NODE / 1024 - 16 ))
 
 for run in "${RUNS[@]}"; do
-  csv="${OUT_DIR}/configs/${run}.multi.csv"
+  csv="${REPO_DIR}/configs/${run}.multi.csv"
   if grep -q TODO "${csv}"; then
     echo "ERROR: ${csv} still has TODO sample names -- fill in the OCM barcode -> sample map first" >&2
     exit 1

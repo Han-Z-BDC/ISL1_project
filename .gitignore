@@ -4,7 +4,7 @@ raw_data/
 # Pipeline outputs are regenerable from raw data via the scripts -- not tracked.
 # This repo tracks code only (scripts/, configs/, config.sh, docs), not results.
 results/
-logs/
+logs/  # (now on scratch; kept as a safety net)
 
 # HTML progress reports live in the local review copy only.
 reports/

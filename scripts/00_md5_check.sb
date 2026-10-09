@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=4G
 #SBATCH --time=04:00:00
-#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/logs/md5_check.%j.out
-#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/logs/md5_check.%j.err
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/md5_check.%j.out
+#SBATCH --error=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/md5_check.%j.err
 
 # Step 0: verify the Admera delivery against its md5.txt (whole delivery, CUT&RUN
 # files included, since they share the folder). md5sum is single-threaded per file,
