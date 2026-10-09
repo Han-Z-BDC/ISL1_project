@@ -1,0 +1,28 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_sc_md5
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=4G
+#SBATCH --time=04:00:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/logs/md5_check.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/logs/md5_check.%j.err
+
+# Step 0: verify the Admera delivery against its md5.txt (whole delivery, CUT&RUN
+# files included, since they share the folder). md5sum is single-threaded per file,
+# so 4 files are checked in parallel. Non-zero exit if any file fails.
+
+set -euo pipefail
+
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/config.sh
+
+cd "${RAW_DIR}"
+echo "[$(date)] Checking $(wc -l < md5.txt) files in ${RAW_DIR}"
+xargs -P "${SLURM_CPUS_PER_TASK}" -L 1 sh -c 'echo "$0  $1" | md5sum -c -' < md5.txt | sort > "${LOGS}/md5_check.${SLURM_JOB_ID}.result"
+
+cat "${LOGS}/md5_check.${SLURM_JOB_ID}.result"
+n_ok=$(grep -c ": OK$" "${LOGS}/md5_check.${SLURM_JOB_ID}.result" || true)
+echo "[$(date)] ${n_ok}/$(wc -l < md5.txt) OK"
+[ "${n_ok}" -eq "$(wc -l < md5.txt)" ]
