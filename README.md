@@ -10,7 +10,7 @@ That delivery also contains ISL1 CUT&RUN fastqs; this repo only uses the `*_scRN
 
 | Channel (fastq_id) | OCM samples |
 |---|---|
-| `HZ_Diff34_D40_scRNA` | OB1 D40_ctr_1, OB2 D40_KO_1, OB3 D40_ctr_2, OB4 D40_KO_2 (assumes OB1-4 = gel bead positions 1-4 starting at blue; verify via ISL1 expression) |
+| `HZ_Diff34_D40_scRNA` | OB1 Diff34_D40_ctr_1, OB2 Diff34_D40_KO_1, OB3 Diff34_D40_ctr_2, OB4 Diff34_D40_KO_2 (assumes OB1-4 = gel bead positions 1-4 starting at blue; verify via ISL1 expression) |
 
 ## Setup
 
