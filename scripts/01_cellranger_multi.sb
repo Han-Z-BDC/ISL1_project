@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=200G
+#SBATCH --mem=256G
 #SBATCH --time=24:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.out
 #SBATCH --error=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.err
@@ -14,7 +14,8 @@
 # OCM data must go through `multi` (not `count`) -- the [samples] section of
 # configs/<run_id>.multi.csv maps OCM barcodes (OB1-OB4) to sample names, and
 # Cell Ranger demultiplexes into results/cellranger/<run_id>/outs/per_sample_outs/<sample_id>/.
-# amem (~16G/cpu default) per lab convention for cellranger; 200G is well above
+# amem per lab convention for cellranger. amem QOS enforces MinMemory=240G, so 256G
+# (same as earlier cr_migl runs) even though Cell Ranger needs ~64G;
 # Cell Ranger's ~64G need, --localmem leaves headroom under the Slurm limit.
 # Rerunning resumes an interrupted run in place (same --id, same cwd).
 
