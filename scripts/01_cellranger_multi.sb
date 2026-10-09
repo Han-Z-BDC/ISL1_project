@@ -13,10 +13,11 @@
 # Step 1: cellranger multi on each OCM channel listed in RUNS (config.sh).
 # OCM data must go through `multi` (not `count`) -- the [samples] section of
 # configs/<run_id>.multi.csv maps OCM barcodes (OB1-OB4) to sample names, and
-# Cell Ranger demultiplexes into results/cellranger/<run_id>/outs/per_sample_outs/<sample_id>/.
-# amem per lab convention for cellranger. amem QOS enforces MinMemory=240G, so 256G
-# (same as earlier cr_migl runs) even though Cell Ranger needs ~64G;
-# Cell Ranger's ~64G need, --localmem leaves headroom under the Slurm limit.
+# Cell Ranger demultiplexes into ${CELLRANGER_OUT}/<run_id>/outs/per_sample_outs/<sample_id>/
+# (on scratch, see config.sh).
+# amem per lab convention for cellranger. The amem QOS enforces MinMemory=240G, so
+# 256G (same as earlier cr_migl runs) even though Cell Ranger itself needs ~64G;
+# --localmem leaves headroom under the Slurm limit.
 # Rerunning resumes an interrupted run in place (same --id, same cwd).
 
 set -euo pipefail
