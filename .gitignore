@@ -5,3 +5,6 @@ raw_data/
 # This repo tracks code only (scripts/, configs/, config.sh, docs), not results.
 results/
 logs/
+
+# HTML progress reports live in the local review copy only.
+reports/
