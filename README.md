@@ -27,5 +27,5 @@ That delivery also contains ISL1 CUT&RUN fastqs; this repo only uses the `*_scRN
    ```
    sbatch scripts/01_cellranger_multi.sb
    ```
-   Outputs (gitignored): `results/cellranger/<run_id>/outs/per_sample_outs/<sample_id>/`
+   Outputs (on scratch): `/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/cellranger/<run_id>/outs/per_sample_outs/<sample_id>/`
    (`web_summary.html`, `count/sample_filtered_feature_bc_matrix.h5`, BAM).

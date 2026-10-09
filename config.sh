@@ -10,7 +10,8 @@ set -euo pipefail
 RAW_DIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0002-10082026_215649
 OUT_DIR=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq
 LOGS="${OUT_DIR}/logs"
-CELLRANGER_OUT="${OUT_DIR}/results/cellranger"
+SCRATCH_DIR=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq  # outputs on scratch (purged after 90 days -- copy keepers to /pl/active)
+CELLRANGER_OUT="${SCRATCH_DIR}/cellranger"
 
 # Same reference as the diff-multiome and earlier cellranger count runs, so gene
 # IDs/names match across datasets. Cell Ranger accepts the ARC reference for GEX.
