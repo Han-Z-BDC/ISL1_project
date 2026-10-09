@@ -1,0 +1,14 @@
+[gene-expression]
+reference,/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0
+create-bam,true
+
+[libraries]
+fastq_id,fastqs,feature_types
+HZ_Diff34_D40_scRNA,/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0002-10082026_215649,Gene Expression
+
+[samples]
+sample_id,ocm_barcode_ids,description
+TODO_SAMPLE_OB1,OB1,TODO
+TODO_SAMPLE_OB2,OB2,TODO
+TODO_SAMPLE_OB3,OB3,TODO
+TODO_SAMPLE_OB4,OB4,TODO

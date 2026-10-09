@@ -1,0 +1,7 @@
+# Raw data lives on cluster storage only, never in git (destined for GEO instead).
+raw_data/
+
+# Pipeline outputs are regenerable from raw data via the scripts -- not tracked.
+# This repo tracks code only (scripts/, configs/, config.sh, docs), not results.
+results/
+logs/
