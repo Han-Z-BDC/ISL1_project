@@ -24,6 +24,11 @@ set -euo pipefail
 
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/config.sh
 
+# GPFS scratch reports an overflowed inode count on compute nodes (df -i shows
+# IUsed ~ -9e18), which Cell Ranger preflight reads as "only N free inodes" and
+# aborts. Real usage is ~36%. Same workaround as HERV_pancreatic_differentiation.
+export MRO_DISK_SPACE_CHECK=disable
+
 mkdir -p "${CELLRANGER_OUT}" "${LOGS}"
 cd "${CELLRANGER_OUT}"
 
