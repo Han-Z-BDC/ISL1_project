@@ -8,7 +8,7 @@ HZ_Diff34_D40_scRNA,/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0002-10082
 
 [samples]
 sample_id,ocm_barcode_ids,description
-TODO_SAMPLE_OB1,OB1,TODO
-TODO_SAMPLE_OB2,OB2,TODO
-TODO_SAMPLE_OB3,OB3,TODO
-TODO_SAMPLE_OB4,OB4,TODO
+D40_ctr_1,OB1,D40 control rep 1
+D40_KO_1,OB2,D40 ISL1 KO rep 1
+D40_ctr_2,OB3,D40 control rep 2
+D40_KO_2,OB4,D40 ISL1 KO rep 2
