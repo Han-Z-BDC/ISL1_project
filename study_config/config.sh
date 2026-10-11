@@ -1,6 +1,7 @@
 #!/bin/bash
-# Config for the ISL1 scRNA-seq (10x OCM) pipeline.
-# Source this from every sbatch script: `source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/config.sh`
+# Config for the ISL1 scRNA-seq (10x OCM) project -- single source of every path.
+# Sourced by scripts/*.sb (Cell Ranger) and, through the pipeline/config.sh symlink
+# (made by study_config/setup_links.sh), by every single-cell-pipeline step in pipeline/.
 
 set -euo pipefail
 
@@ -28,3 +29,15 @@ CELLRANGER=/projects/hzhu10@xsede.org/software/cellranger-9.0.1/bin/cellranger
 RUNS=(
   HZ_Diff34_D40_scRNA
 )
+
+# --- single-cell-pipeline (pipeline/, git subtree) -----------------------
+# Variable names below are the ones pipeline/scripts/* expect (see pipeline/config.example.sh).
+# Cell Ranger multi writes per_sample_outs/<s>/count/sample_{raw,filtered}_feature_bc_matrix.h5;
+# the pipeline expects ${IN_DIR}/<s>/outs/{raw,filtered}_feature_bc_matrix.h5, so
+# setup_links.sh builds that layout under IN_DIR as symlinks (no copies).
+CELLRANGER_SAMPLES="${CELLRANGER_OUT}/HZ_Diff34_D40_scRNA/outs/per_sample_outs"
+IN_DIR="${SCRATCH_DIR}/cellranger_std"
+OUT_DIR="${SCRATCH_DIR}/out"                              # all pipeline outputs
+SAMPLE_SHEET="${REPO_DIR}/study_config/samples.tsv"
+CONFIG_DIR="${REPO_DIR}/pipeline/configs"
+TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/single.cell/bin   # same env as diff-multiome

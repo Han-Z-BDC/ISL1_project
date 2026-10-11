@@ -8,3 +8,6 @@ logs/  # (now on scratch; kept as a safety net)
 
 # HTML progress reports live in the local review copy only.
 reports/
+
+# pipeline/logs is a symlink to scratch logs (study_config/setup_links.sh).
+/pipeline/logs

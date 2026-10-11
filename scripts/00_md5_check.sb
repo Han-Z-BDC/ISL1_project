@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
 
 cd "${RAW_DIR}"
 echo "[$(date)] Checking $(wc -l < md5.txt) files in ${RAW_DIR}"
