@@ -23,6 +23,7 @@ That delivery also contains ISL1 CUT&RUN fastqs; this repo only uses the `*_scRN
 
 ## Pipeline
 
+0a. `scripts/00a_admera_download.sb` -- FTP download from Admera (credentials via env vars, not in git).
 0. `scripts/00_md5_check.sb` -- verify the Admera delivery against its `md5.txt`.
 1. `scripts/01_cellranger_multi.sb` -- `cellranger multi` per channel on `amem`.
    ```
