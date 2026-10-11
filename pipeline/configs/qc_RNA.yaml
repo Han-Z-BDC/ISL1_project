@@ -17,7 +17,11 @@
 # bounds under manual_bounds below. A sample with filtering_strategy "manual"
 # but no entry under manual_bounds is a hard error, on purpose.
 filtering_strategy: mad
-n_mads: 5
+# ISL1_scRNAseq override (user-approved 2026-10-11, see analysis/scripts/1.1b_qc_review.py):
+# 4 MAD instead of 5 -- every sample has a flat low-count tail (~500-2,500 UMIs, near-0 %MT =
+# bare nuclei / ambient droplets); 5 MAD lands mid-tail, 4 MAD lands at the valley, 3 MAD cuts
+# into a real lower-count shoulder in the control samples.
+n_mads: 4
 
 # Per-sample override, only consulted when filtering_strategy: manual for
 # that sample (see manual_bounds_by_sample below). Values are in log1p space
@@ -84,11 +88,22 @@ mt_pct_cap: 15.0
 # default now.
 mt_pct_max: null
 
-mt_pct_strategy_by_sample: {}
+# ISL1_scRNAseq override (user-approved 2026-10-11): %MT is unimodal and low in every sample
+# (median 2.2-2.5%, p99 4.2-4.9%, no dying-cell tail), so the adaptive threshold (4.2-4.8%)
+# only trims the normal upper edge. Fixed 10% removes just the 0-3 real outliers per sample.
+mt_pct_strategy_by_sample:
+  Diff34_D40_ctr_1: fixed
+  Diff34_D40_KO_1: fixed
+  Diff34_D40_ctr_2: fixed
+  Diff34_D40_KO_2: fixed
 # Example:
 # mt_pct_strategy_by_sample:
 #   some_sample: fixed
-mt_pct_max_by_sample: {}
+mt_pct_max_by_sample:
+  Diff34_D40_ctr_1: 10.0
+  Diff34_D40_KO_1: 10.0
+  Diff34_D40_ctr_2: 10.0
+  Diff34_D40_KO_2: 10.0
 # Example:
 # mt_pct_max_by_sample:
 #   some_sample: 5.0
