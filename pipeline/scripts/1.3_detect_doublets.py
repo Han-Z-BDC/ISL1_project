@@ -44,7 +44,9 @@ anndata2ri.activate()
 anndata2ri.scipy2ri.activate()
 
 
-def run_scdblfinder(adata, random_state: int) -> pd.DataFrame:
+def run_scdblfinder(adata, random_state: int, dbr=None) -> pd.DataFrame:
+    """dbr: expected doublet rate passed to scDblFinder, or None for its own
+    default (1% per 1,000 cells, i.e. standard 10x loading)."""
     scDblFinder = importr("scDblFinder")
     SingleCellExperiment = importr("SingleCellExperiment")
 
@@ -52,10 +54,12 @@ def run_scdblfinder(adata, random_state: int) -> pd.DataFrame:
     ro.globalenv["data_mat"] = data_mat
     ro.r(f"set.seed({random_state})")
 
+    kwargs = {} if dbr is None else {"dbr": dbr}
     sce_obj = scDblFinder.scDblFinder(
         SingleCellExperiment.SingleCellExperiment(
             assays=ro.ListVector({"counts": ro.globalenv["data_mat"]})
-        )
+        ),
+        **kwargs,
     )
     col_data = anndata2ri.rpy2py(sce_obj.do_slot("colData"))
     return pd.DataFrame(
@@ -134,7 +138,12 @@ def main():
     adata = sc.read_h5ad(args.soupx_h5ad)
     n_before = adata.n_obs
 
-    scdbl = run_scdblfinder(adata, cfg["random_state"])
+    # Optional chemistry-specific prior (see configs/detect_doublets.yaml):
+    # same scaling scDblFinder uses for its own default (rate x n_cells/1000).
+    dbr_per_1k = cfg.get("scdblfinder_dbr_per_1k_cells")
+    dbr = None if dbr_per_1k is None else float(dbr_per_1k) / 100 * n_before / 1000
+
+    scdbl = run_scdblfinder(adata, cfg["random_state"], dbr)
     doublet_rate = float(scdbl["scDblFinder_predicted_doublet"].mean())
 
     scrub = run_scrublet(adata, doublet_rate, cfg["scrublet"], cfg["random_state"])
@@ -166,6 +175,7 @@ def main():
         "n_scdblfinder_doublets": int(obs["scDblFinder_predicted_doublet"].sum()),
         "n_scrublet_doublets": int(obs["scrublet_predicted_doublet"].sum()),
         "n_consensus_doublets_both_agree": int(obs["doublet_filter_consensus"].sum()),
+        "scdblfinder_dbr_prior": "default (1% per 1k cells)" if dbr is None else round(dbr, 4),
         "scdblfinder_doublet_rate": round(doublet_rate, 4),
         "scrublet_expected_doublet_rate_used": round(doublet_rate, 4),
     }

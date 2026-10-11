@@ -26,6 +26,17 @@
 
 random_state: 1
 
+# scDblFinder's expected doublet rate (its `dbr` prior), in % per 1,000 cells.
+# null (default) = scDblFinder's own default, 1% per 1,000 cells, which fits
+# standard 10x 3'/5' loading. Set it for chemistries with a different
+# multiplet curve; it's scaled by each sample's cell count the same way
+# scDblFinder scales its own default. scDblFinder still adjusts its threshold
+# from the data (dbr.sd), so this is a prior, not a fixed cutoff.
+#   10x GEM-X On-Chip Multiplexing (OCM): ~1.5% per 1,000 cells per sample
+#   (10x OCM user guide: ~1.5% at 1k, ~7.6% at 5k cells recovered per sample).
+# ISL1_scRNAseq (user-approved 2026-10-11): OCM data, so 1.5.
+scdblfinder_dbr_per_1k_cells: 1.5
+
 # Scrublet parameters -- values below are the lab's own validated settings.
 # expected_doublet_rate is NOT set here -- it's computed per sample from
 # scDblFinder's call rate at run time (see script).
