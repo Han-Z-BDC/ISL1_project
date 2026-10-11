@@ -1,0 +1,39 @@
+name: sc-pipeline
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - scanpy>=1.10
+  - anndata
+  - numpy
+  - pandas
+  - matplotlib
+  - seaborn
+  - pyyaml
+  - h5py
+  - scipy
+  - scikit-learn
+  - python-igraph        # needed by sc.tl.leiden(flavor="igraph"), used in step 1.2
+  # step 1.2: SoupX (ambient RNA removal) -- R side
+  - r-base>=4.3
+  - r-soupx
+  - r-matrix
+  - rpy2
+  - anndata2ri
+  # step 1.3: doublet detection
+  - scikit-misc          # scrublet's loess fit depends on this
+  - bioconductor-scdblfinder
+  - bioconductor-singlecellexperiment
+  # ATAC QC: SnapATAC2 backbone + AMULET (bundled in bioconductor-scdblfinder)
+  - snapatac2
+  - umap-learn            # snap.tl.umap imports this directly -- not pulled in by snapatac2 itself
+  - bioconductor-genomicranges
+  - bioconductor-rtracklayer
+  - pip
+  - pip:
+      - scrublet
+# This covers RNA QC steps 1.1 (threshold/MAD + MT/Ribo), 1.2 (SoupX),
+# 1.3 (doublet detection), and the ATAC QC track (2.x). Normalization
+# (step 1.4) gets added once that module is designed -- not guessed at
+# ahead of time.

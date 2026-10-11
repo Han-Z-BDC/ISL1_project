@@ -1,0 +1,56 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=29G
+#SBATCH --time=00:45:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=rna_normalize
+#SBATCH --output=logs/rna_normalize.%A_%a.out
+# acpu's MaxMemPerCPU is 3840MB (3.75GB), a hard per-partition ratio --
+# --mem must stay at or under cpus-per-task x 3.75GB (here: 30G) or the
+# scheduler needs to silently allocate more CPUs than requested, making
+# the job harder to backfill. SCTransform is the heaviest part of this
+# step (regularized NB regression per gene) -- originally measured on
+# D12_rep1 (5823 cells): MaxRSS ~11.6G. Bumped cpus=4/mem=14G ->
+# cpus=8/mem=29G after a real OOM on HZ_01/HZ_02_HZ021_D15_rep1/2 (14.68G
+# measured, right at the old ceiling) -- these two samples' cell counts
+# grew substantially once 1.1_rna_qc.py's adaptive %MT cutoff replaced
+# the old fixed 3.0% (D15 was one of the most heavily over-filtered
+# stages under the old cutoff). NOTE: this step's SCTransform call is
+# genuinely too heavy for the login node directly -- confirmed by testing
+# there first (killed by the login node's watchdog) -- must go through
+# sbatch/srun, not direct SSH.
+# --array is set at submission time by scripts/submit_4.1_rna_normalize.sh
+# -- don't hardcode a range here.
+
+# One array task per sample: two parallel single-sample normalize+UMAP
+# methods -- scanpy-native log-normalize, and Seurat::SCTransform via rpy2
+# (transferred back into the same AnnData). NOT cross-sample/replicate
+# integration -- that's a future step's scope. Requires 3.1_merge_modalities.sb
+# to have already completed for this sample -- reads {sample}.rna_final.h5ad.
+# See scripts/4.1_rna_normalize.py for the full design and
+# configs/normalize_rna.yaml for the parameters + reasoning.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- this script must be submitted via sbatch from the repo root (see scripts/submit_*.sh), not run directly}"
+source "${P}/config.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_4.1_rna_normalize.sh, not sbatch directly}"
+
+mkdir -p "${OUT_DIR}/rna_normalize" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+
+rna_h5ad="${OUT_DIR}/merged/h5ad/${sample_id}.rna_final.h5ad"
+[[ -s "${rna_h5ad}" ]] || { echo "ERROR: ${rna_h5ad} not found -- run scripts/submit_3.1_merge_modalities.sh first" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/4.1_rna_normalize.py" \
+  --sample-id "${sample_id}" \
+  --rna-h5ad "${rna_h5ad}" \
+  --config "${CONFIG_DIR}/normalize_rna.yaml" \
+  --outdir "${OUT_DIR}/rna_normalize"

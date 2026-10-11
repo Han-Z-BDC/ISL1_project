@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=29G
+#SBATCH --time=00:30:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=merge_modalities
+#SBATCH --output=logs/merge_modalities.%A_%a.out
+# acpu's MaxMemPerCPU is 3840MB (3.75GB), a hard per-partition ratio --
+# --mem must stay at or under cpus-per-task x 3.75GB (here: 30G) or the
+# scheduler needs to silently allocate more CPUs than requested, making
+# the job harder to backfill.
+# Bumped from cpus=2/mem=7G during the first real batch1/batch2 run: 6 of
+# 23 samples OOM'd at that budget. The "genuinely light" assumption above
+# didn't account for the ATAC side -- this step loads the SAME
+# genome-wide tile matrix (millions of features, e.g. 6M+ for the D12
+# test sample) that 2.2/4.2 need cpus=8/mem=29G for, plus a .copy() of
+# both modalities during the barcode subset -- not actually light.
+# Matches 2.2/4.2's budget now for the same reason.
+# --array is set at submission time by scripts/submit_3.1_merge_modalities.sh
+# -- don't hardcode a range here.
+
+# One array task per sample: intersects RNA QC's and ATAC QC's final
+# QC-passing barcodes, subsets both objects to the shared cells, and
+# writes {sample}.rna_final.h5ad + {sample}.atac_final.h5ad. Requires
+# BOTH the RNA track (through 1.3_detect_doublets.sb) and the ATAC track
+# (through 2.2_atac_qc.sb) to have already completed for every sample.
+# Fast -- no heavy computation, just loading two h5ads and set
+# intersection.
+# See scripts/3.1_merge_modalities.py for the logic.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- this script must be submitted via sbatch from the repo root (see scripts/submit_*.sh), not run directly}"
+source "${P}/config.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_3.1_merge_modalities.sh, not sbatch directly}"
+
+mkdir -p "${OUT_DIR}/merged" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+
+rna_h5ad="${OUT_DIR}/detect_doublets/h5ad/${sample_id}.doublets_removed.h5ad"
+atac_h5ad="${OUT_DIR}/atac_qc/h5ad/${sample_id}.atac_qc_final.h5ad"
+[[ -s "${rna_h5ad}" ]] || { echo "ERROR: ${rna_h5ad} not found -- run scripts/submit_1.3_detect_doublets.sh first" >&2; exit 1; }
+[[ -s "${atac_h5ad}" ]] || { echo "ERROR: ${atac_h5ad} not found -- run scripts/submit_2.2_atac_qc.sh first" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/3.1_merge_modalities.py" \
+  --sample-id "${sample_id}" \
+  --rna-h5ad "${rna_h5ad}" \
+  --atac-h5ad "${atac_h5ad}" \
+  --outdir "${OUT_DIR}/merged" \
+  --exclude-barcodes-dir "${CONFIG_DIR}/manual_barcode_exclusions"
