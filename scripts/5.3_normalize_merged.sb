@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=320G
+#SBATCH --time=08:00:00
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --job-name=normalize_merged_5.3
+#SBATCH --output=logs/normalize_merged_5.3.%j.out
+# Not an array job -- one job normalizes the whole merged cross-sample
+# object, all 3 paths (log, pooled SCT, per-sample-then-merge SCT).
+# SCTransform is the known-heaviest step so far -- pooled SCT alone
+# already needed cpus=12/mem=240G on amem (86.7G measured peak; see git
+# history for the acpu OOM that led here). mem-normal QOS on amem has a
+# hard MinTRES=mem=240G floor per job (confirmed via `sacctmgr show qos
+# mem-normal`).
+#
+# Bumped to cpus=16/mem=320G for --sct-persample (new): unlike the
+# per-sample diagnostic check (_check_sct_per_sample.py), which deleted
+# each sample's Seurat object after extracting summary stats, this path
+# needs all 14 per-sample SCTransform fits held SIMULTANEOUSLY in R
+# (SelectIntegrationFeatures/PrepSCTIntegration need the whole object
+# list at once) -- genuinely unmeasured how that sums vs. one pooled
+# fit's 86.7G. 320G is a real margin over a rough estimate, not a
+# measured number -- revise after the first run same as everything else
+# in this pipeline.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- submit via sbatch from the repo root, not run directly}"
+source "${P}/config.sh"
+
+merged_h5ad="${OUT_DIR}/integration/merged_rna_raw.h5ad"
+[[ -s "${merged_h5ad}" ]] || { echo "ERROR: ${merged_h5ad} not found -- run scripts/submit_5.2_merge_rna.sh first" >&2; exit 1; }
+
+mkdir -p "${OUT_DIR}/integration" "${P}/logs"
+
+"${TOOLS}/python" "${P}/scripts/5.3_normalize_merged.py" \
+  --merged-rna-h5ad "${merged_h5ad}" \
+  --config "${CONFIG_DIR}/normalize_rna.yaml" \
+  --outdir "${OUT_DIR}/integration" \
+  --sct-persample

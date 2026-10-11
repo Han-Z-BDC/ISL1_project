@@ -1,0 +1,54 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=29G
+#SBATCH --time=00:30:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=atac_normalize
+#SBATCH --output=logs/atac_normalize.%A_%a.out
+# acpu's MaxMemPerCPU is 3840MB (3.75GB), a hard per-partition ratio --
+# --mem must stay at or under cpus-per-task x 3.75GB (here: 30G) or the
+# scheduler needs to silently allocate more CPUs than requested, making
+# the job harder to backfill. Matches 2.2_atac_qc.sb's cpus/mem exactly --
+# spectral embedding on the same ~50k-feature selected tile matrix is the
+# expensive part of both steps.
+#
+# Measured on this lab's real D12_rep1 sample (4152 cells x 49970 selected
+# features, post-merge): MaxRSS ~5.3G, wall time ~1m55s -- confirmed too
+# heavy for the login node directly (killed by its watchdog after ~35s,
+# well under 5G RSS -- CPU enforcement, not memory) -- must go through
+# sbatch/srun, not direct SSH. 29G/8cpu is generous headroom over the
+# measured 5.3G; revisit down if this holds on more samples.
+
+# One array task per sample: SnapATAC2 spectral -> UMAP -> KNN -> Leiden
+# on step 3.1's already-built tile matrix + selected features -- NO
+# fragment reloading, NO add_tile_matrix/select_features (that's already
+# done, in {sample}.atac_final.h5ad). Overwrites the stale spectral/UMAP/
+# leiden embedding that rode along from 2.2's pre-doublet-removal
+# diagnostic pass. Requires 3.1_merge_modalities.sb to have already
+# completed for this sample. See scripts/4.2_atac_normalize.py for the
+# full design and configs/normalize_atac.yaml for parameters + reasoning.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- this script must be submitted via sbatch from the repo root (see scripts/submit_*.sh), not run directly}"
+source "${P}/config.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_4.2_atac_normalize.sh, not sbatch directly}"
+
+mkdir -p "${OUT_DIR}/atac_normalize" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+
+atac_h5ad="${OUT_DIR}/merged/h5ad/${sample_id}.atac_final.h5ad"
+[[ -s "${atac_h5ad}" ]] || { echo "ERROR: ${atac_h5ad} not found -- run scripts/submit_3.1_merge_modalities.sh first" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/4.2_atac_normalize.py" \
+  --sample-id "${sample_id}" \
+  --atac-h5ad "${atac_h5ad}" \
+  --config "${CONFIG_DIR}/normalize_atac.yaml" \
+  --outdir "${OUT_DIR}/atac_normalize"

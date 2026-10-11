@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=59G
+#SBATCH --time=00:30:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=merge_rna_5.2
+#SBATCH --output=logs/merge_rna_5.2.%j.out
+# Not an array job -- one job merges ALL samples into one cross-sample
+# object. Bumped cpus=4/mem=14G -> cpus=8/mem=29G during the 14-sample
+# smoketest (OOM'd at 14.68G). Bumped again, cpus=8/mem=29G -> cpus=16/
+# mem=59G, for the real 15-sample run: real OOM at 30.4G (right at the
+# old ceiling) once HZ021_D15_rep1 was added and the wet-failure/adaptive-
+# MT fixes recovered real cells across the cohort (~99,714 cells now vs
+# ~68,718 in the smoketest, ~45% more). acpu's MaxMemPerCPU ratio
+# (3.75G/cpu) satisfied at cpus=16/mem=59G.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- submit via sbatch from the repo root, not run directly}"
+source "${P}/config.sh"
+
+: "${INTEGRATION_SAMPLES_FILE:?ERROR: INTEGRATION_SAMPLES_FILE not set in config.sh -- one sample_id per line}"
+: "${INTEGRATION_SAMPLE_MAP_CSV:?ERROR: INTEGRATION_SAMPLE_MAP_CSV not set in config.sh -- old_name,new_name CSV}"
+
+mkdir -p "${OUT_DIR}/integration" "${P}/logs"
+
+"${TOOLS}/python" "${P}/scripts/5.2_merge_rna.py" \
+  --sample-ids-file "${INTEGRATION_SAMPLES_FILE}" \
+  --merged-dir "${OUT_DIR}/merged/h5ad" \
+  --sample-map-csv "${INTEGRATION_SAMPLE_MAP_CSV}" \
+  --outdir "${OUT_DIR}/integration"

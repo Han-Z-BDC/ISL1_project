@@ -1,0 +1,11 @@
+config.sh
+samples.tsv
+logs/
+*.h5ad
+*.png
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+configs/atac_qc_cutoffs_by_sample.csv
+excluded_samples.csv
+configs/manual_barcode_exclusions/

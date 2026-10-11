@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=29G
+#SBATCH --time=01:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=harmony_integrate_5.4
+#SBATCH --output=logs/harmony_integrate_5.4.%j.out
+# Not an array job -- one job runs all 4 (2 strategies x 2 paths) harmony
+# runs on the merged object's PCA embeddings. harmonypy itself operates on
+# the PCA-dim matrix (not the full gene x cell matrix), so it's genuinely
+# light -- the OOM at cpus=4/mem=14G (right after Harmony converged on the
+# very first run) was actually umap_from_pca()'s adata_template.copy(),
+# which duplicated the ENTIRE 68718x28843 expression matrix 4 times just to
+# get access to obsm/obsp for neighbors+umap, neither of which touch .X at
+# all. Fixed in 5.4_harmony_integrate.py (build a minimal 0-gene AnnData
+# instead). Bumped cpus=4/mem=14G -> cpus=8/mem=29G anyway as a margin,
+# since the full adata (with its sparse expression matrix) still stays
+# resident for the whole run.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- submit via sbatch from the repo root, not run directly}"
+source "${P}/config.sh"
+
+normalized_h5ad="${OUT_DIR}/integration/merged_rna_normalized.h5ad"
+[[ -s "${normalized_h5ad}" ]] || { echo "ERROR: ${normalized_h5ad} not found -- run scripts/submit_5.3_normalize_merged.sh first" >&2; exit 1; }
+
+mkdir -p "${OUT_DIR}/integration" "${P}/logs"
+
+"${TOOLS}/python" "${P}/scripts/5.4_harmony_integrate.py" \
+  --normalized-rna-h5ad "${normalized_h5ad}" \
+  --outdir "${OUT_DIR}/integration" \
+  --theta-diff-batch "${HARMONY_THETA_DIFF_BATCH:-3.0}" \
+  --theta-tech-batch "${HARMONY_THETA_TECH_BATCH:-0.5}"

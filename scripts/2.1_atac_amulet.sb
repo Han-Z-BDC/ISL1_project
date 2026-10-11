@@ -1,0 +1,65 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=14G
+#SBATCH --time=24:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=atac_amulet
+#SBATCH --output=logs/atac_amulet.%A_%a.out
+# --array is set at submission time by scripts/submit_2.1_atac_amulet.sh --
+# don't hardcode a range here.
+
+# One array task per sample: AMULET on the raw fragment file, nothing
+# else. Run this FIRST, separately from 2.2_atac_qc.sb -- AMULET is slow
+# and its runtime doesn't depend on QC thresholds, so there's no reason
+# to let it block threshold tuning or risk taking the rest of ATAC QC
+# down with it if it runs long. See scripts/2.1_atac_amulet.py for why.
+#
+# --mem=14G: acpu's MaxMemPerCPU is 3840MB (3.75GB), a hard per-partition
+# ratio -- --mem must stay at or under cpus-per-task x 3.75GB (here: 15G)
+# or the scheduler needs to silently allocate more CPUs than requested,
+# making the job harder to backfill. AMULET's real memory footprint on a
+# fragment file this size isn't measured yet (this job was still running
+# when that got checked) -- if it turns out to need more, raise
+# cpus-per-task and let --mem track it, don't just raise --mem alone.
+#
+# --time=24:00:00 on acpu + cpu-normal: acpu's own MaxTime caps any job
+# at 24h regardless of QOS, so this is the practical ceiling on this
+# partition -- and cpu-long is actually unusable here for that same
+# reason: its own QOS rule requires the requested time to be GREATER
+# than 24h (confirmed via a real submission error, not assumed), which
+# acpu's cap makes impossible to satisfy. cpu-normal's own MaxWall is
+# exactly 24h, matching the partition cap, so it's the correct QOS for
+# any single-sample budget here, not a downgrade. This is a per-SAMPLE
+# budget (one array task = one sample), not the lab's own
+# batch_amulet.sb's 3-day budget for looping over every sample
+# sequentially in one job -- if a single sample's AMULET run turns out
+# to need longer than 24h, move that task to the amem partition
+# (genuinely allows up to 7 days, and cpu-long is valid there) instead.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- this script must be submitted via sbatch from the repo root (see scripts/submit_*.sh), not run directly}"
+source "${P}/config.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_2.1_atac_amulet.sh, not sbatch directly}"
+: "${BLACKLIST_BED:?ERROR: BLACKLIST_BED is not set in config.sh}"
+
+mkdir -p "${OUT_DIR}/atac_qc" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+
+outs_dir=$(dirname "${h5_rel}")
+frag_path="${IN_DIR}/${outs_dir}/atac_fragments.tsv.gz"
+[[ -s "${frag_path}" ]] || { echo "ERROR: ${frag_path} not found -- check samples.tsv / IN_DIR layout" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/2.1_atac_amulet.py" \
+  --sample-id "${sample_id}" \
+  --frag-path "${frag_path}" \
+  --blacklist-bed "${BLACKLIST_BED}" \
+  --config "${CONFIG_DIR}/atac_qc.yaml" \
+  --outdir "${OUT_DIR}/atac_qc"
