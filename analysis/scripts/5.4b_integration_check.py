@@ -15,6 +15,7 @@ Metrics per embedding (k=30 nearest neighbours in the embedding itself, not the 
     Integration should not lower this much -- that would mean real biology being removed.
 
 Writes to ${OUT_DIR}/integration_check/: integration_check.csv, embeddings_by_group.png,
+embeddings/{embedding}.png (merged / ctr only / KO only / replicate, shared axes),
 markers_unintegrated_log.png, and h5ad/integration_check.h5ad (UMAPs added).
 
 Run through Slurm (UMAP/kNN on 12.7k cells): sbatch analysis/scripts/5.4b_integration_check.sb
@@ -123,6 +124,37 @@ def main():
     fig.tight_layout()
     fig.savefig(out / "embeddings_by_group.png", dpi=90)
     plt.close(fig)
+
+    # one row per embedding: merged / ctr only / KO only / replicate, same axes in every panel
+    (out / "embeddings").mkdir(exist_ok=True)
+    grey = "#d9d9d9"
+    for name in names:
+        u = umaps[name]
+        r = next(x for x in rows if x["embedding"] == name)
+        fig, axes = plt.subplots(1, 4, figsize=(19, 4.6), sharex=True, sharey=True)
+        ax = axes[0]
+        ax.scatter(u[order, 0], u[order, 1], s=1.5, c=[pal[v] for v in genotype[order]], linewidths=0)
+        ax.set_title("merged (ctr + KO)")
+        for k in ("D40-ctr", "D40-KO"):
+            ax.scatter([], [], c=pal[k], s=20, label=k)
+        ax.legend(fontsize=8, markerscale=1.5)
+        for ax, g in zip(axes[1:3], ("D40-ctr", "D40-KO")):
+            m = genotype == g
+            ax.scatter(u[~m, 0], u[~m, 1], s=1.5, c=grey, linewidths=0)
+            ax.scatter(u[m, 0], u[m, 1], s=1.5, c=pal[g], linewidths=0)
+            ax.set_title(f"{g} only (n={m.sum():,}; other genotype in grey)")
+        ax = axes[3]
+        ax.scatter(u[order, 0], u[order, 1], s=1.5, c=[pal[v] for v in rep[order]], linewidths=0)
+        for k in ("rep1", "rep2"):
+            ax.scatter([], [], c=pal[k], s=20, label=k)
+        ax.legend(fontsize=8, markerscale=1.5)
+        ax.set_title("replicate")
+        for ax in axes:
+            ax.set_xticks([]); ax.set_yticks([])
+        fig.suptitle(f"{name}   (rep_mixing={r['rep_mixing']}, genotype_purity={r['genotype_purity']})", fontsize=11)
+        fig.tight_layout()
+        fig.savefig(out / "embeddings" / f"{name}.png", dpi=80)
+        plt.close(fig)
 
     # markers on the unintegrated log UMAP -- high-expressing cells drawn on top
     lay = "soupx_counts" if "soupx_counts" in a.layers else "counts"
