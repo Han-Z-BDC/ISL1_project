@@ -47,3 +47,15 @@ TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/single.cell/bin   # same
 _ENV_LIB=/projects/hzhu10@xsede.org/software/anaconda/envs/single.cell/lib
 export LD_LIBRARY_PATH="${_ENV_LIB}:${LD_LIBRARY_PATH:-}"
 export R_HOME="${_ENV_LIB}/R"
+
+# --- Cross-sample merge + integration (pipeline 5.2-5.4) ------------------
+# The pipeline parses each sample name as {diff_batch}_{stage}_{tech_batch}. Mapping here
+# (rename_manifest.csv): diff_batch = Diff34 (one differentiation), "stage" = D40-ctr / D40-KO
+# (the biology to PRESERVE -- Harmony never corrects on it), tech_batch = rep1 / rep2.
+# All 4 samples share one OCM channel/library, so there is no technical batch; Harmony A
+# (diff_batch + tech_batch) only lightly corrects replicate. Harmony B (per sample_id)
+# would also pull ctr and KO together -- don't use it for genotype comparisons.
+INTEGRATION_SAMPLES_FILE="${REPO_DIR}/study_config/integration/samples_for_integration.txt"
+INTEGRATION_SAMPLE_MAP_CSV="${REPO_DIR}/study_config/rename_manifest.csv"
+HARMONY_THETA_DIFF_BATCH=3.0
+HARMONY_THETA_TECH_BATCH=0.5
