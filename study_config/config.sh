@@ -22,22 +22,40 @@ LOGS=${SCRATCH}/logs
 # --- Pipeline inputs (names as in pipeline/config.example.sh) ------------
 # The pipeline reads one RAW_DIR; setup_links.sh fills it with symlinks to both batches.
 RAW_DIR=${SCRATCH}/raw_links
-OUT_DIR=${SCRATCH}/results
 SAMPLE_SHEET=${STUDY_DIR}/study_config/samples.tsv
+
+# IgG background: every ISL1 sample is called both ways and the peak sets compared
+# (scripts/03b_compare_igg_methods.sb); a sample whose peaks change a lot flags its own IgG.
+# Pick the method per job, default matched:
+#   cd pipeline && sbatch --export=ALL,IGG_METHOD=pooled scripts/03_call_macs3.sb
+# Each method gets its own OUT_DIR so igg_background/ and macs3/ don't overwrite each other;
+# results_pooled/bam is a symlink to results/bam (setup_links.sh), so alignment runs once.
+IGG_METHOD=${IGG_METHOD:-matched}
+case "${IGG_METHOD}" in
+  matched) OUT_DIR=${SCRATCH}/results ;;
+  pooled)  OUT_DIR=${SCRATCH}/results_pooled ;;
+  *) echo "ERROR: IGG_METHOD must be matched or pooled, got '${IGG_METHOD}'" >&2; exit 1 ;;
+esac
 
 # hg38 (UCSC) bowtie2 index and the GRCh38 unified blacklist already on PetaLibrary.
 BOWTIE2_INDEX=/pl/active/ZhuLab_BDC/genome/hg38_bt2/hg38
 BLACKLIST=/pl/active/ZhuLab_BDC/genome/GRCh38_unified_blacklist.bed
 
-# Env built from pipeline/environment.yml (not yet built as of 2026-10-16: no existing env
-# has the full tool set -- cutrun_tools lacks fastqc/multiqc/cutadapt/bowtie2).
+# Env built from pipeline/environment.yml by scripts/00b_build_env.sb (job 34348808);
+# resolved versions in study_config/cutnrun_env.export.yml.
 TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/cutnrun/bin
 
 MAPQ=20
 MACS_QVALUE=0.01
 
-# Each ISL1 library has its own IgG from the same chromatin prep -> matched.
-IGG_METHOD=matched
-POOL_TARGET_FRAGMENTS=4000000
-POOL_IGG_SAMPLES=()
-POOL_IGG_SEEDS=()
+# Pool = all 13 IgGs (every row with role IgG), each deduplicated and downsampled to the same
+# POOL_TARGET_FRAGMENTS, one fixed seed each. The target must be <= the smallest IgG's
+# deduplicated fragment count, and strictly below it (a fraction of exactly 1 breaks
+# samtools -s SEED.FRAC). Set from the alignment markdup metrics once 01_align is done.
+mapfile -t POOL_IGG_SAMPLES < <(awk -F'\t' 'NR>1 && $3=="IgG" {print $2}' "${SAMPLE_SHEET}")
+POOL_IGG_SEEDS=($(seq 101 $((100 + ${#POOL_IGG_SAMPLES[@]}))))
+POOL_TARGET_FRAGMENTS=
+if [[ "${IGG_METHOD}" == pooled ]]; then
+  [[ -n "${POOL_TARGET_FRAGMENTS}" ]] || { echo "ERROR: POOL_TARGET_FRAGMENTS not set in study_config/config.sh" >&2; exit 1; }
+  (( ${#POOL_IGG_SAMPLES[@]} >= 2 )) || { echo "ERROR: need >=2 IgG rows in ${SAMPLE_SHEET} to pool" >&2; exit 1; }
+fi

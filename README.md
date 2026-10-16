@@ -63,26 +63,41 @@ delivery folder) is in `sample_metadata.tsv`, keyed by `sample_name`.
    ```
 
 Reference: hg38 bowtie2 index `/pl/active/ZhuLab_BDC/genome/hg38_bt2/hg38`, blacklist
-`/pl/active/ZhuLab_BDC/genome/GRCh38_unified_blacklist.bed`. IgG background: `matched`.
+`/pl/active/ZhuLab_BDC/genome/GRCh38_unified_blacklist.bed`.
 
 ## Pipeline
 
-Step 0 (this repo): `sbatch scripts/00_md5_check.sb 7535-0001-08202026_144755`
+Step 0 (this repo): `sbatch scripts/00_md5_check.sb <batch folder>` (both batches OK, 52/52),
+`sbatch scripts/00b_build_env.sb`.
 
-Then the general pipeline, submitted from `pipeline/` (its Slurm logs go to `logs/` relative to
-the submit directory, which `setup_links.sh` points at scratch):
+Then the general pipeline, submitted from `pipeline/` (the scripts find `config.sh` and `logs/`
+through `SLURM_SUBMIT_DIR`; `setup_links.sh` points `logs/` at scratch):
 
 ```
 cd pipeline
 sbatch scripts/00_fastqc.sb
 bash   scripts/submit_align.sh            # array, one task per library (26)
-sbatch scripts/02_build_igg_background.sb
+sbatch scripts/02_build_igg_background.sb                                   # own IgG
+sbatch --export=ALL,IGG_METHOD=pooled scripts/02_build_igg_background.sb    # pool of 13
 sbatch scripts/03_call_macs3.sb
+sbatch --export=ALL,IGG_METHOD=pooled scripts/03_call_macs3.sb
 sbatch scripts/04_tracks.sb
+cd .. && sbatch scripts/03b_compare_igg_methods.sb
 ```
 
-All outputs on scratch: `/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/results/`
-(purged after 90 days -- copy keepers to `/pl/active`).
+### IgG background: matched vs pooled
+
+Every ISL1 sample is called twice: against its own IgG (`matched`) and against one pool of all
+13 IgGs, each deduplicated and downsampled to `POOL_TARGET_FRAGMENTS` with a fixed seed
+(`pooled`, the pipeline's own method). `IGG_METHOD` (default `matched`) picks the output tree:
+`results/` or `results_pooled/`, the latter sharing `results/bam` through a symlink.
+
+`scripts/03b_compare_igg_methods.sb` then compares the two peak sets per sample (overlap both
+ways, top-1000 recovery, bp Jaccard) and flags samples that agree much less than the cohort.
+A flagged sample points at its own IgG. Report: `results/igg_method_comparison/`.
+
+All outputs on scratch: `/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/results/` and
+`results_pooled/` (purged after 90 days -- copy keepers to `/pl/active`).
 
 ## Local review copy (Mac)
 

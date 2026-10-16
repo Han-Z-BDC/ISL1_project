@@ -3,14 +3,17 @@
 #   pipeline/config.sh -> study_config/config.sh
 #   pipeline/logs      -> ${LOGS}/pipeline   (pipeline .sb files log to logs/ relative to pipeline/)
 #   ${RAW_DIR}/<library>_R{1,2}_001.fastq.gz -> the fastq in whichever Admera batch has it
+#   ${SCRATCH}/results_pooled/bam -> ../results/bam  (pooled-IgG run reuses the one alignment)
 # config.sh and logs/ are gitignored inside pipeline/, so it stays identical to cutnrun-pipeline.
 set -euo pipefail
 R=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+IGG_METHOD=matched   # links are laid out from the matched (default) tree
 source "$R/study_config/config.sh"
 
 ln -sfn ../study_config/config.sh "$R/pipeline/config.sh"
-mkdir -p "${LOGS}/pipeline" "${OUT_DIR}" "${RAW_DIR}"
+mkdir -p "${LOGS}/pipeline" "${OUT_DIR}/bam" "${RAW_DIR}" "${SCRATCH}/results_pooled"
 ln -sfn "${LOGS}/pipeline" "$R/pipeline/logs"
+ln -sfn ../results/bam "${SCRATCH}/results_pooled/bam"
 
 n=0
 while IFS=$'\t' read -r library _; do
