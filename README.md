@@ -3,7 +3,7 @@
 ISL1 CUT&RUN (with matched IgG) across the ISL1 stem-cell islet differentiation, control vs
 ISL1-KO, at D12, D15 and D22. Analysis for publication, built on the general lab pipeline
 [cutnrun-pipeline](https://github.com/ZhuLab-CUAnschutz/cutnrun-pipeline), vendored unchanged
-in `pipeline/` (copied from commit `4845283`, 2026-10-16).
+in `pipeline/` (copied from commit `9972cc2`, 2026-10-16).
 
 Repo (Alpine): `/pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun` -- local git, not pushed to GitHub yet.
 

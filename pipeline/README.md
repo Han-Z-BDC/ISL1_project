@@ -63,6 +63,9 @@ flattening your strongest peaks.
 
 ## 5. Run it, in order
 
+Submit every step from the repo root (the scripts locate `config.sh` and `logs/`
+through `SLURM_SUBMIT_DIR`):
+
 ```bash
 sbatch scripts/00_fastqc.sb              # wait for it to finish, check qc/raw_fastqc/multiqc_report.html
 bash scripts/submit_align.sh             # array job, one task per sample -- don't sbatch 01_align.sb directly

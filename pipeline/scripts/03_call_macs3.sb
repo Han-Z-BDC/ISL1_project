@@ -16,7 +16,10 @@
 # deduplicated by the time it gets here.
 
 set -euo pipefail
-P=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# Slurm runs a copy of this script from its spool dir, so BASH_SOURCE cannot locate the repo;
+# use the directory sbatch was called from, which must be the repo root.
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- submit via sbatch from the repo root, not run directly}"
+[[ -f "${P}/config.sh" ]] || { echo "ERROR: no config.sh in ${P} -- submit from the repo root" >&2; exit 1; }
 source "${P}/config.sh"
 
 BAM=${OUT_DIR}/bam
