@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=8G
+#SBATCH --time=04:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=cutnrun_fastqc
+#SBATCH --output=logs/fastqc.%j.out
+
+set -euo pipefail
+P=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "${P}/config.sh"
+mkdir -p "${OUT_DIR}/qc/raw_fastqc" "${P}/logs"
+
+shopt -s nullglob
+FASTQS=("${RAW_DIR}"/*.fastq.gz)
+(( ${#FASTQS[@]} > 0 )) || { echo "ERROR: no FASTQs found in ${RAW_DIR}" >&2; exit 1; }
+
+"${TOOLS}/fastqc" -t "${SLURM_CPUS_PER_TASK:-8}" -o "${OUT_DIR}/qc/raw_fastqc" "${FASTQS[@]}"
+"${TOOLS}/multiqc" "${OUT_DIR}/qc/raw_fastqc" -o "${OUT_DIR}/qc/raw_fastqc" --force
