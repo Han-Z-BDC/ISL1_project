@@ -27,12 +27,14 @@ Samples per condition (ISL1 + matched IgG each):
 | D15 | rep1 | rep1, rep3, rep4 |
 | D22 | rep1, rep2, rep3 | -- |
 
+Confirmed 2026-10-16: D15 Ctr has only the one replicate, and there is no D15 KO rep2
+(numbering kept as delivered, rep3/rep4).
+
 ISL1 CUT&RUN in the KO doubles as the antibody-specificity control: true ISL1 peaks should be
 lost or strongly reduced there.
 
 Open questions on the sample sheet (to confirm with the bench):
 - Batch 1 libraries are named `...-3d-1` (D12/D15) or `D22-Ctr-1`; treated here as rep1.
-- D15 KO has no rep2, and D15 Ctr has only rep1 -- confirm none are missing from Admera.
 - "Ctr" is `Ctr-GFP` at D12/D15 and plain `Ctr` at D22 -- confirm the same control line.
 
 ## Layout
