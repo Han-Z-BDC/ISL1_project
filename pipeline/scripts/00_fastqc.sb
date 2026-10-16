@@ -21,5 +21,5 @@ shopt -s nullglob
 FASTQS=("${RAW_DIR}"/*.fastq.gz)
 (( ${#FASTQS[@]} > 0 )) || { echo "ERROR: no FASTQs found in ${RAW_DIR}" >&2; exit 1; }
 
-"${TOOLS}/fastqc" -t "${SLURM_CPUS_PER_TASK:-8}" -o "${OUT_DIR}/qc/raw_fastqc" "${FASTQS[@]}"
+"${TOOLS}/fastqc" -t "${SLURM_CPUS_PER_TASK:-8}" --outdir "${OUT_DIR}/qc/raw_fastqc" "${FASTQS[@]}"
 "${TOOLS}/multiqc" "${OUT_DIR}/qc/raw_fastqc" -o "${OUT_DIR}/qc/raw_fastqc" --force
