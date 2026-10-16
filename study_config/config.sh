@@ -6,8 +6,10 @@
 set -euo pipefail
 
 # --- Paths -------------------------------------------------------------
-# Admera project 260924-0015 (delivered 2026-10-08); this delivery also contains
-# ISL1 CUT&RUN fastqs in the same folder -- only the *_scRNA_* files are used here.
+# Admera project 260924-0015 (delivered 2026-10-08). The delivery also had 32 ISL1 CUT&RUN
+# fastqs; moved 2026-10-16 to /pl/active/ZhuLab_BDC/raw_data/ISL1_cut_N_run/7535-0002-10082026_215649
+# (same folder name). Here: the 2 scRNA fastqs, md5.txt (their 2 lines) and
+# md5.admera_full_delivery.txt (Admera's original, all 34 files).
 RAW_DIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0002-10082026_215649
 REPO_DIR=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq   # code + configs only, no outputs
 # All outputs (logs + results) on scratch -- purged after 90 days, copy keepers to /pl/active.
