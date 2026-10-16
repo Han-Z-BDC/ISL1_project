@@ -76,7 +76,7 @@ through `SLURM_SUBMIT_DIR`; `setup_links.sh` points `logs/` at scratch):
 ```
 cd pipeline
 sbatch scripts/00_fastqc.sb
-bash   scripts/submit_align.sh            # array, one task per library (26)
+sbatch --array=0-25 --mem=16G --time=06:00:00 scripts/01_align.sb   # see Resources below
 sbatch scripts/02_build_igg_background.sb                                   # own IgG
 sbatch --export=ALL,IGG_METHOD=pooled scripts/02_build_igg_background.sb    # pool of 13
 sbatch scripts/03_call_macs3.sb
@@ -84,6 +84,16 @@ sbatch --export=ALL,IGG_METHOD=pooled scripts/03_call_macs3.sb
 sbatch scripts/04_tracks.sb
 cd .. && sbatch scripts/03b_compare_igg_methods.sb
 ```
+
+### Resources
+
+Requests are overridden on the `sbatch` command line rather than edited in `pipeline/`, so the
+vendored copy stays identical. Alignment: 8 CPU, 16 GB, 6 h per task instead of the pipeline's
+32 GB / 24 h. On `acpu` each core carries 3.84 GB, so 32 GB is charged as 9 cores; the real peak is
+about 7 GB (bowtie2 with hg38, then `samtools sort -@ 8`). The March 2026 lab CUT&RUN run
+(job 24475155) took about 46 min per 31 M-pair library on 12 cores, so 6 h leaves a wide margin.
+First submission (job 34353064, pipeline defaults) was cancelled while still pending;
+the alignment that ran is job 34354886.
 
 ### IgG background: matched vs pooled
 
