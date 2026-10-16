@@ -19,11 +19,16 @@ set -euo pipefail
 
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
 
-cd "${RAW_DIR}"
-echo "[$(date)] Checking $(wc -l < md5.txt) files in ${RAW_DIR}"
-xargs -P "${SLURM_CPUS_PER_TASK}" -L 1 sh -c 'echo "$0  $1" | md5sum -c -' < md5.txt | sort > "${LOGS}/md5_check.${SLURM_JOB_ID}.result"
+# Optional argument: folder to check (default RAW_DIR). Used 2026-10-16 to re-check both the
+# scRNA folder and raw_data/ISL1_cut_N_run/7535-0002-10082026_215649 after the CUT&RUN move:
+#   sbatch scripts/00_md5_check.sb /pl/active/ZhuLab_BDC/raw_data/ISL1_cut_N_run/7535-0002-10082026_215649
+CHECK_DIR="${1:-${RAW_DIR}}"
+TAG=$(basename "$(dirname "${CHECK_DIR}")")
+cd "${CHECK_DIR}"
+echo "[$(date)] Checking $(wc -l < md5.txt) files in ${CHECK_DIR}"
+xargs -P "${SLURM_CPUS_PER_TASK}" -L 1 sh -c 'echo "$0  $1" | md5sum -c -' < md5.txt | sort > "${LOGS}/md5_check.${TAG}.${SLURM_JOB_ID}.result"
 
-cat "${LOGS}/md5_check.${SLURM_JOB_ID}.result"
-n_ok=$(grep -c ": OK$" "${LOGS}/md5_check.${SLURM_JOB_ID}.result" || true)
+cat "${LOGS}/md5_check.${TAG}.${SLURM_JOB_ID}.result"
+n_ok=$(grep -c ": OK$" "${LOGS}/md5_check.${TAG}.${SLURM_JOB_ID}.result" || true)
 echo "[$(date)] ${n_ok}/$(wc -l < md5.txt) OK"
 [ "${n_ok}" -eq "$(wc -l < md5.txt)" ]
