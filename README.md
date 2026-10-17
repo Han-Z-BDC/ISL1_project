@@ -118,6 +118,26 @@ runs on two pseudoreplicates (fragments split by read-name parity, pairs kept to
 Its set shows self-consistency only and should be reported as unreplicated.
 Output: `results_group/idr/<group>.reproducible.narrowPeak` and `idr_summary.tsv`.
 
+Run 2026-10-17: IDR env 34433836, group IgG 34433838 (13 min), MACS3 array 34433840
+(25-54 min per task, peak RSS 12.0 GB, at the 12 GB request then; the script now asks 16G), IDR 34433842.
+
+| Group | q 0.01 peaks per replicate | IDR pairs (passing peaks) | Reproducible set |
+|---|---|---|---|
+| D12_Ctr | rep1 12,726; rep2 9,996 | rep1-rep2 2,867 | 2,867 |
+| D12_KO | rep1 9,815; rep2-4 599-912 | with rep1 5-11; rep2-4 pairs 58-82 | 82 |
+| D15_Ctr | rep1 32,748 | pseudoreplicates 9,344 | 9,344 (unreplicated) |
+| D15_KO | rep1 47,154; rep3/4 531, 435 | 48-77 | 77 |
+| D22_Ctr | rep1 8,602; rep2 35,726; rep3 18,680 | rep1-rep2 1,282; rep1-rep3 1,550; rep2-rep3 8,557 | 8,557 |
+
+**Batch 1 (all rep1) reproduces poorly against batch 2.** Every batch-1 ISL1 library fills the
+300k cap of the relaxed calls; batch-2 libraries reach only 120-184k. That means much more weak
+signal at p 0.01. In the q 0.01 calls, 79-87% of a rep1's top 1000 peaks are in the batch-2
+replicate, but only 59-61% of D22 rep2/rep3's top 1000 are in D22 rep1. The two batch-2 D22
+replicates recover 99-100% of each other's top 1000. So rep1 shares the strongest sites but
+is noisier and misses many strong ones. D12 Ctr has no batch-2 pair, so its set (2,867) is
+limited by rep1. The noisy KO libraries (D12_KO_rep1, D15_KO_rep1; about 10 k and 47 k peaks
+against the group IgG) are removed by IDR: 5-11 and 72-77 peaks pass.
+
 ### Resources
 
 Requests are overridden on the `sbatch` command line rather than edited in `pipeline/`, so the
