@@ -56,6 +56,15 @@ MACS_QVALUE=0.01
 mapfile -t POOL_IGG_SAMPLES < <(awk -F'\t' 'NR>1 && $3=="IgG" {print $2}' "${SAMPLE_SHEET}")
 POOL_IGG_SEEDS=($(seq 101 $((100 + ${#POOL_IGG_SAMPLES[@]}))))
 POOL_TARGET_FRAGMENTS=9000000
+# Final peak calls (study-only, scripts/02c + 03c): one IgG background per biological group
+# (day x genotype, from sample_metadata.tsv) = that group's deduplicated IgGs merged, used for
+# every ISL1 replicate in the group. D12_KO_rep1_IgG is excluded: it is the one sample flagged
+# by the pre-specified matched-vs-pooled check (28 peaks vs own IgG, 10,803 vs pool; job 34388152)
+# and the shallowest, least complex IgG (9.35 M unique fragments, 55% duplicates).
+METADATA=${STUDY_DIR}/study_config/sample_metadata.tsv
+GROUP_OUT=${SCRATCH}/results_group
+GROUP_IGG_EXCLUDE=(D12_KO_rep1_IgG)
+
 if [[ "${IGG_METHOD}" == pooled ]]; then
   [[ -n "${POOL_TARGET_FRAGMENTS}" ]] || { echo "ERROR: POOL_TARGET_FRAGMENTS not set in study_config/config.sh" >&2; exit 1; }
   (( ${#POOL_IGG_SAMPLES[@]} >= 2 )) || { echo "ERROR: need >=2 IgG rows in ${SAMPLE_SHEET} to pool" >&2; exit 1; }

@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_group_igg
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/group_igg.%j.out
+
+# Step 2c: one IgG background per biological group (day x genotype). Merges the group's
+# deduplicated IgGs from the matched run (results/igg_background/<IgG>.dedup.bam, built by
+# pipeline 02) except those in GROUP_IGG_EXCLUDE. No downsampling: within a group depth matters
+# more than equal shares. Output and manifest in ${GROUP_OUT}/igg_background/.
+#   sbatch scripts/02c_build_group_igg.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+T=${SLURM_CPUS_PER_TASK:-4}
+SRC=${OUT_DIR}/igg_background
+BG=${GROUP_OUT}/igg_background
+mkdir -p "${BG}"
+
+manifest=${BG}/group_igg_manifest.tsv
+echo -e "group\tn_igg\tigg_samples\texcluded\tfragments" > "${manifest}"
+
+# Groups that have ISL1 rows; their IgGs come from the same day x genotype.
+for group in $(awk -F'\t' 'NR>1 && $6=="ISL1" {print $3"_"$4}' "${METADATA}" | sort -u); do
+  members=(); excluded=()
+  for s in $(awk -F'\t' -v g="${group}" 'NR>1 && $6=="IgG" && $3"_"$4==g {print $1}' "${METADATA}"); do
+    if [[ " ${GROUP_IGG_EXCLUDE[*]} " == *" ${s} "* ]]; then excluded+=("${s}"); continue; fi
+    [[ -s "${SRC}/${s}.dedup.bam" ]] || { echo "ERROR: missing ${SRC}/${s}.dedup.bam -- run pipeline 02 (matched) first" >&2; exit 1; }
+    members+=("${SRC}/${s}.dedup.bam")
+  done
+  (( ${#members[@]} >= 1 )) || { echo "ERROR: no IgG left for group ${group}" >&2; exit 1; }
+
+  out=${BG}/${group}.group_IgG.bam
+  if (( ${#members[@]} == 1 )); then
+    cp "${members[0]}" "${out}"
+  else
+    "${TOOLS}/samtools" merge -@ "${T}" -f "${out}" "${members[@]}"
+  fi
+  "${TOOLS}/samtools" index -@ "${T}" "${out}"
+  n=$("${TOOLS}/samtools" view -@ "${T}" -c -f 64 "${out}")
+  names=$(printf '%s\n' "${members[@]}" | xargs -n1 basename | sed 's/\.dedup\.bam$//' | paste -sd,)
+  ex=$(IFS=,; echo "${excluded[*]:-}")
+  echo -e "${group}\t${#members[@]}\t${names}\t${ex:-none}\t${n}" >> "${manifest}"
+  echo "group IgG ${group}: ${names} (excluded: ${ex:-none}) -> ${n} fragments"
+done

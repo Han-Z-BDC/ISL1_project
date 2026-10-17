@@ -83,7 +83,26 @@ sbatch --mem=12G scripts/03_call_macs3.sb
 sbatch --time=12:00:00 --export=ALL,IGG_METHOD=pooled scripts/03_call_macs3.sb
 sbatch scripts/04_tracks.sb
 cd .. && sbatch scripts/03b_compare_igg_methods.sb
+sbatch scripts/02c_build_group_igg.sb                    # final calls: IgG pooled per group
+sbatch --array=0-12 scripts/03c_call_macs3_group.sb      # each ISL1 replicate vs its group IgG
 ```
+
+### Final peak calls: group IgG
+
+Each ISL1 replicate is called against its biological group's IgG background: the day x
+genotype group's deduplicated IgGs merged, with no downsampling. D12_KO_rep1_IgG is excluded by
+the pre-specified matched-vs-pooled criterion (below); it is also the shallowest, least complex
+IgG. D12_KO_rep1_ISL1 is therefore called against the other three D12 KO IgGs. D15 Ctr has one
+IgG, so its group background is that IgG alone (13.9 M). Settings in `study_config/config.sh`
+(`GROUP_IGG_EXCLUDE`); output in `results_group/` with `igg_background/group_igg_manifest.tsv`.
+
+| Group | IgGs used | Approx. unique fragments |
+|---|---|---|
+| D12_Ctr | rep1, rep2 | 42.7 M |
+| D12_KO | rep2, rep3, rep4 (rep1 excluded) | 67.1 M |
+| D15_Ctr | rep1 | 13.9 M |
+| D15_KO | rep1, rep3, rep4 | 83.2 M |
+| D22_Ctr | rep1, rep2, rep3 | 71.3 M |
 
 ### Resources
 
