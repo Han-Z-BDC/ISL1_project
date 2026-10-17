@@ -135,8 +135,34 @@ signal at p 0.01. In the q 0.01 calls, 79-87% of a rep1's top 1000 peaks are in 
 replicate, but only 59-61% of D22 rep2/rep3's top 1000 are in D22 rep1. The two batch-2 D22
 replicates recover 99-100% of each other's top 1000. So rep1 shares the strongest sites but
 is noisier and misses many strong ones. D12 Ctr has no batch-2 pair, so its set (2,867) is
-limited by rep1. The noisy KO libraries (D12_KO_rep1, D15_KO_rep1; about 10 k and 47 k peaks
+limited by rep1 (but see the ENCODE ratios below: D12 rep1 itself is fine). The noisy KO libraries (D12_KO_rep1, D15_KO_rep1; about 10 k and 47 k peaks
 against the group IgG) are removed by IDR: 5-11 and 72-77 peaks pass.
+
+### Replicate QC report and ENCODE IDR ratios
+
+`scripts/03d_pseudoreps.sb` (self: job 34471362, pooled: 34471363), `scripts/04d_idr_qc.sb`
+(34471364), `scripts/05_replicate_peak_report.sb` (34471365). Report:
+`results/replicate_peak_report/replicate_peak_report.html`, with per-replicate stats, FRiP,
+Venn/UpSet overlaps, pairwise recovery, IDR and a cross-replicate Jaccard map. Pooled
+pseudoreplicate tasks peaked at 5.3 GB, so the 32G override was unnecessary; 16G is enough.
+
+| Group | Self-pseudorep IDR peaks per replicate | Self-consistency | Nt | Np | Rescue | ENCODE |
+|---|---|---|---|---|---|---|
+| D12_Ctr | rep1 2,641; rep2 2,416 | 1.09 | 2,867 | 4,498 | 1.57 | pass |
+| D22_Ctr | rep1 904; rep2 7,919; rep3 4,512 | 8.76 | 8,557 | 10,397 | 1.22 | borderline |
+| D15_Ctr | rep1 9,344 | -- | -- | -- | -- | unreplicated |
+| D12_KO | 0-17 | inf | 82 | 180 | 2.20 | fail (not meaningful: no binding) |
+| D15_KO | 0-17 | inf | 77 | 252 | 3.27 | fail (not meaningful: no binding) |
+
+- **Batch 1 is not uniformly weak.** D12 Ctr rep1 is as self-consistent as rep2, and D12 Ctr
+  passes. D15 Ctr rep1 (batch 1) has the highest self-pseudorep count of any replicate (9,344),
+  and FRiP 5.0%. Its peaks overlap D22 rep2/rep3 more than any other pair across days
+  (Jaccard 0.28-0.29).
+- **The weak control replicate is D22 Ctr rep1.** Self-pseudorep 904, against 4,512-7,919 for
+  rep2/rep3. FRiP 0.9%, the lowest of the control replicates. It misses up to 31% of its
+  partners' top 1000 peaks. It alone makes D22 borderline; the rescue ratio (1.22) is fine.
+- **D12 Ctr rep1 has low FRiP (1.5%) but holds up on IDR,** so it is not a failing replicate.
+- **KO groups:** near-zero self-pseudorep counts are what a specificity control should show.
 
 ### Resources
 

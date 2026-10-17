@@ -379,7 +379,10 @@ def render(groups, stats, pair_rows, venns, jac, order, idr_pairs, qc, meta):
             f"<td>{int(q['N_self_min']):,} – {int(q['N_self_max']):,}</td><td>{esc(q['self_consistency_ratio'])}</td>"
             f"<td>{'NA' if q['Nt'] == 'NA' else format(int(q['Nt']), ',')}</td>"
             f"<td>{'NA' if q['Np'] == 'NA' else format(int(q['Np']), ',')}</td>"
-            f"<td>{esc(q['rescue_ratio'])}</td><td class='l status'>{esc(q['status'])}</td></tr>")
+            f"<td>{esc(q['rescue_ratio'])}</td><td class='l status'>{esc(q['status'])}"
+            # KO has no ISL1 to bind: near-zero IDR counts make the ratios meaningless there.
+            + (" <span class='mute small'>(not meaningful for KO: no true binding)</span>" if g.endswith("_KO") else "")
+            + "</td></tr>")
 
     sections = []
     for g, reps in groups.items():
