@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --partition=acpu --qos=cpu-normal --cpus-per-task=4 --mem=8G --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/diag/dup_in_peaks.%j.out
+# Exploratory: duplicate share of read1 fragments inside each TF sample peak set vs genome-wide.
+set -euo pipefail
+S=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun; ST=/projects/hzhu10@xsede.org/software/anaconda/envs/cutnrun/bin/samtools
+printf "sample\tmethod\tpeaks\tgenome_dup\tin_peak_frags\tin_peak_dup\tfrip\n"
+for s in $(awk -F"\t" "NR>1 && \$3==\"TF\" {print \$2}" /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/samples.tsv); do
+  b=$S/results/bam/$s.filtered.bam
+  tot=$($ST view -@4 -c -f 64 $b); dup=$($ST view -@4 -c -f 1088 $b)
+  for m in results results_pooled; do
+    bed=$(mktemp); cut -f1-3 $S/$m/macs3/${s}_peaks.filtered.narrowPeak | sort -u -k1,1 -k2,2n > $bed
+    n=$(wc -l < $bed)
+    if (( n > 0 )); then ip=$($ST view -@4 -c -f 64 -L $bed $b); id=$($ST view -@4 -c -f 1088 -L $bed $b); else ip=0; id=0; fi
+    awk -v s=$s -v m=${m#results_} -v n=$n -v t=$tot -v d=$dup -v ip=$ip -v id=$id "BEGIN{m=(m==\"results\"?\"matched\":m); printf \"%s\t%s\t%d\t%.3f\t%d\t%.3f\t%.3f\n\",s,m,n,d/t,ip,(ip?id/ip:0),ip/t}"
+    rm -f $bed
+  done
+done

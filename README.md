@@ -98,9 +98,18 @@ the alignment that ran is job 34354886: all 26 tasks completed in 1.6-3.0 h. Pea
 16 GB limit. For a rerun, request `--mem=30G`: 8 cores already carry 30.7 GB on `acpu`,
 so the charge stays at 8 cores.
 
-Later steps (job IDs in the run log below): 02 at 4 CPU / 8 GB (samtools view only),
-03 at 2 CPU / 12 GB matched and 2 CPU / 16 GB pooled (MACS3 is single-threaded; the pooled
-control holds 117 M fragments), 04 at the pipeline defaults.
+Later steps, all completed:
+
+| Step | Job | Request | Elapsed | Peak RSS |
+|---|---|---|---|---|
+| 02 matched | 34358598 | 4 CPU / 8 GB | 1:30 | <0.1 GB |
+| 02 pooled | 34358599 | 4 CPU / 8 GB | 2:06 | <0.1 GB |
+| 03 matched | 34358600 | 2 CPU / 12 GB | 2:05 | 8.3 GB |
+| 03 pooled | 34358601 | 2 CPU / 16 GB, 12 h | 6:58 | 6.7 GB |
+| 04 tracks | 34358602 | 8 CPU / 24 GB (defaults) | 2:50 | 3.6 GB |
+| 03b compare | 34388152 | 1 CPU / 4 GB | <1 min | -- |
+
+02 could run at 1 CPU / 2 GB.
 
 ### Alignment (job 34354886)
 
@@ -128,8 +137,37 @@ Every ISL1 sample is called twice: against its own IgG (`matched`) and against o
 `results/` or `results_pooled/`, the latter sharing `results/bam` through a symlink.
 
 `scripts/03b_compare_igg_methods.sb` then compares the two peak sets per sample (overlap both
-ways, top-1000 recovery, bp Jaccard) and flags samples that agree much less than the cohort.
-A flagged sample points at its own IgG. Report: `results/igg_method_comparison/`.
+ways, top-1000 recovery, bp Jaccard). It flags a sample when under 10% of one peak set is in the
+other, or when its pooled/matched peak-count ratio is a cohort outlier (>3 scaled MADs on log2).
+Report: `results/igg_method_comparison/`.
+
+Result (2026-10-17):
+
+- **12 of 13 samples agree.** In Ctr samples, 93-100% of the top 1000 peaks are recovered
+  either way. The pool calls 1.0-3.4x more peaks for every sample (median log2 ratio 0.60).
+- **One flag: D12_KO_rep1.** 28 peaks vs own IgG, 10,803 vs the pool; 0.15% of pooled peaks
+  are in the matched set.
+- **The flag is a depth effect, not the IgG's content** (`scripts/diag/depth_matched_d12ko1.sb`,
+  job 34388231). Against other controls downsampled to its own IgG's 9.35 M fragments,
+  D12_KO_rep1 gives 16 peaks (D12_KO_rep2 IgG) and 37 peaks (pool). MACS3 scales the larger
+  file down (`--scale-to small`), so a control shallower than the ISL1 library (9.4 M vs
+  27.0 M) lowers sensitivity. The matched calls for the five shallow batch-1 IgGs are
+  therefore conservative.
+- **The 10.8 k pooled peaks are not ISL1 binding.** Only 2% are at Ctr ISL1 peaks (D12 Ctr
+  union); other D12 KOs are at 20-27%. They are narrow (median 164 bp), genome-wide in
+  proportion to chromosome size (not a CNV), and weak: about 16 fragments each, 0.6% of
+  fragments. That points to a noisier ISL1 library, not ISL1 signal.
+- **D15_KO_rep1 is a separate ISL1-library problem.** 35,123 peaks even against its own IgG,
+  vs about 450 for D15 KO rep3/4, and only 7% at D15 Ctr ISL1 sites. Same narrow,
+  genome-wide pattern; 41.6% duplicates, the lowest-depth ISL1 library (10.9 M unique). Not
+  flagged, because both IgG methods agree on it.
+- **Duplicates do not explain either** (`scripts/diag/dup_in_peaks.sb`, job 34387009). In-peak
+  duplicate share is 1.2-1.6x the genome-wide rate in every sample, controls included.
+- **KO residual peaks (D12 KO rep2-4).** 600-1,200 peaks hold 3-10% of fragments at 58-73%
+  duplicates: high-signal artifact regions the blacklist misses. Handle before differential
+  analysis.
+- **Contigs.** The hg38 index includes unplaced and alt contigs (`GL000195.1`, `KI270438.1`).
+  Publication peak sets should probably keep chr1-22, X and Y only.
 
 All outputs on scratch: `/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/results/` and
 `results_pooled/` (purged after 90 days -- copy keepers to `/pl/active`).
