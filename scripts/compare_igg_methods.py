@@ -9,6 +9,7 @@ usage: compare_igg_methods.py <samples.tsv> <sample_metadata.tsv> <matched_macs3
 """
 import csv
 import html
+import math
 import statistics
 import subprocess
 import sys
@@ -16,8 +17,13 @@ import tempfile
 from pathlib import Path
 
 TOP_N = 1000          # strongest peaks (by -log10 q) checked for recovery in the other set
-OUTLIER_MADS = 3      # flag min_overlap below cohort median - OUTLIER_MADS * scaled MAD ...
-MIN_DROP = 0.10       # ... and at least this far below the median (a tight cohort has a tiny MAD)
+# Flag a sample when either
+#   min_overlap < MIN_OVERLAP: under this share of one peak set is found in the other, or
+#   log2(n_pooled / n_matched) is more than OUTLIER_MADS scaled MADs from the cohort median.
+# A median/MAD cutoff on min_overlap itself does not work here: Ctr samples (thousands of
+# peaks) and KO samples (hundreds) spread the cohort so widely that the cutoff goes negative.
+MIN_OVERLAP = 0.10
+OUTLIER_MADS = 3
 
 
 def read_tsv(path):
@@ -94,14 +100,19 @@ def main(samples_tsv, metadata_tsv, matched_dir, pooled_dir, manifest_tsv, tool,
                 "jaccard_bp": jaccard(tool, beds["m"], beds["p"]) if m and p else float("nan"),
             }
             row["min_overlap"] = min(row["matched_in_pooled"], row["pooled_in_matched"])
+            row["log2_peak_ratio"] = (math.log2(len(p) / len(m)) if m and p else float("nan"))
             rows.append(row)
 
-    vals = [r["min_overlap"] for r in rows if r["min_overlap"] == r["min_overlap"]]
+    vals = [r["log2_peak_ratio"] for r in rows if r["log2_peak_ratio"] == r["log2_peak_ratio"]]
     med = statistics.median(vals)
     mad = 1.4826 * statistics.median(abs(v - med) for v in vals)
-    cutoff = min(med - OUTLIER_MADS * mad, med - MIN_DROP)
     for r in rows:
-        r["flag"] = "outlier" if r["min_overlap"] < cutoff else ""
+        why = []
+        if r["min_overlap"] < MIN_OVERLAP:
+            why.append("low overlap")
+        if mad and abs(r["log2_peak_ratio"] - med) > OUTLIER_MADS * mad:
+            why.append("peak-count ratio")
+        r["flag"] = "; ".join(why)
     rows.sort(key=lambda r: r["min_overlap"])
 
     cols = list(rows[0])
@@ -109,20 +120,21 @@ def main(samples_tsv, metadata_tsv, matched_dir, pooled_dir, manifest_tsv, tool,
         w = csv.DictWriter(f, cols, delimiter="\t")
         w.writeheader()
         w.writerows(rows)
-    (out / "igg_method_comparison.html").write_text(render_html(rows, med, cutoff))
-    print(f"{len(rows)} samples; min_overlap median {med:.3f}, outlier cutoff {cutoff:.3f}; "
+    (out / "igg_method_comparison.html").write_text(render_html(rows, med, mad))
+    print(f"{len(rows)} samples; log2(pooled/matched peaks) median {med:.2f}, scaled MAD {mad:.2f}; "
           f"flagged: {[r['sample'] for r in rows if r['flag']] or 'none'}")
 
 
-def render_html(rows, med, cutoff):
+def render_html(rows, med, mad):
     pct = lambda v: "n/a" if v != v else f"{100 * v:.1f}%"
     head = ["Sample", "Day", "Geno", "Batch", "Own IgG unique frags", "IgG dup", "Peaks matched",
-            "Peaks pooled", "Matched found in pooled", "Pooled found in matched",
+            "Peaks pooled", "log2 pooled/matched", "Matched found in pooled", "Pooled found in matched",
             f"Top {TOP_N} matched in pooled", f"Top {TOP_N} pooled in matched", "Jaccard (bp)", ""]
     body = []
     for r in rows:
         cells = [r["sample"], r["day"], r["genotype"], r["batch"], f"{r['igg_unique_fragments'] / 1e6:.1f} M",
                  pct(r["igg_dup_rate"]), f"{r['n_matched']:,}", f"{r['n_pooled']:,}",
+                 f"{r['log2_peak_ratio']:.2f}",
                  pct(r["matched_in_pooled"]), pct(r["pooled_in_matched"]),
                  pct(r["top_matched_in_pooled"]), pct(r["top_pooled_in_matched"]),
                  f"{r['jaccard_bp']:.3f}", r["flag"]]
@@ -142,9 +154,9 @@ p{{max-width:820px}} .mute{{color:var(--mute)}}
 <h1>ISL1 CUT&amp;RUN: own IgG vs pooled IgG</h1>
 <p>Each ISL1 sample was called with MACS3 twice: against its own deduplicated IgG (matched) and against
 one pool of all 13 IgGs, each deduplicated and downsampled to the same depth (pooled). Rows are sorted by
-the smaller of the two overlap percentages. A row is flagged when that value is below the cohort median
-({100 * med:.1f}%) by more than {OUTLIER_MADS} scaled MADs and at least {100 * MIN_DROP:.0f} points
-(cutoff {100 * cutoff:.1f}%).</p>
+the smaller of the two overlap percentages. A row is flagged when that value is under
+{100 * MIN_OVERLAP:.0f}% (low overlap), or when log2(pooled / matched peak count) is more than
+{OUTLIER_MADS} scaled MADs from the cohort median ({med:.2f}; MAD {mad:.2f}; peak-count ratio).</p>
 <p><b>Reading the direction.</b> Matched peaks missing from pooled: the own IgG lacks background the pool has
 (too shallow or too flat), so extra peaks appear at sticky or open regions. Pooled peaks missing from matched:
 the own IgG has signal at real sites (carry-over), or it captures sample-specific background that the pool
