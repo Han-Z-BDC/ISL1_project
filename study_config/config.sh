@@ -65,6 +65,10 @@ METADATA=${STUDY_DIR}/study_config/sample_metadata.tsv
 GROUP_OUT=${SCRATCH}/results_group
 GROUP_IGG_EXCLUDE=(D12_KO_rep1_IgG)
 
+# IDR on the relaxed group calls (scripts/04c_idr.sb); own env, built by scripts/00c_build_idr_env.sb.
+IDR_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/idr/bin
+IDR_THRESHOLD=0.05
+
 if [[ "${IGG_METHOD}" == pooled ]]; then
   [[ -n "${POOL_TARGET_FRAGMENTS}" ]] || { echo "ERROR: POOL_TARGET_FRAGMENTS not set in study_config/config.sh" >&2; exit 1; }
   (( ${#POOL_IGG_SAMPLES[@]} >= 2 )) || { echo "ERROR: need >=2 IgG rows in ${SAMPLE_SHEET} to pool" >&2; exit 1; }

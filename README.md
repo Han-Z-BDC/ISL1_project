@@ -83,8 +83,10 @@ sbatch --mem=12G scripts/03_call_macs3.sb
 sbatch --time=12:00:00 --export=ALL,IGG_METHOD=pooled scripts/03_call_macs3.sb
 sbatch scripts/04_tracks.sb
 cd .. && sbatch scripts/03b_compare_igg_methods.sb
+sbatch scripts/00c_build_idr_env.sb                      # IDR env (python 3.9 / numpy 1.23)
 sbatch scripts/02c_build_group_igg.sb                    # final calls: IgG pooled per group
 sbatch --array=0-12 scripts/03c_call_macs3_group.sb      # each ISL1 replicate vs its group IgG
+sbatch scripts/04c_idr.sb                                # reproducible peaks per group
 ```
 
 ### Final peak calls: group IgG
@@ -103,6 +105,18 @@ IgG, so its group background is that IgG alone (13.9 M). Settings in `study_conf
 | D15_Ctr | rep1 | 13.9 M |
 | D15_KO | rep1, rep3, rep4 | 83.2 M |
 | D22_Ctr | rep1, rep2, rep3 | 71.3 M |
+
+Each replicate is called twice against its group IgG:
+- **`macs3/`:** q 0.01, the pipeline's settings, for browsing and per-sample counts.
+- **`macs3_relaxed/`:** p 0.01, one row per peak, top 300k by p value, blacklist filtered.
+  This is the input for IDR.
+
+Reproducible peaks (`scripts/04c_idr.sb`, IDR 2.0.4.2, ranked by p value, global IDR < 0.05):
+every replicate pair in a group is run, and the group set is the pair with the most passing
+peaks (ENCODE's choice for more than two replicates). D15 Ctr has a single replicate, so IDR
+runs on two pseudoreplicates (fragments split by read-name parity, pairs kept together).
+Its set shows self-consistency only and should be reported as unreplicated.
+Output: `results_group/idr/<group>.reproducible.narrowPeak` and `idr_summary.tsv`.
 
 ### Resources
 

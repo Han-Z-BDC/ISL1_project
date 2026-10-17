@@ -6,12 +6,17 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=12G
-#SBATCH --time=04:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/macs3_group.%A_%a.out
 
 # Step 3c: each ISL1 replicate vs its group's IgG background (02c), one array task per ISL1
-# row of samples.tsv. MACS3 command and blacklist filter are the same as
-# pipeline/scripts/03_call_macs3.sb -- keep them in sync. Output: ${GROUP_OUT}/macs3/.
+# row of samples.tsv. Two calls per replicate:
+#   macs3/          q 0.01, the same MACS3 command and blacklist filter as
+#                   pipeline/scripts/03_call_macs3.sb -- keep them in sync
+#   macs3_relaxed/  p 0.01, no --call-summits (one row per peak), top 300k by p, blacklist
+#                   filtered: input for IDR (04c), which needs the noise to model it
+# A group with a single ISL1 replicate (D15 Ctr) also gets two pseudoreplicates (fragments
+# split by read-name parity) called the same relaxed way, for a pseudoreplicate IDR.
 #   sbatch --array=0-12 scripts/03c_call_macs3_group.sb
 
 set -euo pipefail
@@ -44,3 +49,32 @@ echo "calling peaks: ${sample} vs $(basename "${control_bam}")"
 n_raw=$(wc -l < "${OUT}/${sample}_peaks.narrowPeak")
 n_filtered=$(wc -l < "${OUT}/${sample}_peaks.filtered.narrowPeak")
 echo "SUMMARY ${sample}: raw_peaks=${n_raw} blacklist_filtered_peaks=${n_filtered}"
+
+REL=${GROUP_OUT}/macs3_relaxed
+mkdir -p "${REL}"
+relaxed () {
+  # $1 = name, $2 = treatment BAM -> ${REL}/$1_peaks.relaxed.narrowPeak
+  "${TOOLS}/macs3" callpeak -t "$2" -c "${control_bam}" -f BAMPE -g hs \
+    -n "$1" -p 0.01 --keep-dup all --outdir "${REL}"
+  sort -k8,8gr "${REL}/$1_peaks.narrowPeak" | awk 'NR <= 300000' \
+    | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" > "${REL}/$1_peaks.relaxed.narrowPeak"
+  echo "RELAXED $1: $(wc -l < "${REL}/$1_peaks.relaxed.narrowPeak") peaks (p 0.01, top 300k, blacklist filtered)"
+}
+relaxed "${sample}" "${target}"
+
+n_reps=$(awk -F'\t' -v g="${group}" 'NR>1 && $6=="ISL1" && $3"_"$4==g' "${METADATA}" | wc -l)
+if (( n_reps == 1 )); then
+  # Pseudoreplicates: both mates share a read name, so splitting on the parity of its last
+  # field (the Illumina y coordinate) keeps pairs together and is reproducible.
+  pr=${REL}/${sample}
+  "${TOOLS}/samtools" view -h "${target}" | awk -v c1="${TOOLS}/samtools view -b -o ${pr}.pr1.bam -" \
+    -v c2="${TOOLS}/samtools view -b -o ${pr}.pr2.bam -" '
+    BEGIN { FS = OFS = "\t" }
+    /^@/  { print | c1; print | c2; next }
+          { n = split($1, f, ":"); if (f[n] % 2 == 0) print | c1; else print | c2 }
+    END   { close(c1); close(c2) }'
+  for h in pr1 pr2; do
+    echo "pseudoreplicate ${h}: $("${TOOLS}/samtools" view -c -f 64 "${pr}.${h}.bam") fragments"
+    relaxed "${sample}.${h}" "${pr}.${h}.bam"
+  done
+fi
