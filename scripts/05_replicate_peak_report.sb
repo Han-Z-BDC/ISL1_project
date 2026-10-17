@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_rep_report
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/rep_report.%j.out
+
+# Step 5: per-replicate peak statistics and replicate overlap for the final group-IgG calls
+# (03c), with the IDR results (04c, 04d). FRiP is counted here; everything else is in
+# scripts/replicate_peak_report.py. Report: results/replicate_peak_report/ (fetch_reports.sh).
+#   sbatch scripts/05_replicate_peak_report.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+T=${SLURM_CPUS_PER_TASK:-4}
+OUT=${OUT_DIR}/replicate_peak_report
+mkdir -p "${OUT}"
+tmp=$(mktemp -d)
+trap 'rm -rf "${tmp}"' EXIT
+
+frip=${OUT}/frip.tsv
+echo -e "sample\tfragments\tin_peaks" > "${frip}"
+for s in $(awk -F'\t' 'NR>1 && $3=="TF" {print $2}' "${SAMPLE_SHEET}"); do
+  b=${OUT_DIR}/bam/${s}.filtered.bam
+  cut -f1-3 "${GROUP_OUT}/macs3/${s}_peaks.filtered.narrowPeak" | sort -k1,1 -k2,2n -u > "${tmp}/${s}.bed"
+  echo -e "${s}\t$("${TOOLS}/samtools" view -@ "${T}" -c -f 64 "${b}")\t$("${TOOLS}/samtools" view -@ "${T}" -c -f 64 -L "${tmp}/${s}.bed" "${b}")" >> "${frip}"
+done
+
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/replicate_peak_report.py" \
+  "${SAMPLE_SHEET}" "${METADATA}" "${OUT_DIR}/qc/alignment" \
+  "${GROUP_OUT}/macs3" "${GROUP_OUT}/macs3_relaxed" "${GROUP_OUT}/idr" "${frip}" \
+  "${TOOLS}/bedtools" "${OUT}"
