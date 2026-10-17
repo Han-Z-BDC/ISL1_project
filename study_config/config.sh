@@ -51,10 +51,11 @@ MACS_QVALUE=0.01
 # Pool = all 13 IgGs (every row with role IgG), each deduplicated and downsampled to the same
 # POOL_TARGET_FRAGMENTS, one fixed seed each. The target must be <= the smallest IgG's
 # deduplicated fragment count, and strictly below it (a fraction of exactly 1 breaks
-# samtools -s SEED.FRAC). Set from the alignment markdup metrics once 01_align is done.
+# samtools -s SEED.FRAC). Smallest after 01_align (job 34354886): D12_KO_rep1_IgG,
+# 9,350,997 deduplicated fragments (flagstat: (total - duplicates) / 2). Pool = 13 x 9 M.
 mapfile -t POOL_IGG_SAMPLES < <(awk -F'\t' 'NR>1 && $3=="IgG" {print $2}' "${SAMPLE_SHEET}")
 POOL_IGG_SEEDS=($(seq 101 $((100 + ${#POOL_IGG_SAMPLES[@]}))))
-POOL_TARGET_FRAGMENTS=
+POOL_TARGET_FRAGMENTS=9000000
 if [[ "${IGG_METHOD}" == pooled ]]; then
   [[ -n "${POOL_TARGET_FRAGMENTS}" ]] || { echo "ERROR: POOL_TARGET_FRAGMENTS not set in study_config/config.sh" >&2; exit 1; }
   (( ${#POOL_IGG_SAMPLES[@]} >= 2 )) || { echo "ERROR: need >=2 IgG rows in ${SAMPLE_SHEET} to pool" >&2; exit 1; }
