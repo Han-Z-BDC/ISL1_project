@@ -284,6 +284,19 @@ Uses (each run on both peak sets):
   - **a.** Ctr only: consensus from D12/D15/D22 Ctr; KO+rescue left out of all downstream steps.
   - **b.** Ctr + KO+rescue: consensus from all five groups.
 
+Motifs (2026-10-19; HOMER jobs 34663198 all, 34664868 promoter, 34664869 distal; report
+`results/motif_annotation_report/`):
+- **All summits:** NFY (CCAAT) and SP/KLF top every set, because 54-70% of summits sit within
+  3 kb of a TSS. Isl1 still ranks 5-15 in the Ctr groups (p 1e-93 to 1e-370), in 21-33% of
+  peaks vs 12-17% of background.
+- **Promoter summits:** NFY first in every group.
+- **Distal summits:** Isl1 is the top known motif for D12, D15 and D22 Ctr (conservative;
+  p 1e-65 / 1e-349 / 1e-89, in 38-51% of peaks vs 20-24% background). Nkx6.1 and Foxa2
+  (Fox:Ebox) follow. In the optimal sets Isl1 ranks 1-3, with Foxa2 first at D12 and Nkx6.1
+  first at D22.
+- **KO+rescue:** too few distal summits (23-99) for strong results. D15 KO+rescue distal
+  still ranks Isl1 first (p 1e-4); its optimal set ranks FOXA/Isl1/Nkx6.1 near the top.
+
 Downstream tools are in their own env, built by `scripts/00d_build_downstream_env.sb`
 (`DS_TOOLS`): HOMER, featureCounts, R with DESeq2 and ChIPseeker. HOMER uses the GRCh38
 FASTA from cellranger-arc (`GENOME_FASTA`).

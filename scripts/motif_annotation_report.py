@@ -53,7 +53,8 @@ def known(homer_dir, s, g):
         r = csv.reader(f, delimiter="\t")
         next(r)
         for x in r:
-            rows.append({"name": x[0], "consensus": x[1], "neglog10p": -float(x[3]) / math.log(10),
+            # HOMER's log p can be a hair above 0 for unenriched motifs; clamp so it never shows "-0".
+            rows.append({"name": x[0], "consensus": x[1], "neglog10p": max(0.0, -float(x[3]) / math.log(10)),
                          "q": x[4], "pct_t": x[6], "pct_b": x[8]})
     return rows
 
