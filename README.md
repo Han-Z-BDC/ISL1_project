@@ -30,8 +30,9 @@ Samples per condition (ISL1 + matched IgG each):
 Confirmed 2026-10-16: D15 Ctr has only the one replicate, and there is no D15 KO rep2
 (numbering kept as delivered, rep3/rep4).
 
-ISL1 CUT&RUN in the KO doubles as the antibody-specificity control: true ISL1 peaks should be
-lost or strongly reduced there.
+"KO" is ISL1 KO with ISL1 rescue (confirmed 2026-10-19), so KO libraries measure real
+(rescued) ISL1 binding. They are not an antibody-specificity control. Group names keep "KO"
+as delivered.
 
 Open questions on the sample sheet (to confirm with the bench):
 - Batch 1 libraries are named `...-3d-1` (D12/D15) or `D22-Ctr-1`; treated here as rep1.
@@ -151,8 +152,8 @@ pseudoreplicate tasks peaked at 5.3 GB, so the 32G override was unnecessary; 16G
 | D12_Ctr | rep1 2,641; rep2 2,416 | 1.09 | 2,867 | 4,498 | 1.57 | pass |
 | D22_Ctr | rep1 904; rep2 7,919; rep3 4,512 | 8.76 | 8,557 | 10,397 | 1.22 | borderline |
 | D15_Ctr | rep1 9,344 | -- | -- | -- | -- | unreplicated |
-| D12_KO | 0-17 | inf | 82 | 180 | 2.20 | fail (not meaningful: no binding) |
-| D15_KO | 0-17 | inf | 77 | 252 | 3.27 | fail (not meaningful: no binding) |
+| D12_KO | 0-17 | inf | 82 | 180 | 2.20 | fail |
+| D15_KO | 0-17 | inf | 77 | 252 | 3.27 | fail |
 
 - **Batch 1 is not uniformly weak.** D12 Ctr rep1 is as self-consistent as rep2, and D12 Ctr
   passes. D15 Ctr rep1 (batch 1) has the highest self-pseudorep count of any replicate (9,344),
@@ -162,7 +163,9 @@ pseudoreplicate tasks peaked at 5.3 GB, so the 32G override was unnecessary; 16G
   rep2/rep3. FRiP 0.9%, the lowest of the control replicates. It misses up to 31% of its
   partners' top 1000 peaks. It alone makes D22 borderline; the rescue ratio (1.22) is fine.
 - **D12 Ctr rep1 has low FRiP (1.5%) but holds up on IDR,** so it is not a failing replicate.
-- **KO groups:** near-zero self-pseudorep counts are what a specificity control should show.
+- **KO+rescue groups fail.** Most replicates have 0-17 self-pseudorep IDR peaks, so rescued
+  ISL1 binding is weak and poorly reproducible at this depth. Their reproducible sets are
+  small: 82 (conservative) / 180 (optimal) at D12, 77 / 252 at D15.
 
 ### Resources
 
@@ -232,24 +235,48 @@ Result (2026-10-17):
   file down (`--scale-to small`), so a control shallower than the ISL1 library (9.4 M vs
   27.0 M) lowers sensitivity. The matched calls for the five shallow batch-1 IgGs are
   therefore conservative.
-- **The 10.8 k pooled peaks are not ISL1 binding.** Only 2% are at Ctr ISL1 peaks (D12 Ctr
-  union); other D12 KOs are at 20-27%. They are narrow (median 164 bp), genome-wide in
-  proportion to chromosome size (not a CNV), and weak: about 16 fragments each, 0.6% of
-  fragments. That points to a noisier ISL1 library, not ISL1 signal.
+- **The 10.8 k pooled peaks are not shared ISL1 sites.** Only 2% are at Ctr ISL1 peaks
+  (D12 Ctr union); the other D12 KO+rescue replicates are at 20-27%. They are narrow (median
+  164 bp), genome-wide in proportion to chromosome size (not a CNV), and weak: about 16
+  fragments each, 0.6% of fragments. They do not reproduce in rep2-4 (IDR 5-11 peaks). That
+  points to a noisier library rather than rescue-specific binding.
 - **D15_KO_rep1 is a separate ISL1-library problem.** 35,123 peaks even against its own IgG,
   vs about 450 for D15 KO rep3/4, and only 7% at D15 Ctr ISL1 sites. Same narrow,
   genome-wide pattern; 41.6% duplicates, the lowest-depth ISL1 library (10.9 M unique). Not
   flagged, because both IgG methods agree on it.
 - **Duplicates do not explain either** (`scripts/diag/dup_in_peaks.sb`, job 34387009). In-peak
   duplicate share is 1.2-1.6x the genome-wide rate in every sample, controls included.
-- **KO residual peaks (D12 KO rep2-4).** 600-1,200 peaks hold 3-10% of fragments at 58-73%
-  duplicates: high-signal artifact regions the blacklist misses. Handle before differential
-  analysis.
+- **KO+rescue peaks (D12 KO rep2-4).** 600-1,200 peaks hold 3-10% of fragments at 58-73%
+  duplicates. With rescue these may be real ISL1 sites (11-16% are at Ctr sites); the
+  high-signal, high-duplicate share should still be checked against known hotspot regions.
 - **Contigs.** The hg38 index includes unplaced and alt contigs (`GL000195.1`, `KI270438.1`).
   Publication peak sets should probably keep chr1-22, X and Y only.
 
 All outputs on scratch: `/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/results/` and
 `results_pooled/` (purged after 90 days -- copy keepers to `/pl/active`).
+
+## Final peak sets and downstream plan
+
+Two final peak sets per group, kept and analyzed separately (`scripts/06_final_peaks.sb`):
+- **conservative:** true-replicate IDR, best pair (Nt).
+- **optimal:** the larger of Nt and the pooled-pseudoreplicate IDR set (Np), as ENCODE does.
+
+D15 Ctr has one replicate, so its self-pseudoreplicate set is used for both and reported as
+unreplicated. All sets keep chr1-22/X/Y only and have the blacklist removed. Output:
+`results_group/final_peaks/{conservative,optimal}/<group>.{narrowPeak,summits.bed}`.
+
+Uses (each run on both peak sets):
+- **Where ISL1 binds at each stage, and its target genes:** the per-group final sets. These
+  feed motif enrichment (HOMER, around summits), genomic annotation and nearest genes
+  (ChIPseeker).
+- **Comparisons between stages and genotypes:** consensus regions counted in every library,
+  DESeq2 with `~ batch + group`. Two strategies:
+  - **a.** Ctr only: consensus from D12/D15/D22 Ctr; KO+rescue left out of all downstream steps.
+  - **b.** Ctr + KO+rescue: consensus from all five groups.
+
+Downstream tools are in their own env, built by `scripts/00d_build_downstream_env.sb`
+(`DS_TOOLS`): HOMER, featureCounts, R with DESeq2 and ChIPseeker. HOMER uses the GRCh38
+FASTA from cellranger-arc (`GENOME_FASTA`).
 
 ## Local review copy (Mac)
 

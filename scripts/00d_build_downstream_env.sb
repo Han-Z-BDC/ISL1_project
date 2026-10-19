@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_ds_env
+#SBATCH --partition=acompile
+#SBATCH --qos=compile
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=30G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/build_downstream_env.%j.out
+
+# Env for the downstream analysis (= DS_TOOLS in study_config/config.sh): HOMER (motifs),
+# subread featureCounts (fragment counts in consensus peaks), and R with DESeq2 (differential
+# binding), ChIPseeker + TxDb hg38 + org.Hs.eg.db (annotation, target genes). Its own env so the
+# pipeline's cutnrun env stays as built. Resolved versions: study_config/downstream_env.export.yml.
+#   sbatch scripts/00d_build_downstream_env.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+MM=/projects/hzhu10@xsede.org/software/micromamba_bootstrap/bin/micromamba
+export MAMBA_ROOT_PREFIX=/projects/hzhu10@xsede.org/software/micromamba_bootstrap
+ENVDIR=$(dirname "${DS_TOOLS}")
+
+"${MM}" create -y -p "${ENVDIR}" -c conda-forge -c bioconda \
+  r-base=4.3 bioconductor-deseq2 bioconductor-apeglm bioconductor-chipseeker \
+  bioconductor-txdb.hsapiens.ucsc.hg38.knowngene bioconductor-org.hs.eg.db \
+  bioconductor-rtracklayer r-ggplot2 r-data.table homer subread bedtools
+"${MM}" env export -p "${ENVDIR}" --no-build > "${STUDY_DIR}/study_config/downstream_env.export.yml"
+
+for t in findMotifsGenome.pl annotatePeaks.pl featureCounts bedtools Rscript; do
+  [[ -x "${DS_TOOLS}/${t}" ]] || { echo "ERROR: ${t} missing from ${DS_TOOLS}" >&2; exit 1; }
+done
+"${DS_TOOLS}/Rscript" -e 'for (p in c("DESeq2","apeglm","ChIPseeker","TxDb.Hsapiens.UCSC.hg38.knownGene","org.Hs.eg.db","rtracklayer")) suppressPackageStartupMessages(library(p, character.only = TRUE)); cat("R packages OK\n")'
+echo "downstream env ready: ${DS_TOOLS}"

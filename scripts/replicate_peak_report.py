@@ -154,8 +154,8 @@ def main(samples_tsv, metadata_tsv, qc_dir, macs3_dir, relaxed_dir, idr_dir, fri
         notes = []
         if stats[s]["relaxed_peaks"] >= 0.99 * RELAXED_CAP:
             notes.append("relaxed calls at the 300k cap")
-        # Top-peak agreement only means something where there is real binding (Ctr); KO peak
-        # sets are a few hundred mostly artifact regions, so low overlap there is expected.
+        # Top-peak notes for Ctr only: KO+rescue groups have a few hundred weak peaks per
+        # replicate, so top-1000 recovery there is dominated by small numbers.
         is_ctr = group_of[s].endswith("_Ctr")
         if is_ctr and got and min(got) < WEAK_TOP:
             notes.append(f"misses partner top peaks (as low as {100 * min(got):.0f}%)")
@@ -380,8 +380,8 @@ def render(groups, stats, pair_rows, venns, jac, order, idr_pairs, qc, meta):
             f"<td>{'NA' if q['Nt'] == 'NA' else format(int(q['Nt']), ',')}</td>"
             f"<td>{'NA' if q['Np'] == 'NA' else format(int(q['Np']), ',')}</td>"
             f"<td>{esc(q['rescue_ratio'])}</td><td class='l status'>{esc(q['status'])}"
-            # KO has no ISL1 to bind: near-zero IDR counts make the ratios meaningless there.
-            + (" <span class='mute small'>(not meaningful for KO: no true binding)</span>" if g.endswith("_KO") else "")
+            # KO = ISL1 KO + ISL1 rescue, so these ratios describe real (rescued) binding.
+            + (" <span class='mute small'>(KO + ISL1 rescue)</span>" if g.endswith("_KO") else "")
             + "</td></tr>")
 
     sections = []

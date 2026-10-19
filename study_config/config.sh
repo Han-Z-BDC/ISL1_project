@@ -69,6 +69,12 @@ GROUP_IGG_EXCLUDE=(D12_KO_rep1_IgG)
 IDR_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/idr/bin
 IDR_THRESHOLD=0.05
 
+# Downstream analysis env (HOMER, featureCounts, R/DESeq2/ChIPseeker), built by
+# scripts/00d_build_downstream_env.sb. hg38 FASTA (chr names; same chr1-22/X/Y coordinates as the
+# bowtie2 index) for HOMER.
+DS_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin
+GENOME_FASTA=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0/fasta/genome.fa
+
 if [[ "${IGG_METHOD}" == pooled ]]; then
   [[ -n "${POOL_TARGET_FRAGMENTS}" ]] || { echo "ERROR: POOL_TARGET_FRAGMENTS not set in study_config/config.sh" >&2; exit 1; }
   (( ${#POOL_IGG_SAMPLES[@]} >= 2 )) || { echo "ERROR: need >=2 IgG rows in ${SAMPLE_SHEET} to pool" >&2; exit 1; }
