@@ -265,6 +265,16 @@ D15 Ctr has one replicate, so its self-pseudoreplicate set is used for both and 
 unreplicated. All sets keep chr1-22/X/Y only and have the blacklist removed. Output:
 `results_group/final_peaks/{conservative,optimal}/<group>.{narrowPeak,summits.bed}`.
 
+Job 34661593 (cleanup removed 1-7 peaks per set):
+
+| Group | Conservative | Optimal (source) |
+|---|---|---|
+| D12_Ctr | 2,866 | 4,491 (pooled pseudoreps) |
+| D15_Ctr | 9,329 | 9,329 (self pseudoreps; unreplicated) |
+| D22_Ctr | 8,550 | 10,389 (pooled pseudoreps) |
+| D12_KO (+rescue) | 77 | 175 (pooled pseudoreps) |
+| D15_KO (+rescue) | 76 | 247 (pooled pseudoreps) |
+
 Uses (each run on both peak sets):
 - **Where ISL1 binds at each stage, and its target genes:** the per-group final sets. These
   feed motif enrichment (HOMER, around summits), genomic annotation and nearest genes
