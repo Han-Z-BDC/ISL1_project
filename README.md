@@ -322,7 +322,16 @@ FASTA from cellranger-arc (`GENOME_FASTA`).
   Median-of-ratios gives them size factors of 0.49-0.88 (Ctr 0.90-3.24), so a global loss
   of binding is mostly normalized away. Library-size normalization (DiffBind's default) would
   show it, but it would also turn FRiP differences between libraries into apparent binding
-  changes. Decision pending.
+  changes. Decided 2026-10-19: stage contrasts keep median-of-ratios; KO+rescue vs Ctr is also
+  run with library-size normalization (`deseq2/libsize/`, job 34671144).
+- **With library-size normalization, the KO+rescue loss is global.**
+  - D12 KO+rescue vs Ctr: 9,307-10,061 regions down, 3-5 up, median log2FC -1.3 (about 2.5x
+    less signal).
+  - D15 KO+rescue vs Ctr: 11,843-12,609 down, 3-7 up, median log2FC -2.3 (about 5x less).
+
+  Without a spike-in this cannot separate less ISL1 binding (e.g. lower rescue ISL1 protein)
+  from a lower signal-to-noise in those libraries. Their FRiP is also lower (see the
+  replicate QC).
 - **Stage contrasts have little power.** D15 Ctr is one library, strategy a has 2 residual df,
   and differences between Ctr replicates (e.g. D22 rep1) are large relative to the stage
   effect.
