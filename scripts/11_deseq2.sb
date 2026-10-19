@@ -9,7 +9,8 @@
 #SBATCH --time=01:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/deseq2.%j.out
 
-# Step 11: DESeq2 (~ batch + group) on every consensus set from 10 (scripts/deseq2_consensus.R),
+# Step 11: DESeq2 (~ batch + group) on every consensus set from 10 (scripts/deseq2_consensus.R; KO+rescue
+# contrasts also with library-size normalization),
 # then the HTML report (scripts/differential_report.py) into results/differential_report/.
 #   sbatch scripts/11_deseq2.sb
 
@@ -19,7 +20,7 @@ source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
 
 for d in "${GROUP_OUT}"/consensus/{a,b}_{conservative,optimal}; do
   [[ -s "${d}/counts.tsv" ]] || { echo "ERROR: missing ${d}/counts.tsv -- run 10 first" >&2; exit 1; }
-  "${DS_TOOLS}/Rscript" "${STUDY_DIR}/scripts/deseq2_consensus.R" "${d}"
+  "${DS_TOOLS}/Rscript" "${STUDY_DIR}/scripts/deseq2_consensus.R" "${d}" "${OUT_DIR}/qc/alignment"
 done
 
 "${TOOLS}/python" -I "${STUDY_DIR}/scripts/differential_report.py" "${GROUP_OUT}/consensus" \

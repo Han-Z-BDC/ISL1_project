@@ -6,8 +6,12 @@
 # Writes to <consensus_dir>/deseq2/:
 #   dds.rds, samples.tsv (with size factors and fragments counted), pca.tsv (+ pca_variance.tsv,
 #   top 500 most variable regions of the VST), de_<A>_vs_<B>.tsv (all regions, annotated, by padj),
-#   de_summary.tsv (regions up / down at padj < 0.05 and |log2FC| >= 1)
-# usage: Rscript deseq2_consensus.R <consensus_dir>
+#   de_summary.tsv (regions up / down at padj < 0.05 and |log2FC| >= 1, median log2FC)
+# With KO+rescue groups and <qc_dir>, the KO+rescue vs Ctr contrasts are also run with library-size
+# normalization (size factors = total filtered fragments, from <qc_dir>/<sample>.flagstat.txt
+# read1, scaled to geometric mean 1), so a global loss of binding is not normalized away:
+#   deseq2/libsize/{samples.tsv, de_<A>_vs_<B>.tsv, de_summary.tsv}
+# usage: Rscript deseq2_consensus.R <consensus_dir> [<qc_dir>]
 
 suppressPackageStartupMessages({
   library(DESeq2)
@@ -18,8 +22,9 @@ suppressPackageStartupMessages({
 })
 
 args <- commandArgs(trailingOnly = TRUE)
-stopifnot(length(args) == 1)
+stopifnot(length(args) %in% 1:2)
 cdir <- args[1]
+qc_dir <- if (length(args) == 2) args[2] else NA
 out <- file.path(cdir, "deseq2")
 dir.create(out, showWarnings = FALSE)
 PADJ <- 0.05; LFC <- 1
@@ -67,19 +72,45 @@ for (ko in grep("_KO$", groups, value = TRUE)) {
   if (c0 %in% groups) contrasts[[length(contrasts) + 1]] <- c(ko, c0)
 }
 
-summ <- list()
-for (cc in contrasts) {
-  r <- results(dds, contrast = c("group", cc[1], cc[2]), alpha = PADJ)
-  d <- data.table(region = rownames(r), baseMean = r$baseMean, log2FC = r$log2FoldChange,
-                  lfcSE = r$lfcSE, pvalue = r$pvalue, padj = r$padj)
-  d <- merge(regions, d, by = "region")
-  setorder(d, padj, na.last = TRUE)
-  name <- paste0(cc[1], "_vs_", cc[2])
-  fwrite(d, file.path(out, paste0("de_", name, ".tsv")), sep = "\t")
-  sig <- d[!is.na(padj) & padj < PADJ & abs(log2FC) >= LFC]
-  summ[[length(summ) + 1]] <- data.table(contrast = name, a = cc[1], b = cc[2], tested = sum(!is.na(d$padj)),
-                                         up = sum(sig$log2FC > 0), down = sum(sig$log2FC < 0))
-  cat(sprintf("%s %s: %d up, %d down (padj < %.2f, |log2FC| >= %g)\n", basename(cdir), name,
-              sum(sig$log2FC > 0), sum(sig$log2FC < 0), PADJ, LFC))
+run_contrasts <- function(dds, contrasts, odir) {
+  dir.create(odir, showWarnings = FALSE, recursive = TRUE)
+  summ <- list()
+  for (cc in contrasts) {
+    r <- results(dds, contrast = c("group", cc[1], cc[2]), alpha = PADJ)
+    d <- data.table(region = rownames(r), baseMean = r$baseMean, log2FC = r$log2FoldChange,
+                    lfcSE = r$lfcSE, pvalue = r$pvalue, padj = r$padj)
+    d <- merge(regions, d, by = "region")
+    setorder(d, padj, na.last = TRUE)
+    name <- paste0(cc[1], "_vs_", cc[2])
+    fwrite(d, file.path(odir, paste0("de_", name, ".tsv")), sep = "\t")
+    sig <- d[!is.na(padj) & padj < PADJ & abs(log2FC) >= LFC]
+    summ[[length(summ) + 1]] <- data.table(contrast = name, a = cc[1], b = cc[2], tested = sum(!is.na(d$padj)),
+                                           up = sum(sig$log2FC > 0), down = sum(sig$log2FC < 0),
+                                           median_log2FC = median(d$log2FC, na.rm = TRUE))
+    cat(sprintf("%s %s %s: %d up, %d down (padj < %.2f, |log2FC| >= %g), median log2FC %.2f\n", basename(cdir),
+                basename(odir), name, sum(sig$log2FC > 0), sum(sig$log2FC < 0), PADJ, LFC, median(d$log2FC, na.rm = TRUE)))
+  }
+  fwrite(rbindlist(summ), file.path(odir, "de_summary.tsv"), sep = "\t")
 }
-fwrite(rbindlist(summ), file.path(out, "de_summary.tsv"), sep = "\t")
+
+run_contrasts(dds, contrasts, out)
+
+# KO+rescue vs Ctr again with library-size normalization: same model and counts, size factors
+# from total filtered fragments instead of median-of-ratios on the regions.
+ko_contrasts <- Filter(function(cc) grepl("_KO$", cc[1]), contrasts)
+if (length(ko_contrasts) && !is.na(qc_dir)) {
+  total <- sapply(samples$sample, function(s) {
+    x <- grep(" read1$", readLines(file.path(qc_dir, paste0(s, ".flagstat.txt"))), value = TRUE)
+    as.numeric(sub(" .*", "", x))
+  })
+  sf <- total / exp(mean(log(total)))
+  dds_lib <- DESeqDataSetFromMatrix(m, cd, design = ~ batch + group)
+  sizeFactors(dds_lib) <- sf
+  dds_lib <- DESeq(dds_lib, quiet = TRUE)
+  lib_dir <- file.path(out, "libsize")
+  dir.create(lib_dir, showWarnings = FALSE)
+  saveRDS(dds_lib, file.path(lib_dir, "dds.rds"))
+  fwrite(data.table(sample = samples$sample, group = samples$group, total_fragments = total, size_factor = sf),
+         file.path(lib_dir, "samples.tsv"), sep = "\t")
+  run_contrasts(dds_lib, ko_contrasts, lib_dir)
+}

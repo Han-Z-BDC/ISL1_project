@@ -68,6 +68,17 @@ def pca_svg(pca, var, samples):
     return f'<div class="legend">{legend}</div>{"".join(p)}'
 
 
+def top_table(rows):
+    return ("<div class='scroll'><table><thead><tr>"
+            "<th class='l'>Region</th><th class='l'>Location</th><th class='l'>Nearest gene</th><th>Distance to TSS</th>"
+            "<th>Mean count</th><th>log2FC</th><th>padj</th><th class='l'>Called in</th></tr></thead><tbody>"
+            + "".join(f"<tr><td class='l mono'>{esc(x['region'])}</td><td class='l mono'>{esc(x['chr'])}:{int(x['start']):,}-{int(x['end']):,}</td>"
+                      f"<td class='l'>{esc(x['SYMBOL'] or '–')}</td><td>{fnum(x['distanceToTSS'], ',.0f')}</td>"
+                      f"<td>{fnum(x['baseMean'], ',.0f')}</td><td>{fnum(x['log2FC'], '+.2f')}</td><td>{fnum(x['padj'], '.1e')}</td>"
+                      f"<td class='l small'>{esc(', '.join(label(g) for g in x['groups'].split(',')))}</td></tr>" for x in rows)
+            + "</tbody></table></div>")
+
+
 def render(key, cdir):
     d = Path(cdir) / key
     regions = [l.rstrip("\n").split("\t") for l in open(d / "regions.bed")]
@@ -99,20 +110,43 @@ def render(key, cdir):
                "regions do not change; a global drop in binding (e.g. KO+rescue, whose libraries put 2-3x fewer fragments in "
                "these regions at similar depth) is largely absorbed into the size factors, so these contrasts show relative "
                "redistribution rather than overall loss.</p><div class='scroll'><table><thead><tr>"
-               "<th class='l'>Contrast</th><th>Regions tested</th><th>Up</th><th>Down</th></tr></thead><tbody>"
+               "<th class='l'>Contrast</th><th>Regions tested</th><th>Up</th><th>Down</th><th>Median log2FC<br>(all regions)</th></tr></thead><tbody>"
                + "".join(f"<tr><td class='l'>{esc(label(r['a']))} vs {esc(label(r['b']))}</td><td>{int(r['tested']):,}</td>"
-                         f"<td>{int(r['up']):,}</td><td>{int(r['down']):,}</td></tr>" for r in summ)
+                         f"<td>{int(r['up']):,}</td><td>{int(r['down']):,}</td><td>{fnum(r['median_log2FC'], '+.2f')}</td></tr>" for r in summ)
                + "</tbody></table></div>")
+    lib = d / "deseq2" / "libsize"
+    if (lib / "de_summary.tsv").exists():
+        ls = read_tsv(lib / "de_summary.tsv")
+        mr = {r["contrast"]: r for r in summ}
+        lsamp = read_tsv(lib / "samples.tsv")
+        out.append("<h3>KO+rescue vs Ctr: median-of-ratios vs library-size normalization</h3>"
+                   "<p>Same counts and model; library-size size factors come from each library's total filtered fragments, "
+                   "so a global loss of ISL1 signal shows as a negative median log2FC and more regions down. "
+                   "Library-size normalization also turns differences in signal-to-noise (FRiP) between libraries into "
+                   "apparent binding changes, so read it together with the per-replicate QC.</p>"
+                   "<div class='scroll'><table><thead><tr><th class='l'>Contrast</th>"
+                   "<th>Up · median-of-ratios</th><th>Down · median-of-ratios</th><th>Median log2FC · median-of-ratios</th>"
+                   "<th>Up · library size</th><th>Down · library size</th><th>Median log2FC · library size</th></tr></thead><tbody>"
+                   + "".join(f"<tr><td class='l'>{esc(label(r['a']))} vs {esc(label(r['b']))}</td>"
+                             f"<td>{int(mr[r['contrast']]['up']):,}</td><td>{int(mr[r['contrast']]['down']):,}</td>"
+                             f"<td>{fnum(mr[r['contrast']]['median_log2FC'], '+.2f')}</td>"
+                             f"<td>{int(r['up']):,}</td><td>{int(r['down']):,}</td><td>{fnum(r['median_log2FC'], '+.2f')}</td></tr>"
+                             for r in ls)
+                   + "</tbody></table></div>"
+                   "<details><summary>Library-size factors</summary><div class='scroll'><table><thead><tr><th class='l'>Sample</th>"
+                   "<th class='l'>Group</th><th>Total filtered fragments</th><th>Size factor</th></tr></thead><tbody>"
+                   + "".join(f"<tr><td class='l'>{esc(x['sample'])}</td><td class='l'>{esc(label(x['group']))}</td>"
+                             f"<td>{int(float(x['total_fragments'])):,}</td><td>{float(x['size_factor']):.2f}</td></tr>" for x in lsamp)
+                   + "</tbody></table></div></details>")
+        for r in ls:
+            rows = read_tsv(lib / f"de_{r['contrast']}.tsv")[:TOP]
+            out.append(f"<details><summary>Library size · {esc(label(r['a']))} vs {esc(label(r['b']))}: top {TOP} by padj</summary>"
+                       + top_table(rows) + f"<p class='small mute'>Full table: <span class='mono'>results_group/consensus/{key}/deseq2/libsize/"
+                       f"de_{esc(r['contrast'])}.tsv</span> on Alpine.</p></details>")
     for r in summ:
         rows = read_tsv(d / "deseq2" / f"de_{r['contrast']}.tsv")[:TOP]
-        out.append(f"<details><summary>{esc(label(r['a']))} vs {esc(label(r['b']))}: top {TOP} by padj</summary><div class='scroll'><table><thead><tr>"
-                   "<th class='l'>Region</th><th class='l'>Location</th><th class='l'>Nearest gene</th><th>Distance to TSS</th>"
-                   "<th>Mean count</th><th>log2FC</th><th>padj</th><th class='l'>Called in</th></tr></thead><tbody>"
-                   + "".join(f"<tr><td class='l mono'>{esc(x['region'])}</td><td class='l mono'>{esc(x['chr'])}:{int(x['start']):,}-{int(x['end']):,}</td>"
-                             f"<td class='l'>{esc(x['SYMBOL'] or '–')}</td><td>{fnum(x['distanceToTSS'], ',.0f')}</td>"
-                             f"<td>{fnum(x['baseMean'], ',.0f')}</td><td>{fnum(x['log2FC'], '+.2f')}</td><td>{fnum(x['padj'], '.1e')}</td>"
-                             f"<td class='l small'>{esc(', '.join(label(g) for g in x['groups'].split(',')))}</td></tr>" for x in rows)
-                   + f"</tbody></table></div><p class='small mute'>Full table: <span class='mono'>results_group/consensus/{key}/deseq2/de_{esc(r['contrast'])}.tsv</span> on Alpine.</p></details>")
+        out.append(f"<details><summary>{esc(label(r['a']))} vs {esc(label(r['b']))}: top {TOP} by padj</summary>"
+                   + top_table(rows) + f"<p class='small mute'>Full table: <span class='mono'>results_group/consensus/{key}/deseq2/de_{esc(r['contrast'])}.tsv</span> on Alpine.</p></details>")
     return "".join(out)
 
 
