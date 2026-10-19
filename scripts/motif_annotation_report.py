@@ -20,6 +20,9 @@ BINS = ["< -100 kb", "-100 to -10 kb", "-10 to -1 kb", "-1 to 0 kb", "0 to 1 kb"
         "10 to 100 kb", "> 100 kb"]
 TOP_KNOWN, TOP_DENOVO, TOP_GENES = 10, 5, 25
 PANEL_NEAR = 50000   # panel cells beyond this distance show as "–"
+# Islet / pancreatic TF motifs always shown, whatever their rank (HOMER known-motif names).
+ISLET_MOTIFS = ["Isl1", "Lhx3", "Lhx2", "Lhx1", "Nkx6.1", "Nkx2.2", "Pdx1", "NeuroD1", "Pax6", "MafA",
+                "Foxa2", "Rfx6", "Rfx2"]
 
 
 def read_tsv(path):
@@ -162,6 +165,24 @@ def render_set(s, groups, fps, homer_dir, ann_dir, ann_sum, tss_sum, panel):
                          f"<td class='{heat_class(v, vmax)}' data-tip='{esc(short_motif(m))} in {esc(label(g))}: −log10 p {v:.0f}'>{v:.0f}</td>")
         out.append(f"<tr><td class='l' title='{esc(m)}'>{esc(short_motif(m))}</td>{''.join(cells)}</tr>")
     out.append("</tbody></table></div>")
+    # Islet TF motifs: rank and -log10 p in every group, so they show even below the top 5.
+    rank = {(g, short_motif(r["name"]).split("(")[0]): (i + 1, r["neglog10p"]) for g in groups for i, r in enumerate(kn[g])}
+    imax = max([rank[k][1] for k in rank if k[1] in ISLET_MOTIFS] or [1])
+    out.append("<h3>Islet transcription-factor motifs</h3><p class='small mute'>Rank among all known motifs, then −log10 p. "
+               "Shaded by −log10 p on this table's own scale.</p><div class='scroll'><table class='heatt'><thead><tr>"
+               "<th class='l'>Motif</th>" + "".join(f"<th>{esc(label(g))}</th>" for g in groups) + "</tr></thead><tbody>")
+    for m in ISLET_MOTIFS:
+        if not any((g, m) in rank for g in groups):
+            continue
+        cells = []
+        for g in groups:
+            if (g, m) not in rank:
+                cells.append("<td>–</td>")
+                continue
+            r_, v = rank[(g, m)]
+            cells.append(f"<td class='{heat_class(v, imax)}' data-tip='{esc(m)} in {esc(label(g))}: rank {r_}, −log10 p {v:.0f}'>#{r_} · {v:.0f}</td>")
+        out.append(f"<tr><td class='l'>{esc(m)}</td>{''.join(cells)}</tr>")
+    out.append("</tbody></table></div>")
     for g in groups:
         out.append(f"<details><summary>{esc(label(g))}: top {TOP_KNOWN} known motifs</summary><div class='scroll'><table><thead><tr>"
                    "<th class='l'>Motif</th><th class='l'>Consensus</th><th>−log10 p</th><th>q</th><th>% targets</th>"
@@ -218,7 +239,8 @@ def render_set(s, groups, fps, homer_dir, ann_dir, ann_sum, tss_sum, panel):
             genes.append(r["gene"])
     pd = {(r["group"], r["gene"]): r["dist_bp"] for r in panel if r["set"] == s}
     out.append("<h2>Islet gene panel</h2><p>Distance from each gene's TSS to the nearest ISL1 summit, in kb. "
-               "<b>P</b> = within ±3 kb (promoter); – = none within 50 kb.</p><div class='scroll'><table><thead><tr><th class='l'>Gene</th>"
+               "<b>P</b> = within ±3 kb (promoter); – = none within 50 kb. CHGA is not in the hg38 knownGene "
+               "annotation under that symbol, so it is absent.</p><div class='scroll'><table><thead><tr><th class='l'>Gene</th>"
                + "".join(f"<th>{esc(label(g))}</th>" for g in groups) + "</tr></thead><tbody>")
     for gene in genes:
         cells = []
