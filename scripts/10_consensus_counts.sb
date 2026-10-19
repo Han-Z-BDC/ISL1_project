@@ -1,0 +1,74 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_consensus
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/consensus.%j.out
+
+# Step 10: consensus regions and per-library fragment counts for the differential analysis, for
+# each final peak set (06: conservative, optimal) and two strategies:
+#   a  Ctr only: regions from D12/D15/D22 Ctr; counted in the 6 Ctr ISL1 libraries
+#   b  Ctr + KO+rescue: regions from all 5 groups; counted in all 13 ISL1 libraries
+# Regions: each group's summits +/- 250 bp, pooled across the strategy's groups and merged where
+# they overlap; each region records which groups support it. Counts: featureCounts read pairs
+# (fragments) per region from the filtered BAMs, duplicates kept as for peak calling (MACS3
+# --keep-dup all), both mates mapped, no chimeric pairs.
+# Output: ${GROUP_OUT}/consensus/<strategy>_<set>/ (regions.bed, regions.saf, counts.tsv,
+# counts.summary, samples.tsv).
+#   sbatch scripts/10_consensus_counts.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+T=${SLURM_CPUS_PER_TASK:-8}
+HALF=250
+FP=${GROUP_OUT}/final_peaks
+CO=${GROUP_OUT}/consensus
+
+declare -A STRATEGY_GROUPS=([a]="D12_Ctr D15_Ctr D22_Ctr" [b]="D12_Ctr D15_Ctr D22_Ctr D12_KO D15_KO")
+
+for strategy in a b; do
+  read -r -a groups <<< "${STRATEGY_GROUPS[${strategy}]}"
+  # ISL1 libraries of these groups, in samples.tsv order, with their sample-sheet metadata.
+  samples=()
+  for s in $(awk -F'\t' 'NR>1 && $3=="TF" {print $2}' "${SAMPLE_SHEET}"); do
+    g=$(awk -F'\t' -v s="${s}" '$1==s {print $3"_"$4}' "${METADATA}")
+    if [[ " ${groups[*]} " == *" ${g} "* ]]; then samples+=("${s}"); fi
+  done
+
+  for set_name in conservative optimal; do
+    out=${CO}/${strategy}_${set_name}
+    mkdir -p "${out}"
+    for g in "${groups[@]}"; do
+      f=${FP}/${set_name}/${g}.summits.bed
+      [[ -s "${f}" ]] || { echo "ERROR: missing ${f} -- run 06 first" >&2; exit 1; }
+      awk -v g="${g}" -v h="${HALF}" 'BEGIN{OFS="\t"} {s = $2 - h; if (s < 0) s = 0; print $1, s, $2 + h, g}' "${f}"
+    done | sort -k1,1 -k2,2n \
+      | "${TOOLS}/bedtools" merge -i - -c 4,4 -o distinct,count_distinct \
+      | awk -v p="${strategy}_${set_name}" 'BEGIN{OFS="\t"} {print $1, $2, $3, p "_" NR, $4, $5}' > "${out}/regions.bed"
+    awk 'BEGIN{OFS="\t"; print "GeneID", "Chr", "Start", "End", "Strand"} {print $4, $1, $2 + 1, $3, "+"}' \
+      "${out}/regions.bed" > "${out}/regions.saf"
+
+    bams=(); for s in "${samples[@]}"; do bams+=("${OUT_DIR}/bam/${s}.filtered.bam"); done
+    "${DS_TOOLS}/featureCounts" -F SAF -a "${out}/regions.saf" -p --countReadPairs -B -C \
+      -T "${T}" -o "${out}/featureCounts.txt" "${bams[@]}"
+    # Count matrix with sample names as columns (featureCounts names them by BAM path).
+    awk -v names="$(IFS=,; echo "${samples[*]}")" 'BEGIN{FS=OFS="\t"; n = split(names, s, ",")}
+      /^#/ {next}
+      $1 == "Geneid" {printf "region"; for (i = 1; i <= n; i++) printf "\t%s", s[i]; print ""; next}
+      {printf "%s", $1; for (i = 7; i <= NF; i++) printf "\t%s", $i; print ""}' \
+      "${out}/featureCounts.txt" > "${out}/counts.tsv"
+    cp "${out}/featureCounts.txt.summary" "${out}/counts.summary"
+
+    { echo -e "sample\tgroup\tday\tgenotype\tbatch\treplicate"
+      for s in "${samples[@]}"; do
+        awk -F'\t' -v s="${s}" 'BEGIN{OFS="\t"} $1==s {print $1, $3"_"$4, $3, $4, $7, $5}' "${METADATA}"
+      done; } > "${out}/samples.tsv"
+    echo "CONSENSUS ${strategy}_${set_name}: $(wc -l < "${out}/regions.bed") regions from ${groups[*]}; ${#samples[@]} libraries"
+  done
+done
