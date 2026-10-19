@@ -27,8 +27,18 @@ ENVDIR=$(dirname "${DS_TOOLS}")
   bioconductor-rtracklayer r-ggplot2 r-data.table homer subread bedtools
 "${MM}" env export -p "${ENVDIR}" --no-build > "${STUDY_DIR}/study_config/downstream_env.export.yml"
 
+# HOMER's installer writes the env path into each Perl script as a double-quoted string
+# ('use lib "..."', 'my $homeDir = "..."'); the "@" in hzhu10@xsede.org is then read as a Perl
+# array and the path breaks ("Can't locate HomerConfig.pm", job 34662166). Escape it.
+H=${ENVDIR}/share/homer
+for f in $(grep -lE '[^\\]@' "${H}"/bin/*.pl "${H}"/bin/*.pm "${H}"/update/*.pl 2>/dev/null || true); do
+  sed -i -E '/^(use lib |my \$homeDir = )"/ s/([^\\])@/\1\\@/g' "${f}"
+done
+
 for t in findMotifsGenome.pl annotatePeaks.pl featureCounts bedtools Rscript; do
   [[ -x "${DS_TOOLS}/${t}" ]] || { echo "ERROR: ${t} missing from ${DS_TOOLS}" >&2; exit 1; }
 done
+PATH="${DS_TOOLS}:${PATH}" "${DS_TOOLS}/findMotifsGenome.pl" 2>&1 | grep -q "Usage: findMotifsGenome" \
+  || { echo "ERROR: findMotifsGenome.pl does not start (HomerConfig path?)" >&2; exit 1; }
 "${DS_TOOLS}/Rscript" -e 'for (p in c("DESeq2","apeglm","ChIPseeker","TxDb.Hsapiens.UCSC.hg38.knownGene","org.Hs.eg.db","rtracklayer")) suppressPackageStartupMessages(library(p, character.only = TRUE)); cat("R packages OK\n")'
 echo "downstream env ready: ${DS_TOOLS}"
