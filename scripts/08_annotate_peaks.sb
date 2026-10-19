@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_annotate
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/annotate.%j.out
+
+# Step 8: ChIPseeker annotation and target genes for both final peak sets of every group
+# (scripts/annotate_peaks.R). Output: ${GROUP_OUT}/annotation/.
+#   sbatch scripts/08_annotate_peaks.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+"${DS_TOOLS}/Rscript" "${STUDY_DIR}/scripts/annotate_peaks.R" \
+  "${GROUP_OUT}/final_peaks" "${GROUP_OUT}/annotation"

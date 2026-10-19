@@ -1,0 +1,48 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_homer
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=24G
+#SBATCH --time=08:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/homer.%A_%a.out
+
+# Step 7: HOMER known and de novo motif enrichment for every final peak set (06), one array task
+# per set x group: index = set_index * n_groups + group_index, sets = (conservative optimal),
+# groups in sorted order. 200 bp windows centred on IDR summits, GC-matched genomic background
+# (HOMER default), hg38 FASTA. Each task preparses the genome into its own folder (parallel
+# tasks writing one preparsed dir collide) and removes it afterwards.
+# Output: ${GROUP_OUT}/homer/<set>/<group>/ (knownResults.txt, homerResults/).
+#   sbatch --array=0-9 scripts/07_homer_motifs.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<2 x n groups - 1>}"
+
+SETS=(conservative optimal)
+mapfile -t GROUPS_ALL < <(awk -F'\t' 'NR>1 && $6=="ISL1" {print $3"_"$4}' "${METADATA}" | sort -u)
+ng=${#GROUPS_ALL[@]}
+set_name=${SETS[$(( SLURM_ARRAY_TASK_ID / ng ))]:-}
+group=${GROUPS_ALL[$(( SLURM_ARRAY_TASK_ID % ng ))]}
+[[ -n "${set_name}" ]] || { echo "ERROR: index ${SLURM_ARRAY_TASK_ID} out of range (max $(( 2 * ng - 1 )))" >&2; exit 1; }
+
+summits=${GROUP_OUT}/final_peaks/${set_name}/${group}.summits.bed
+[[ -s "${summits}" ]] || { echo "ERROR: missing ${summits} -- run 06 first" >&2; exit 1; }
+out=${GROUP_OUT}/homer/${set_name}/${group}
+pre=${GROUP_OUT}/homer/preparsed.${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}
+mkdir -p "${out}" "${pre}"
+trap 'rm -rf "${pre}"' EXIT
+
+# HOMER peak file: unique ID, strand column; -size 200 is centred on each 1 bp summit.
+awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $4, $5, "+"}' "${summits}" > "${out}/summits.homer.bed"
+echo "HOMER ${set_name} ${group}: $(wc -l < "${summits}") summits"
+
+export PATH="${DS_TOOLS}:${PATH}"   # HOMER's perl scripts call homer2 etc. from PATH
+"${DS_TOOLS}/findMotifsGenome.pl" "${out}/summits.homer.bed" "${GENOME_FASTA}" "${out}" \
+  -size 200 -p "${SLURM_CPUS_PER_TASK:-8}" -preparsedDir "${pre}"
+
+[[ -s "${out}/knownResults.txt" ]] || { echo "ERROR: no knownResults.txt in ${out}" >&2; exit 1; }
+echo "DONE ${set_name} ${group}: top known motif $(awk -F'\t' 'NR==2 {print $1, $3}' "${out}/knownResults.txt")"
