@@ -19,6 +19,7 @@ CATS = ["Promoter (<=1 kb)", "Promoter (1-3 kb)", "UTR / exon", "Intron", "Downs
 BINS = ["< -100 kb", "-100 to -10 kb", "-10 to -1 kb", "-1 to 0 kb", "0 to 1 kb", "1 to 10 kb",
         "10 to 100 kb", "> 100 kb"]
 TOP_KNOWN, TOP_DENOVO, TOP_GENES = 10, 5, 25
+REGIONS = [("all", "All summits"), ("promoter", "Promoter (TSS ± 3 kb)"), ("distal", "Distal (> 3 kb)")]
 PANEL_NEAR = 50000   # panel cells beyond this distance show as "–"
 # Islet / pancreatic TF motifs always shown, whatever their rank (HOMER known-motif names).
 ISLET_MOTIFS = ["Isl1", "Lhx3", "Lhx2", "Lhx1", "Nkx6.1", "Nkx2.2", "Pdx1", "NeuroD1", "Pax6", "MafA",
@@ -98,53 +99,20 @@ def stacked_bars(rows_by_group, groups, title):
     return f'<div class="legend">{legend}</div>{"".join(p)}'
 
 
+def n_sites(hdir, s, g):
+    p = Path(hdir) / s / g / "summits.homer.bed"
+    return sum(1 for _ in open(p)) if p.exists() else 0
+
+
 def heat_class(v, vmax):
     return f"h{min(6, int(7 * v / vmax))}" if vmax > 0 else "h0"
 
 
-def render_set(s, groups, fps, homer_dir, ann_dir, ann_sum, tss_sum, panel):
+def render_motifs(hdir, s, groups):
+    """Known-motif comparison, islet TF motif table, per-group top known and de novo motifs
+    for one HOMER output tree (all / promoter / distal summits)."""
     out = []
-    # Overview
-    rows = []
-    kn = {g: known(homer_dir, s, g) for g in groups}
-    tg = {g: read_tsv(Path(ann_dir) / s / f"{g}.target_genes.tsv") for g in groups}
-    for g in groups:
-        c = ann_sum[s].get(g, {})
-        tot = sum(c.values()) or 1
-        prom = c.get(CATS[0], 0) + c.get(CATS[1], 0)
-        top = kn[g][0] if kn[g] else None
-        top_p = f"{top['neglog10p']:.0f}" if top else "–"
-        rows.append(f"<tr><td class='l'>{esc(label(g))}</td><td>{int(fps[(g, s)]['final_peaks']):,}</td>"
-                    f"<td class='l'>{esc(fps[(g, s)]['source'].replace('_', ' '))}</td>"
-                    f"<td>{100 * prom / tot:.0f}%</td><td>{100 * c.get('Intron', 0) / tot:.0f}%</td>"
-                    f"<td>{100 * c.get('Distal intergenic', 0) / tot:.0f}%</td>"
-                    f"<td>{len(tg[g]):,}</td><td>{sum(r['promoter_bound'] == 'TRUE' for r in tg[g]):,}</td>"
-                    f"<td class='l'>{esc(short_motif(top['name'])) if top else '–'}</td>"
-                    f"<td>{top_p}</td></tr>")
-    out.append("<h2>Overview</h2><div class='scroll'><table><thead><tr><th class='l'>Group</th><th>Peaks</th>"
-               "<th class='l'>Source</th><th>Promoter<br>(±3 kb)</th><th>Intron</th><th>Distal<br>intergenic</th>"
-               "<th>Nearest<br>genes</th><th>Promoter-bound<br>genes</th><th class='l'>Top known motif</th>"
-               "<th>−log10 p</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
-               "<p class='small mute'>KO+rescue sets are small (under 250 peaks), so their motif and annotation "
-               "results rest on few sites.</p>")
-
-    # Genomic annotation
-    out.append("<h2>Where the peaks are</h2><p>Annotation of each summit against UCSC knownGene (promoter = TSS ± 3 kb). "
-               "Hover a segment for counts.</p>")
-    out.append(stacked_bars(ann_sum[s], groups, "Genomic annotation"))
-    out.append("<details><summary class='small'>Table view</summary><div class='scroll'><table><thead><tr><th class='l'>Group</th>"
-               + "".join(f"<th>{esc(c)}</th>" for c in CATS) + "</tr></thead><tbody>"
-               + "".join("<tr><td class='l'>" + esc(label(g)) + "</td>" + "".join(
-                   f"<td>{ann_sum[s].get(g, {}).get(c, 0):,}</td>" for c in CATS) + "</tr>" for g in groups)
-               + "</tbody></table></div></details>")
-    out.append("<h3>Distance from summit to nearest TSS</h3><div class='scroll'><table><thead><tr><th class='l'>Group</th>"
-               + "".join(f"<th>{esc(b)}</th>" for b in BINS) + "</tr></thead><tbody>")
-    for g in groups:
-        c = tss_sum[s].get(g, {}); tot = sum(c.values()) or 1
-        out.append("<tr><td class='l'>" + esc(label(g)) + "</td>"
-                   + "".join(f"<td>{100 * c.get(b, 0) / tot:.0f}%</td>" for b in BINS) + "</tr>")
-    out.append("</tbody></table></div><p class='small mute'>Negative = upstream of the TSS (strand-aware).</p>")
-
+    kn = {g: known(hdir, s, g) for g in groups}
     # Known motifs: comparison heat table, then per-group detail
     union = []
     for g in groups:
@@ -153,7 +121,7 @@ def render_set(s, groups, fps, homer_dir, ann_dir, ann_sum, tss_sum, panel):
                 union.append(r["name"])
     vals = {(g, r["name"]): r["neglog10p"] for g in groups for r in kn[g]}
     vmax = max([vals.get((g, m), 0) for g in groups for m in union] or [1])
-    out.append("<h2>Known motifs (HOMER)</h2><p>Top 5 known motifs of each group, compared across groups as −log10 p "
+    out.append("<h3>Known motifs</h3><p>Top 5 known motifs of each group, compared across groups as −log10 p "
                "(darker = stronger). 200 bp around summits vs GC-matched genomic background.</p>")
     out.append("<div class='scroll'><table class='heatt'><thead><tr><th class='l'>Motif</th>"
                + "".join(f"<th>{esc(label(g))}</th>" for g in groups) + "</tr></thead><tbody>")
@@ -168,7 +136,7 @@ def render_set(s, groups, fps, homer_dir, ann_dir, ann_sum, tss_sum, panel):
     # Islet TF motifs: rank and -log10 p in every group, so they show even below the top 5.
     rank = {(g, short_motif(r["name"]).split("(")[0]): (i + 1, r["neglog10p"]) for g in groups for i, r in enumerate(kn[g])}
     imax = max([rank[k][1] for k in rank if k[1] in ISLET_MOTIFS] or [1])
-    out.append("<h3>Islet transcription-factor motifs</h3><p class='small mute'>Rank among all known motifs, then −log10 p. "
+    out.append("<h4>Islet transcription-factor motifs</h4><p class='small mute'>Rank among all known motifs, then −log10 p. "
                "Shaded by −log10 p on this table's own scale.</p><div class='scroll'><table class='heatt'><thead><tr>"
                "<th class='l'>Motif</th>" + "".join(f"<th>{esc(label(g))}</th>" for g in groups) + "</tr></thead><tbody>")
     for m in ISLET_MOTIFS:
@@ -193,15 +161,77 @@ def render_set(s, groups, fps, homer_dir, ann_dir, ann_sum, tss_sum, panel):
                    + "</tbody></table></div></details>")
 
     # De novo
-    out.append("<h2>De novo motifs (HOMER)</h2><p>Top de novo motifs per group with HOMER's best match to known motifs.</p>")
+    out.append("<h3>De novo motifs</h3><p>Top de novo motifs per group with HOMER's best match to known motifs.</p>")
     for g in groups:
-        dn = denovo(homer_dir, s, g)
+        dn = denovo(hdir, s, g)
         items = "".join(
             f"<div class='motif'><div class='logo'>{m['logo'] or '<span class=mono>' + esc(m['consensus']) + '</span>'}</div>"
             f"<div><div class='mono'>{esc(m['consensus'])}</div><div class='small'>{esc(short_motif(m['best']))}</div>"
             f"<div class='small mute'>p {esc(m['p'])} · targets {esc(m['t'])} · background {esc(m['b'])}</div></div></div>"
             for m in dn) or "<p class='small mute'>No de novo motifs.</p>"
         out.append(f"<details><summary>{esc(label(g))}</summary>{items}</details>")
+
+    return "".join(out)
+
+
+def render_set(s, groups, fps, homer_dir, ann_dir, ann_sum, tss_sum, panel):
+    out = []
+    # Overview
+    rows = []
+    kn = {g: known(homer_dir, s, g) for g in groups}
+    kd = {g: known(Path(homer_dir).parent / "homer_distal", s, g) for g in groups}
+    tg = {g: read_tsv(Path(ann_dir) / s / f"{g}.target_genes.tsv") for g in groups}
+    for g in groups:
+        c = ann_sum[s].get(g, {})
+        tot = sum(c.values()) or 1
+        prom = c.get(CATS[0], 0) + c.get(CATS[1], 0)
+        top = kn[g][0] if kn[g] else None
+        top_p = f"{top['neglog10p']:.0f}" if top else "–"
+        topd = kd[g][0] if kd[g] else None
+        topd_cell = f"{esc(short_motif(topd['name']))} ({topd['neglog10p']:.0f})" if topd else "–"
+        rows.append(f"<tr><td class='l'>{esc(label(g))}</td><td>{int(fps[(g, s)]['final_peaks']):,}</td>"
+                    f"<td class='l'>{esc(fps[(g, s)]['source'].replace('_', ' '))}</td>"
+                    f"<td>{100 * prom / tot:.0f}%</td><td>{100 * c.get('Intron', 0) / tot:.0f}%</td>"
+                    f"<td>{100 * c.get('Distal intergenic', 0) / tot:.0f}%</td>"
+                    f"<td>{len(tg[g]):,}</td><td>{sum(r['promoter_bound'] == 'TRUE' for r in tg[g]):,}</td>"
+                    f"<td class='l'>{esc(short_motif(top['name'])) if top else '–'}</td>"
+                    f"<td>{top_p}</td><td class='l'>{topd_cell}</td></tr>")
+    out.append("<h2>Overview</h2><div class='scroll'><table><thead><tr><th class='l'>Group</th><th>Peaks</th>"
+               "<th class='l'>Source</th><th>Promoter<br>(±3 kb)</th><th>Intron</th><th>Distal<br>intergenic</th>"
+               "<th>Nearest<br>genes</th><th>Promoter-bound<br>genes</th><th class='l'>Top known motif</th>"
+               "<th>−log10 p</th><th class='l'>Top distal motif<br>(−log10 p)</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
+               "<p class='small mute'>KO+rescue sets are small (under 250 peaks), so their motif and annotation "
+               "results rest on few sites.</p>")
+
+    # Genomic annotation
+    out.append("<h2>Where the peaks are</h2><p>Annotation of each summit against UCSC knownGene (promoter = TSS ± 3 kb). "
+               "Hover a segment for counts.</p>")
+    out.append(stacked_bars(ann_sum[s], groups, "Genomic annotation"))
+    out.append("<details><summary class='small'>Table view</summary><div class='scroll'><table><thead><tr><th class='l'>Group</th>"
+               + "".join(f"<th>{esc(c)}</th>" for c in CATS) + "</tr></thead><tbody>"
+               + "".join("<tr><td class='l'>" + esc(label(g)) + "</td>" + "".join(
+                   f"<td>{ann_sum[s].get(g, {}).get(c, 0):,}</td>" for c in CATS) + "</tr>" for g in groups)
+               + "</tbody></table></div></details>")
+    out.append("<h3>Distance from summit to nearest TSS</h3><div class='scroll'><table><thead><tr><th class='l'>Group</th>"
+               + "".join(f"<th>{esc(b)}</th>" for b in BINS) + "</tr></thead><tbody>")
+    for g in groups:
+        c = tss_sum[s].get(g, {}); tot = sum(c.values()) or 1
+        out.append("<tr><td class='l'>" + esc(label(g)) + "</td>"
+                   + "".join(f"<td>{100 * c.get(b, 0) / tot:.0f}%</td>" for b in BINS) + "</tr>")
+    out.append("</tbody></table></div><p class='small mute'>Negative = upstream of the TSS (strand-aware).</p>")
+
+    # Motifs: one HOMER run per summit subset, switched with the region buttons.
+    hdirs = {"all": Path(homer_dir), "promoter": Path(homer_dir).parent / "homer_promoter",
+             "distal": Path(homer_dir).parent / "homer_distal"}
+    out.append("<h2>Motifs (HOMER)</h2><p>Each subset was run separately: all summits, summits within ±3 kb of a TSS "
+               "(promoter) and the rest (distal). Promoter peaks carry general promoter motifs (NFY, SP/KLF); the distal "
+               "subset shows which sequence-specific factors drive the remaining sites.</p>"
+               "<div class='tabs rt' role='group' aria-label='Summit subset'>"
+               + "".join(f"<button data-region='{k}'>{n}</button>" for k, n in REGIONS) + "</div>")
+    for k, n in REGIONS:
+        sizes = " · ".join(f"{esc(label(g))} {n_sites(hdirs[k], s, g):,}" for g in groups)
+        out.append(f"<div data-region='{k}'><p class='small mute'>Summits per group ({esc(n)}): {sizes}</p>"
+                   f"{render_motifs(hdirs[k], s, groups)}</div>")
 
     # Target genes
     out.append("<h2>Target genes</h2><p>Nearest gene of each summit (ChIPseeker). Promoter-bound = a summit within ±3 kb "
@@ -283,7 +313,8 @@ details{margin:6px 0;padding:6px 10px;background:var(--raise);border-radius:8px}
 .tabs{display:flex;gap:6px;margin:14px 0 4px;position:sticky;top:0;background:var(--surface);padding:8px 0;z-index:5}
 .tabs button{font:inherit;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--raise);color:var(--ink);cursor:pointer}
 .tabs button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-section[hidden]{display:none}
+section[hidden],div[data-region][hidden]{display:none}
+.tabs.rt{position:static;padding:4px 0}
 svg{display:block;width:100%;height:auto}
 .rl{text-anchor:end;font-size:12px;fill:var(--ink2)}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink2);margin:6px 0}
@@ -305,9 +336,14 @@ document.addEventListener('mousemove',e=>{const t=e.target.closest('[data-tip]')
 if(!t){tip.style.display='none';return}tip.textContent=t.dataset.tip;tip.style.display='block';
 tip.style.left=Math.min(e.clientX+14,innerWidth-tip.offsetWidth-8)+'px';tip.style.top=(e.clientY+14)+'px'});
 const show=s=>{document.querySelectorAll('section[data-set]').forEach(x=>x.hidden=x.dataset.set!==s);
-document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.set===s));
+document.querySelectorAll('.tabs:not(.rt) button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.set===s));
 try{localStorage.setItem('isl1-set',s)}catch(e){}};
-document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.set)));
+document.querySelectorAll('.tabs:not(.rt) button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.set)));
+const showR=r=>{document.querySelectorAll('div[data-region]').forEach(x=>x.hidden=x.dataset.region!==r);
+document.querySelectorAll('.rt button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.region===r));
+try{localStorage.setItem('isl1-region',r)}catch(e){}};
+document.querySelectorAll('.rt button').forEach(b=>b.addEventListener('click',()=>showR(b.dataset.region)));
+let r0='all';try{r0=localStorage.getItem('isl1-region')||r0}catch(e){}showR(r0);
 let s0='conservative';try{s0=localStorage.getItem('isl1-set')||s0}catch(e){}show(s0);
 """
 
@@ -335,7 +371,7 @@ true-replicate and pooled-pseudoreplicate IDR). D15 Ctr has one replicate (self-
 "KO+rescue" = ISL1 KO with ISL1 rescue. Switch sets with the buttons; hover cells and bars for detail.</p>
 <div class="tabs" role="group" aria-label="Peak set"><button data-set="conservative">Conservative</button><button data-set="optimal">Optimal</button></div>
 {body}
-<p class="small mute">HOMER findMotifsGenome.pl (-size 200, summit-centred, hg38) via scripts/07_homer_motifs.sb; ChIPseeker
+<p class="small mute">HOMER findMotifsGenome.pl (-size 200, summit-centred, hg38; all, promoter and distal summits) via scripts/07_homer_motifs.sb; ChIPseeker
 annotatePeak (TxDb.Hsapiens.UCSC.hg38.knownGene, org.Hs.eg.db, TSS ± 3 kb) via scripts/08_annotate_peaks.sb;
 report by scripts/motif_annotation_report.py.</p>
 </main><div id="tip"></div><script>{JS}</script></body></html>
