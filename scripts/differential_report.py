@@ -39,23 +39,28 @@ def fnum(x, fmt):
 def pca_svg(pca, var, samples):
     info = {r["sample"]: r for r in samples}
     xs = [float(r["PC1"]) for r in pca]; ys = [float(r["PC2"]) for r in pca]
-    w, h, m = 620, 400, 56
-    def sx(v): return m + (v - min(xs)) / ((max(xs) - min(xs)) or 1) * (w - 2 * m)
+    w, h, m, right = 760, 400, 56, 150   # right margin keeps point labels inside the plot
+    def sx(v): return m + (v - min(xs)) / ((max(xs) - min(xs)) or 1) * (w - m - right)
     def sy(v): return h - m + 10 - (v - min(ys)) / ((max(ys) - min(ys)) or 1) * (h - 2 * m)
     p = [f'<svg viewBox="0 0 {w} {h}" style="max-width:{w}px" role="img" aria-label="PCA">',
          f'<line x1="{m - 20}" y1="{h - 30}" x2="{w - 10}" y2="{h - 30}" class="axis"/>',
          f'<line x1="{m - 20}" y1="10" x2="{m - 20}" y2="{h - 30}" class="axis"/>',
          f'<text x="{(w + m) / 2}" y="{h - 8}" class="al">PC1 ({float(var[0]["percent"]):.0f}%)</text>',
          f'<text transform="translate(14,{h / 2}) rotate(-90)" class="al">PC2 ({float(var[1]["percent"]):.0f}%)</text>']
-    for r in pca:
+    placed = []   # label boxes already drawn: nudge a label down until it clears them
+    for r in sorted(pca, key=lambda r: (sy(float(r["PC2"])), sx(float(r["PC1"])))):
         s = info[r["sample"]]
         x, y = sx(float(r["PC1"])), sy(float(r["PC2"]))
+        ly = y + 4
+        while any(abs(ly - py) < 13 and abs(x - px) < 120 for px, py in placed):
+            ly += 13
+        placed.append((x, ly))
         k = DAYS.index(s["day"]) + 1
         tip = f"{r['sample']} · batch {s['batch']} · PC1 {float(r['PC1']):.1f}, PC2 {float(r['PC2']):.1f}"
         mark = (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="7" class="pt s{k}"/>' if s["genotype"] == "Ctr" else
                 f'<path d="M{x:.1f},{y - 8:.1f} L{x + 7.5:.1f},{y + 6:.1f} L{x - 7.5:.1f},{y + 6:.1f} Z" class="pt s{k}"/>')
         p.append(f'<g data-tip="{esc(tip)}"><circle cx="{x:.1f}" cy="{y:.1f}" r="14" class="hit"/>{mark}'
-                 f'<text x="{x + 11:.1f}" y="{y + 4:.1f}" class="pl">{esc(s["day"])} {"Ctr" if s["genotype"] == "Ctr" else "KO"} r{esc(s["replicate"])}·b{esc(s["batch"])}</text></g>')
+                 f'<text x="{x + 11:.1f}" y="{ly:.1f}" class="pl">{esc(s["day"])} {"Ctr" if s["genotype"] == "Ctr" else "KO"} r{esc(s["replicate"])}·b{esc(s["batch"])}</text></g>')
     p.append("</svg>")
     legend = ("".join(f'<span class="key"><i class="sw s{i + 1}"></i>{d}</span>' for i, d in enumerate(DAYS))
               + '<span class="key"><svg width="14" height="14"><circle cx="7" cy="7" r="5" class="ko-key"/></svg>Ctr</span>'
@@ -90,7 +95,10 @@ def render(key, cdir):
                + pca_svg(pca, var, samples))
     summ = read_tsv(d / "deseq2" / "de_summary.tsv")
     out.append("<h2>Differential binding</h2><p>DESeq2, <span class='mono'>~ batch + group</span>, Wald test. Significant: "
-               "padj &lt; 0.05 and |log2FC| ≥ 1. Up = more ISL1 signal in the first group.</p><div class='scroll'><table><thead><tr>"
+               "padj &lt; 0.05 and |log2FC| ≥ 1. Up = more ISL1 signal in the first group. Median-of-ratios size factors assume most "
+               "regions do not change; a global drop in binding (e.g. KO+rescue, whose libraries put 2-3x fewer fragments in "
+               "these regions at similar depth) is largely absorbed into the size factors, so these contrasts show relative "
+               "redistribution rather than overall loss.</p><div class='scroll'><table><thead><tr>"
                "<th class='l'>Contrast</th><th>Regions tested</th><th>Up</th><th>Down</th></tr></thead><tbody>"
                + "".join(f"<tr><td class='l'>{esc(label(r['a']))} vs {esc(label(r['b']))}</td><td>{int(r['tested']):,}</td>"
                          f"<td>{int(r['up']):,}</td><td>{int(r['down']):,}</td></tr>" for r in summ)

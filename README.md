@@ -301,6 +301,32 @@ Downstream tools are in their own env, built by `scripts/00d_build_downstream_en
 (`DS_TOOLS`): HOMER, featureCounts, R with DESeq2 and ChIPseeker. HOMER uses the GRCh38
 FASTA from cellranger-arc (`GENOME_FASTA`).
 
+### Consensus regions and DESeq2 (2026-10-19)
+
+`scripts/10_consensus_counts.sb` (job 34666566), `scripts/11_deseq2.sb` (34666567), report
+`results/differential_report/`. Regions: 13,240 (a, conservative), 14,694 (a, optimal),
+13,247 (b, conservative), 14,718 (b, optimal). Significant = padj < 0.05, |log2FC| >= 1:
+
+| Contrast | a cons | a opt | b cons | b opt |
+|---|---|---|---|---|
+| D15 vs D12 Ctr (up/down) | 4/0 | 6/0 | 4/0 | 3/0 |
+| D22 vs D12 Ctr | 17/51 | 18/52 | 27/121 | 22/112 |
+| D22 vs D15 Ctr | 0/0 | 0/0 | 0/0 | 0/0 |
+| D12 KO+rescue vs Ctr | -- | -- | 14/5 | 17/16 |
+| D15 KO+rescue vs Ctr | -- | -- | 14/99 | 14/163 |
+
+- **Ctr vs KO+rescue dominates the data.** PCA PC1 (49%) separates them; the Ctr stages sit
+  together.
+- **Normalization absorbs most of the KO+rescue loss.** KO+rescue libraries are as deep
+  (18-31 M fragments) but put 2-3x fewer fragments in the regions (0.7-1.4% vs 1.6-3.5%).
+  Median-of-ratios gives them size factors of 0.49-0.88 (Ctr 0.90-3.24), so a global loss
+  of binding is mostly normalized away. Library-size normalization (DiffBind's default) would
+  show it, but it would also turn FRiP differences between libraries into apparent binding
+  changes. Decision pending.
+- **Stage contrasts have little power.** D15 Ctr is one library, strategy a has 2 residual df,
+  and differences between Ctr replicates (e.g. D22 rep1) are large relative to the stage
+  effect.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_cutNrun` is a clone (remote `alpine`) holding code plus HTML reports
