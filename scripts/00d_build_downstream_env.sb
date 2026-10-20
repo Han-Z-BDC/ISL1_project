@@ -8,6 +8,7 @@
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/build_downstream_env.%j.out
 
 # Env for the downstream analysis (= DS_TOOLS in study_config/config.sh): HOMER (motifs),
+# bedGraphToBigWig (signal tracks; added to the built env 2026-10-20 with --freeze-installed),
 # subread featureCounts (fragment counts in consensus peaks), and R with DESeq2 (differential
 # binding), ChIPseeker + TxDb hg38 + org.Hs.eg.db (annotation, target genes). Its own env so the
 # pipeline's cutnrun env stays as built. Resolved versions: study_config/downstream_env.export.yml.
@@ -24,7 +25,7 @@ ENVDIR=$(dirname "${DS_TOOLS}")
 "${MM}" create -y -p "${ENVDIR}" -c conda-forge -c bioconda \
   r-base=4.3 bioconductor-deseq2 bioconductor-apeglm bioconductor-chipseeker \
   bioconductor-txdb.hsapiens.ucsc.hg38.knowngene bioconductor-org.hs.eg.db \
-  bioconductor-rtracklayer r-ggplot2 r-data.table homer subread bedtools
+  bioconductor-rtracklayer r-ggplot2 r-data.table homer subread bedtools ucsc-bedgraphtobigwig
 "${MM}" env export -p "${ENVDIR}" --no-build > "${STUDY_DIR}/study_config/downstream_env.export.yml"
 
 # HOMER's installer writes the env path into each Perl script as a double-quoted string
@@ -35,7 +36,7 @@ for f in $(grep -lE '[^\\]@' "${H}"/bin/*.pl "${H}"/bin/*.pm "${H}"/update/*.pl 
   sed -i -E '/^(use lib |my \$homeDir = )"/ s/([^\\])@/\1\\@/g' "${f}"
 done
 
-for t in findMotifsGenome.pl annotatePeaks.pl featureCounts bedtools Rscript; do
+for t in findMotifsGenome.pl annotatePeaks.pl featureCounts bedtools bedGraphToBigWig Rscript; do
   [[ -x "${DS_TOOLS}/${t}" ]] || { echo "ERROR: ${t} missing from ${DS_TOOLS}" >&2; exit 1; }
 done
 # Usage text means the script compiled; it exits non-zero after printing it, hence || true.

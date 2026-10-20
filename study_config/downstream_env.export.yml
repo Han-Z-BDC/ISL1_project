@@ -107,6 +107,7 @@ dependencies:
   - libmpdec=4.0.0
   - libnghttp2=1.68.1
   - libopenblas=0.3.34
+  - libopenssl-static=3.6.5
   - libpng=1.6.59
   - libsanitizer=16.2.0
   - libsqlite=3.53.4
@@ -123,6 +124,7 @@ dependencies:
   - libxml2=2.13.9
   - libzlib=1.3.2
   - make=4.4.1
+  - mysql-connector-c=6.1.11
   - ncurses=6.6
   - oniguruma=6.9.10
   - openssl=3.6.5
@@ -293,6 +295,7 @@ dependencies:
   - tktable=2.10
   - tomlkit=0.15.2
   - tzdata=2026c
+  - ucsc-bedgraphtobigwig=482
   - unzip=6.0
   - wget=1.25.0
   - xmltodict=1.0.4

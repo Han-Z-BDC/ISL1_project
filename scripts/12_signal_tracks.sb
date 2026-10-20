@@ -1,0 +1,78 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_tracks
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=08:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/signal_tracks.%A_%a.out
+
+# Step 12: ENCODE-style signal tracks (as the ENCODE TF ChIP-seq pipeline makes them with MACS):
+#   <name>.fc.bw    fold change over control  (macs3 bdgcmp -m FE)
+#   <name>.pval.bw  -log10 p-value             (macs3 bdgcmp -m ppois)
+# Array tasks 0..12: one per ISL1 replicate, from the pileup and control-lambda bedGraphs of its
+#   group-IgG call (03c, results_group/macs3) -> ${GROUP_OUT}/tracks/replicate/
+# Array tasks 13..17: one per group, MACS3 on the group's ISL1 replicates pooled (several -t files)
+#   vs the group IgG (02c), same settings as 03c -> ${GROUP_OUT}/tracks/pooled/ (pooled peaks
+#   and bedGraphs in ${GROUP_OUT}/macs3_pooled/)
+# MACS3 scales the larger of treatment and control to the smaller, so these bedGraphs are already
+# depth-matched; ENCODE's --SPMR plus "bdgcmp -S" rescaling gives the same FE and p-values.
+# Tracks keep chr1-22, X, Y, clipped to chromosome ends.
+#   sbatch --array=0-17 scripts/12_signal_tracks.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n ISL1 rows + n groups - 1>}"
+
+SIZES=/pl/active/ZhuLab_BDC/genome/hg38.canonical.chrom.sizes
+T=${SLURM_CPUS_PER_TASK:-4}
+mapfile -t TF < <(awk -F'\t' 'NR>1 && $3=="TF" {print $2}' "${SAMPLE_SHEET}")
+mapfile -t GROUPS_ALL < <(awk -F'\t' 'NR>1 && $6=="ISL1" {print $3"_"$4}' "${METADATA}" | sort -u)
+i=${SLURM_ARRAY_TASK_ID}
+
+if (( i < ${#TF[@]} )); then
+  name=${TF[$i]}
+  bdg_dir=${GROUP_OUT}/macs3
+  out=${GROUP_OUT}/tracks/replicate
+else
+  group=${GROUPS_ALL[$(( i - ${#TF[@]} ))]:-}
+  [[ -n "${group}" ]] || { echo "ERROR: index ${i} out of range (max $(( ${#TF[@]} + ${#GROUPS_ALL[@]} - 1 )))" >&2; exit 1; }
+  name=${group}_pooled
+  bdg_dir=${GROUP_OUT}/macs3_pooled
+  out=${GROUP_OUT}/tracks/pooled
+  mapfile -t reps < <(awk -F'\t' -v g="${group}" 'NR>1 && $6=="ISL1" && $3"_"$4==g {print $1}' "${METADATA}" | sort)
+  bams=(); for s in "${reps[@]}"; do bams+=("${OUT_DIR}/bam/${s}.filtered.bam"); done
+  control=${GROUP_OUT}/igg_background/${group}.group_IgG.bam
+  mkdir -p "${bdg_dir}"
+  echo "pooled MACS3 ${group}: ${reps[*]} vs $(basename "${control}")"
+  "${TOOLS}/macs3" callpeak -t "${bams[@]}" -c "${control}" -f BAMPE -g hs \
+    -n "${name}" -q "${MACS_QVALUE}" --keep-dup all -B --outdir "${bdg_dir}"
+fi
+
+treat=${bdg_dir}/${name}_treat_pileup.bdg
+ctrl=${bdg_dir}/${name}_control_lambda.bdg
+[[ -s "${treat}" && -s "${ctrl}" ]] || { echo "ERROR: missing ${treat} or ${ctrl}" >&2; exit 1; }
+tmp=${GROUP_OUT}/tracks/tmp.${SLURM_ARRAY_JOB_ID}_${i}
+mkdir -p "${out}" "${tmp}"
+trap 'rm -rf "${tmp}"' EXIT
+
+"${TOOLS}/macs3" bdgcmp -t "${treat}" -c "${ctrl}" -m FE ppois --outdir "${tmp}" --o-prefix "${name}"
+
+to_bigwig () {
+  # $1 = bedGraph, $2 = bigWig: canonical chromosomes, clipped to their ends, C-sorted.
+  awk 'BEGIN{OFS="\t"} NR == FNR {size[$1] = $2; next}
+       ($1 in size) && $2 < size[$1] { if ($3 > size[$1]) $3 = size[$1]; print }' "${SIZES}" "$1" \
+    | LC_ALL=C sort -k1,1 -k2,2n -S 8G --parallel="${T}" -T "${tmp}" > "${tmp}/sorted.bdg"
+  "${DS_TOOLS}/bedGraphToBigWig" "${tmp}/sorted.bdg" "${SIZES}" "$2"
+  rm -f "${tmp}/sorted.bdg"
+}
+to_bigwig "${tmp}/${name}_FE.bdg" "${out}/${name}.fc.bw"
+to_bigwig "${tmp}/${name}_ppois.bdg" "${out}/${name}.pval.bw"
+
+# The pooled pileup/lambda bedGraphs are only needed for these tracks and are several GB each.
+if [[ "${bdg_dir}" == "${GROUP_OUT}/macs3_pooled" ]]; then rm -f "${treat}" "${ctrl}"; fi
+ls -la "${out}/${name}.fc.bw" "${out}/${name}.pval.bw"
+echo "DONE ${name}"
