@@ -336,6 +336,29 @@ FASTA from cellranger-arc (`GENOME_FASTA`).
   and differences between Ctr replicates (e.g. D22 rep1) are large relative to the stage
   effect.
 
+### Signal tracks (ENCODE-style, 2026-10-20)
+
+`scripts/12_signal_tracks.sb` (array 34708371): fold change over control (`.fc.bw`, macs3 bdgcmp
+FE) and -log10 p (`.pval.bw`, ppois), base resolution, chr1-22/X/Y.
+- **Per replicate:** from each replicate's group-IgG call (13), in `results_group/tracks/replicate/`.
+- **Per group:** MACS3 on the pooled replicates vs the group IgG (5), in
+  `results_group/tracks/pooled/`. D15 Ctr's pooled track equals its single replicate.
+
+54 GB in total. Tasks took 25 min to 2.2 h, peak 18 GB.
+
+Check: mean fold change in 200 bp around the top 500 optimal summits of each Ctr group:
+
+| Track | D12 Ctr summits | D15 Ctr summits | D22 Ctr summits |
+|---|---|---|---|
+| D12 Ctr | 4.4 | 2.6 | 2.6 |
+| D15 Ctr | 12.5 | 13.3 | 9.2 |
+| D22 Ctr | 5.3 | 3.7 | 4.8 |
+| D12 KO+rescue | 1.4 | 1.1 | 1.1 |
+| D15 KO+rescue | 1.7 | 1.4 | 1.4 |
+
+Random genomic sites: 0.61-0.69. KO+rescue shows little enrichment at the Ctr sites, in line
+with the library-size DESeq2 result.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_cutNrun` is a clone (remote `alpine`) holding code plus HTML reports
