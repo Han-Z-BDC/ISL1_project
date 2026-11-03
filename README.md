@@ -29,9 +29,9 @@ Two dedicated conda envs, per lab convention (one per pipeline, built from a che
 - **`r_env`** (lab's existing shared R env) — DESeq2 + apeglm added to it for this
   project, alongside the edgeR/limma already there. Differential expression is run
   through *both* engines and cross-checked (see step 8) rather than committing to one.
-  Pinned package list: `r_env.yml`
+  Pinned package list: `envs/r_env.yml`
   ```
-  micromamba create -p /projects/$USER/software/anaconda/envs/r_env -f r_env.yml
+  micromamba create -p /projects/$USER/software/anaconda/envs/r_env -f envs/r_env.yml
   ```
 
 ## Pipeline

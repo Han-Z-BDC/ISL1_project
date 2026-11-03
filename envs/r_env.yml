@@ -2,7 +2,7 @@
 # Exported 2026-11-03 from /projects/$USER/software/anaconda/envs/r_env with
 #   conda env export -p <env> --no-builds
 # Rebuild:
-#   micromamba create -p /projects/$USER/software/anaconda/envs/r_env -f r_env.yml
+#   micromamba create -p /projects/$USER/software/anaconda/envs/r_env -f envs/r_env.yml
 # The live env also has R packages installed from inside R (Seurat, harmony, presto, BPCells,
 # SeuratWrappers, slingshot, ...) for single-cell work; this repo does not use them.
 name: r_env
