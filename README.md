@@ -53,12 +53,12 @@ bash study_config/setup_links.sh
 ## Pipeline
 
 Submitted from `pipeline/` (the scripts find `config.sh` and `logs/` through `SLURM_SUBMIT_DIR`).
-`acpu` runs the alignment array. `acompile` (8 cores per user, 12 h) suits single small jobs such
-as FastQC.
+All analysis jobs run on `acpu`. `acompile` is kept for data downloads only (8 cores per user).
+The first FastQC run (job 35274348) went to `acompile` before that rule was set.
 
 ```
 cd pipeline
-sbatch --partition=acompile --qos=compile scripts/00_fastqc.sb
+sbatch scripts/00_fastqc.sb
 sbatch --array=0-61 --cpus-per-task=8 --mem=30G --time=06:00:00 scripts/01_align.sb
 ```
 
