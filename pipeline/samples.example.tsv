@@ -1,0 +1,5 @@
+library_id	sample_name	role	control_sample	replicate
+Sample1_IgG_S0_L001	Sample1_IgG	IgG	NA	1
+Sample1_ISL1_S0_L001	Sample1_ISL1	TF	Sample1_IgG	1
+Sample2_IgG_S0_L001	Sample2_IgG	IgG	NA	1
+Sample2_ISL1_S0_L001	Sample2_ISL1	TF	Sample2_IgG	1
