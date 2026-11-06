@@ -27,6 +27,10 @@ fastqs were moved there from the scRNA folder; `md5.txt` lists them and
 | CtrGFP | D15 | 2 | ISL1, Flag, IgG |
 | KOISL1 | D15 | 2 | ISL1, Flag, IgG |
 
+- **D15 CtrGFP and D15 KOISL1 are set aside (2026-11-06).** Their 6 libraries (ISL1, Flag,
+  IgG) are a separate question and stay out of the analysis for now. Their peaks were called
+  with the rest and are left in `results/`; downstream steps use the H3CTR/ISL1KO time course
+  only.
 - **No ISL1 rescue in this batch** (confirmed 2026-11-05). The Flag target is still to be
   confirmed.
 - **Antibody names normalized** from two delivery typos: `H327Kac` -> H3K27ac (D15 ISL1-KO),
