@@ -98,6 +98,29 @@ sbatch --array=0-43 --dependency=afterok:<02 job> scripts/03_call_peaks.sb
 - **ISL1 and Flag, for IDR:** `results/macs3_relaxed/`. p 0.01, top 300k peaks. The
   single-replicate D15 CtrGFP and D15 KOISL1 groups also get two pseudoreplicates.
 - **Per-sample stats:** `results/qc/peaks/<sample>.peak_stats.tsv` (peaks and FRiP).
+
+Results (2026-11-06; jobs 35295284 and 35295285, all completed; at most 9.1 GB and 1 h 15 min
+per task). Regions are distinct blacklist-filtered peaks, and FRiP counts all filtered fragments:
+
+| Antibody | Mode | Regions per library | FRiP |
+|---|---|---|---|
+| H3K27me3 | broad | 54.8k-119.2k | 33-49% |
+| H3K27ac | narrow | D15/D22: 32.7k-80.9k; D9/D18: 7.2k-42.2k | D15/D22: 2.1-8.3%; D9/D18: 0.3-3.0% |
+| ISL1 | narrow | 18.4k-37.8k | 1.2-4.6% |
+| Flag | narrow | 12.1k, 12.4k | 1.3% |
+
+ISL1 checks (top 1000 peaks by p value):
+- **Replicate pairs agree poorly.** 20-40% of rep1's top 500 peaks fall in any rep2 peak (D15,
+  D22).
+- **Match to the earlier batches' D15 Ctr conservative ISL1 set (9,329 peaks):**
+  - Strong: D15 CtrGFP 86%, D18 H3CTR rep1 74%, D22 H3CTR rep2 60%.
+  - Weaker: D22 rep1 26%, D18 rep2 25%, D15 KOISL1 21%, D15 H3CTR rep1/rep2 16% / 8%.
+  - D9 (both replicates): 3%.
+
+  The comparison is a QC reference only; the analysis stays standalone.
+- **Flag peaks do not match ISL1** (0.2-0.7% vs the earlier set, 1-2% vs ISL1 in the same
+  block). They look like background.
+
 - **Next:** IDR for ISL1/Flag. For histones, replicated peaks by overlap (ENCODE's histone
   rule) rather than IDR.
 
