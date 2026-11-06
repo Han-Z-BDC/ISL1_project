@@ -125,8 +125,34 @@ ISL1 checks (top 1000 peaks by p value):
 - **Flag peaks do not match ISL1** (0.2-0.7% vs the earlier set, 1-2% vs ISL1 in the same
   block). They look like background.
 
-- **Next:** IDR for ISL1/Flag. For histones, replicated peaks by overlap (ENCODE's histone
-  rule) rather than IDR.
+### Reproducible peaks (ENCODE design)
+
+H3CTR and ISL1KO groups only (day x line x antibody: 4 ISL1, 8 H3K27ac, 8 H3K27me3); D15 CtrGFP
+and KOISL1 are set aside. Target duplicates are kept throughout, as is usual for CUT&RUN (ENCODE
+removes them for ChIP-seq).
+
+```
+sbatch --array=0-39 scripts/04_relaxed_pseudoreps.sb
+sbatch --array=0-19 --dependency=afterok:<04 job> scripts/05_reproducible_peaks.sb
+```
+
+- **04, per library:** relaxed MACS3 call vs its own IgG (p 0.01; top 300k for ISL1, top 500k
+  for histones; blacklist filtered). The library is then split in half by read name, and each
+  half is called the same way.
+- **05, per group:**
+  - **Pooled calls:** both replicates vs both IgGs, plus the two pooled halves.
+  - **Comparisons (each keeps the reference peaks supported by two lists):**
+    - Nt: pooled peaks vs rep1 and rep2 (replicated).
+    - Np: pooled peaks vs the pooled halves (pseudoreplicated).
+    - N1 / N2: each replicate vs its own halves (QC only).
+  - **Methods:**
+    - Overlap (all marks, ENCODE histone rule): at least 50% of either peak.
+    - IDR (ISL1, ENCODE TF): IDR < 0.05, pooled peaks as `--peak-list`. The earlier ISL1
+      batches ran IDR without a peak list.
+  - **Not done here:** no automatic conservative/optimal pick; both the Nt and Np sets are kept.
+  - **Ratios:** self-consistency N1/N2 and rescue Np/Nt; both at most 2 = pass.
+- **Output:** `results/reproducibility/{overlap,idr}/<group>.{Nt,Np}.narrowPeak` and
+  `results/reproducibility/qc/<group>.repro_qc.tsv`.
 
 ## Local review copy (Mac)
 

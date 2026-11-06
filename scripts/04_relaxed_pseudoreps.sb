@@ -1,0 +1,75 @@
+#!/bin/bash
+#SBATCH --job-name=b3_relaxed
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=20G
+#SBATCH --time=12:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/relaxed.%A_%a.out
+
+# Step 4 (ENCODE reproducibility design, part 1): one array task per library of REPRO_LINES x
+# REPRO_ANTIBODIES (config.sh; 8 ISL1 + 16 H3K27ac + 16 H3K27me3 = 40).
+#   - relaxed MACS3 call of the replicate vs its own block IgG (dedup, from pipeline 02)
+#   - the replicate split in half (self-pseudoreplicates, by read name) and each half called
+# Relaxed call: p RELAXED_P, top CAP_TF (ISL1) or CAP_HISTONE peaks by p value, blacklist
+# filtered. BAMPE fragments; target duplicates kept (--keep-dup all), as in step 03. No
+# --call-summits, so one row per peak. Same settings for every mark (ENCODE's histone pipeline
+# has no --broad mode).
+# Output: results/reproducibility/relaxed/<name>.relaxed.narrowPeak for <name> = sample,
+#         sample.pr1, sample.pr2; halves as BAMs in results/reproducibility/pseudoreps/.
+#   sbatch --array=0-39 scripts/04_relaxed_pseudoreps.sb
+#   then scripts/05_reproducible_peaks.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n libraries - 1>}"
+
+# sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
+mapfile -t ROWS < <(awk -F'\t' -v L=" ${REPRO_LINES} " -v A=" ${REPRO_ANTIBODIES} " \
+  'NR>1 && index(L, " "$4" ") && index(A, " "$6" ") {print $1"\t"$6}' "${METADATA}")
+row=${ROWS[${SLURM_ARRAY_TASK_ID}]:-}
+[[ -n "${row}" ]] || { echo "ERROR: no library at index ${SLURM_ARRAY_TASK_ID} (have ${#ROWS[@]})" >&2; exit 1; }
+sample=${row%%$'\t'*}
+antibody=${row##*$'\t'}
+if [[ "${antibody}" == ISL1 ]]; then cap=${CAP_TF}; else cap=${CAP_HISTONE}; fi
+# samples.tsv: library_id sample_name role control_sample replicate
+control=$(awk -F'\t' -v s="${sample}" '$2==s {print $4}' "${SAMPLE_SHEET}")
+
+target=${OUT_DIR}/bam/${sample}.filtered.bam
+control_bam=${OUT_DIR}/igg_background/${control}.dedup.bam
+[[ -s "${target}" ]] || { echo "ERROR: missing ${target}" >&2; exit 1; }
+[[ -s "${control_bam}" ]] || { echo "ERROR: missing ${control_bam} -- run pipeline 02 first" >&2; exit 1; }
+
+REL=${OUT_DIR}/reproducibility/relaxed
+PR=${OUT_DIR}/reproducibility/pseudoreps
+mkdir -p "${REL}" "${PR}"
+
+relaxed () {
+  # $1 = name, $2 = treatment BAM -> ${REL}/$1.relaxed.narrowPeak
+  "${TOOLS}/macs3" callpeak -t "$2" -c "${control_bam}" -f BAMPE -g hs \
+    -n "$1" -p "${RELAXED_P}" --keep-dup all --outdir "${REL}"
+  sort -k8,8gr "${REL}/$1_peaks.narrowPeak" | awk -v n="${cap}" 'NR <= n' \
+    | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" > "${REL}/$1.relaxed.narrowPeak"
+  rm -f "${REL}/$1_peaks.narrowPeak" "${REL}/$1_peaks.xls" "${REL}/$1_summits.bed"
+  echo "RELAXED $1: $(wc -l < "${REL}/$1.relaxed.narrowPeak") peaks (p ${RELAXED_P}, top ${cap}, blacklist filtered)"
+}
+
+echo "library: ${sample} (${antibody}) vs $(basename "${control_bam}")"
+relaxed "${sample}" "${target}"
+
+# Halves: both mates share a read name, so splitting on the parity of its last field (the
+# Illumina y coordinate) keeps pairs together and is reproducible.
+pr=${PR}/${sample}
+"${TOOLS}/samtools" view -h "${target}" | awk -v c1="${TOOLS}/samtools view -b -o ${pr}.pr1.bam -" \
+  -v c2="${TOOLS}/samtools view -b -o ${pr}.pr2.bam -" '
+  BEGIN { FS = OFS = "\t" }
+  /^@/  { print | c1; print | c2; next }
+        { n = split($1, f, ":"); if (f[n] % 2 == 0) print | c1; else print | c2 }
+  END   { close(c1); close(c2) }'
+for h in pr1 pr2; do
+  echo "half ${h}: $("${TOOLS}/samtools" view -c -f 64 "${pr}.${h}.bam") fragments"
+  relaxed "${sample}.${h}" "${pr}.${h}.bam"
+done

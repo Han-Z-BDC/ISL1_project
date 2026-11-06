@@ -41,6 +41,16 @@ TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/cutnrun/bin
 MAPQ=20
 MACS_QVALUE=0.01
 
+# Reproducible peaks (scripts/04-05, ENCODE design). Relaxed calls: p 0.01, top N peaks
+# (ENCODE: 300k for TFs, 500k for histone marks). IDR env as built for ISL1_cutNrun.
+REPRO_LINES="H3CTR ISL1KO"       # D15 CtrGFP / KOISL1 set aside (2026-11-06)
+REPRO_ANTIBODIES="ISL1 H3K27ac H3K27me3"
+RELAXED_P=0.01
+CAP_TF=300000
+CAP_HISTONE=500000
+IDR_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/idr/bin
+IDR_THRESHOLD=0.05
+
 # Pooled IgG (pipeline 02, IGG_METHOD=pooled): not used yet; set POOL_TARGET_FRAGMENTS from the
 # alignment metrics before using it.
 mapfile -t POOL_IGG_SAMPLES < <(awk -F'\t' 'NR>1 && $3=="IgG" {print $2}' "${SAMPLE_SHEET}")

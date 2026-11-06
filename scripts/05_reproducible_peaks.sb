@@ -1,0 +1,130 @@
+#!/bin/bash
+#SBATCH --job-name=b3_repro
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=40G
+#SBATCH --time=16:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/repro.%A_%a.out
+
+# Step 5 (ENCODE reproducibility design, part 2): one array task per group = day x line x
+# antibody over REPRO_LINES x REPRO_ANTIBODIES (4 ISL1 + 8 H3K27ac + 8 H3K27me3 = 20), two
+# replicates each. Needs step 04 for both replicates.
+#   - pooled call: both replicates vs both block IgGs (MACS3 takes several -t / -c files)
+#   - pooled halves: ppr1 = rep1.pr1 + rep2.pr1, ppr2 = rep1.pr2 + rep2.pr2
+#   - all calls relaxed as in 04 (p RELAXED_P, top CAP_TF / CAP_HISTONE, blacklist filtered)
+# Four comparisons, each keeping peaks of the "reference" list supported by two other lists:
+#   Nt  pooled vs rep1, rep2       replicated set
+#   Np  pooled vs ppr1, ppr2       pseudoreplicated set
+#   N1  rep1 vs rep1.pr1, rep1.pr2 (N2 likewise) -- counts for QC only
+# Methods:
+#   overlap (all marks; ENCODE histone): reference peak kept if it overlaps a peak in each of
+#           the two lists by >= 50% of either peak's length
+#   idr     (ISL1 only; ENCODE TF): idr --samples A B --peak-list reference, ranked by p value,
+#           peaks with global IDR < IDR_THRESHOLD; coordinates are the reference peaks
+# Both Nt and Np sets are written for each method; choosing between them is left to us.
+# QC ratios: self-consistency max(N1,N2)/min(N1,N2), rescue max(Np,Nt)/min(Np,Nt);
+# both <= 2 pass, one > 2 borderline, both > 2 fail.
+# Output: results/reproducibility/{overlap,idr}/<group>.{Nt,Np}.narrowPeak,
+#         results/reproducibility/qc/<group>.repro_qc.tsv (one row per method)
+#   sbatch --array=0-19 --dependency=afterok:<04 job> scripts/05_reproducible_peaks.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n groups - 1>}"
+
+# sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
+mapfile -t GRPS < <(awk -F'\t' -v L=" ${REPRO_LINES} " -v A=" ${REPRO_ANTIBODIES} " \
+  'NR>1 && index(L, " "$4" ") && index(A, " "$6" ") {print $3"_"$4"_"$6}' "${METADATA}" | sort -u)
+group=${GRPS[${SLURM_ARRAY_TASK_ID}]:-}
+[[ -n "${group}" ]] || { echo "ERROR: no group at index ${SLURM_ARRAY_TASK_ID} (have ${#GRPS[@]})" >&2; exit 1; }
+antibody=${group##*_}
+mapfile -t REPS < <(awk -F'\t' -v g="${group}" 'NR>1 && $3"_"$4"_"$6==g {print $5"\t"$1}' "${METADATA}" | sort -n | cut -f2)
+(( ${#REPS[@]} == 2 )) || { echo "ERROR: ${group} has ${#REPS[@]} replicates, expected 2" >&2; exit 1; }
+r1=${REPS[0]}; r2=${REPS[1]}
+if [[ "${antibody}" == ISL1 ]]; then cap=${CAP_TF}; methods="overlap idr"; else cap=${CAP_HISTONE}; methods="overlap"; fi
+ctl () { awk -F'\t' -v s="$1" '$2==s {print $4}' "${SAMPLE_SHEET}"; }
+c1=${OUT_DIR}/igg_background/$(ctl "${r1}").dedup.bam
+c2=${OUT_DIR}/igg_background/$(ctl "${r2}").dedup.bam
+
+R=${OUT_DIR}/reproducibility
+REL=${R}/relaxed
+PR=${R}/pseudoreps
+mkdir -p "${R}/qc" "${R}/overlap" "${R}/idr"
+for f in "${OUT_DIR}/bam/${r1}.filtered.bam" "${OUT_DIR}/bam/${r2}.filtered.bam" "${c1}" "${c2}" \
+         "${PR}/${r1}.pr1.bam" "${PR}/${r1}.pr2.bam" "${PR}/${r2}.pr1.bam" "${PR}/${r2}.pr2.bam"; do
+  [[ -s "${f}" ]] || { echo "ERROR: missing ${f} -- run 04 for ${r1} and ${r2} first" >&2; exit 1; }
+done
+for n in "${r1}" "${r1}.pr1" "${r1}.pr2" "${r2}" "${r2}.pr1" "${r2}.pr2"; do
+  [[ -s "${REL}/${n}.relaxed.narrowPeak" ]] || { echo "ERROR: missing ${REL}/${n}.relaxed.narrowPeak -- run 04 first" >&2; exit 1; }
+done
+echo "group ${group}: ${r1} ($(basename "${c1}")) + ${r2} ($(basename "${c2}")); methods: ${methods}"
+
+relaxed_pooled () {
+  # $1 = name, $2 $3 = treatment BAMs -> ${REL}/$1.relaxed.narrowPeak
+  "${TOOLS}/macs3" callpeak -t "$2" "$3" -c "${c1}" "${c2}" -f BAMPE -g hs \
+    -n "$1" -p "${RELAXED_P}" --keep-dup all --outdir "${REL}"
+  sort -k8,8gr "${REL}/$1_peaks.narrowPeak" | awk -v n="${cap}" 'NR <= n' \
+    | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" > "${REL}/$1.relaxed.narrowPeak"
+  rm -f "${REL}/$1_peaks.narrowPeak" "${REL}/$1_peaks.xls" "${REL}/$1_summits.bed"
+  echo "RELAXED $1: $(wc -l < "${REL}/$1.relaxed.narrowPeak") peaks (p ${RELAXED_P}, top ${cap}, blacklist filtered)"
+}
+relaxed_pooled "${group}.pooled" "${OUT_DIR}/bam/${r1}.filtered.bam" "${OUT_DIR}/bam/${r2}.filtered.bam"
+relaxed_pooled "${group}.ppr1" "${PR}/${r1}.pr1.bam" "${PR}/${r2}.pr1.bam"
+relaxed_pooled "${group}.ppr2" "${PR}/${r1}.pr2.bam" "${PR}/${r2}.pr2.bam"
+
+half () {
+  # keep -wo rows where the overlap is >= 50% of either peak (narrowPeak = 10 columns)
+  awk 'BEGIN{FS=OFS="\t"} {s1=$3-$2; s2=$13-$12; if ($21/s1 >= 0.5 || $21/s2 >= 0.5) print}' | cut -f1-10
+}
+compare_overlap () {
+  # $1 = reference peaks, $2 $3 = supporting lists, $4 = output narrowPeak
+  "${TOOLS}/bedtools" intersect -wo -a "$1" -b "$2" | half | sort -u \
+    | "${TOOLS}/bedtools" intersect -wo -a - -b "$3" | half | sort -k1,1 -k2,2n -u > "$4"
+}
+min_log10=$(awk -v t="${IDR_THRESHOLD}" 'BEGIN{printf "%.6f", -log(t)/log(10)}')
+compare_idr () {
+  # $1 = reference peaks (--peak-list), $2 $3 = the two samples, $4 = output narrowPeak
+  local stem=${4%.narrowPeak}
+  "${IDR_TOOLS}/idr" --samples "$2" "$3" --peak-list "$1" --input-file-type narrowPeak \
+    --rank p.value --soft-idr-threshold "${IDR_THRESHOLD}" --use-best-multisummit-IDR \
+    --output-file "${stem}.idr.txt" --log-output-file "${stem}.idr.log" --plot
+  # Column 12 = global IDR as -log10.
+  awk -v m="${min_log10}" 'BEGIN{FS=OFS="\t"} $12 >= m {print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' \
+    "${stem}.idr.txt" | sort -k1,1 -k2,2n -u > "$4"
+}
+
+frip () {
+  # $1 = sample, $2 = peaks -> read-1 mates in a peak / all read-1 mates
+  local bam=${OUT_DIR}/bam/$1.filtered.bam a b
+  a=$("${TOOLS}/samtools" view -c -f 64 -L <(cut -f1-3 "$2") "${bam}")
+  b=$("${TOOLS}/samtools" view -c -f 64 "${bam}")
+  awk -v a="${a}" -v b="${b}" 'BEGIN{printf "%.4f", (b > 0 ? a/b : 0)}'
+}
+mb () { awk '{t+=$3-$2} END{printf "%.1f", t/1e6}' "$1"; }
+ratio () { awk -v a="$1" -v b="$2" 'BEGIN{lo=(a<b?a:b); hi=(a<b?b:a); if (lo==0) print "inf"; else printf "%.2f", hi/lo}'; }
+n () { wc -l < "$1" | tr -d ' '; }
+
+qc=${R}/qc/${group}.repro_qc.tsv
+echo -e "group\tantibody\tmethod\trep1\trep2\trep1_relaxed\trep2_relaxed\tpooled_relaxed\tN1\tN2\tNt\tNp\tself_consistency\trescue\tencode_flag\tNt_Mb\tNp_Mb\tNt_frip_rep1\tNt_frip_rep2" > "${qc}"
+for m in ${methods}; do
+  O=${R}/${m}
+  "compare_${m}" "${REL}/${group}.pooled.relaxed.narrowPeak" "${REL}/${r1}.relaxed.narrowPeak" \
+    "${REL}/${r2}.relaxed.narrowPeak" "${O}/${group}.Nt.narrowPeak"
+  "compare_${m}" "${REL}/${group}.pooled.relaxed.narrowPeak" "${REL}/${group}.ppr1.relaxed.narrowPeak" \
+    "${REL}/${group}.ppr2.relaxed.narrowPeak" "${O}/${group}.Np.narrowPeak"
+  for r in "${r1}" "${r2}"; do
+    "compare_${m}" "${REL}/${r}.relaxed.narrowPeak" "${REL}/${r}.pr1.relaxed.narrowPeak" \
+      "${REL}/${r}.pr2.relaxed.narrowPeak" "${O}/${r}.self.narrowPeak"
+  done
+  Nt=$(n "${O}/${group}.Nt.narrowPeak"); Np=$(n "${O}/${group}.Np.narrowPeak")
+  N1=$(n "${O}/${r1}.self.narrowPeak"); N2=$(n "${O}/${r2}.self.narrowPeak")
+  selfc=$(ratio "${N1}" "${N2}"); rescue=$(ratio "${Np}" "${Nt}")
+  flag=$(awk -v r="${rescue}" -v s="${selfc}" 'BEGIN{k=(r=="inf"||r+0>2)+(s=="inf"||s+0>2); print (k==0?"pass":(k==1?"borderline":"fail"))}')
+  echo -e "${group}\t${antibody}\t${m}\t${r1}\t${r2}\t$(n "${REL}/${r1}.relaxed.narrowPeak")\t$(n "${REL}/${r2}.relaxed.narrowPeak")\t$(n "${REL}/${group}.pooled.relaxed.narrowPeak")\t${N1}\t${N2}\t${Nt}\t${Np}\t${selfc}\t${rescue}\t${flag}\t$(mb "${O}/${group}.Nt.narrowPeak")\t$(mb "${O}/${group}.Np.narrowPeak")\t$(frip "${r1}" "${O}/${group}.Nt.narrowPeak")\t$(frip "${r2}" "${O}/${group}.Nt.narrowPeak")" >> "${qc}"
+  echo "${m} ${group}: Nt=${Nt} Np=${Np} N1=${N1} N2=${N2} self=${selfc} rescue=${rescue} ${flag}"
+done
+cat "${qc}"
