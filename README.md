@@ -62,6 +62,23 @@ sbatch scripts/00_fastqc.sb
 sbatch --array=0-61 --cpus-per-task=8 --mem=30G --time=06:00:00 scripts/01_align.sb
 ```
 
+### Alignment QC (2026-11-06)
+
+FastQC/MultiQC (job 35274348) and alignment (array 35274349, 62 tasks) all completed. Peak
+memory was 17.4 GB and the longest task took 3 h 29 min, against 30 GB / 6 h requested. Stats
+come from `results/qc/alignment/` (cutadapt, bowtie2, flagstat):
+
+| Antibody | Libraries | Align % | Dup % | Unique fragments (M), range (median) |
+|---|---|---|---|---|
+| ISL1 | 10 | 88.0-95.0 | 16.1-31.2 | 6.8-31.3 (25.5) |
+| Flag | 2 | 91.8-93.5 | 18.8-23.5 | 29.0-30.5 |
+| H3K27ac | 16 | 92.7-97.5 | 12.4-18.8 | 19.2-40.1 (25.9) |
+| H3K27me3 | 16 | 89.0-97.1 | 13.0-29.1 | 17.1-39.1 (29.7) |
+| IgG | 18 | 85.4-96.0 | 15.9-22.4 | 18.0-37.8 (25.8) |
+
+- **One shallow library:** D22_H3CTR_rep1_ISL1 has 9.8 M read pairs and 6.8 M unique fragments.
+  Every other library has at least 17 M unique fragments.
+
 Peak calling (planned, ENCODE-style):
 - **ISL1 and Flag:** MACS3 narrow peaks vs IgG.
 - **H3K27ac:** MACS3 narrow peaks.
