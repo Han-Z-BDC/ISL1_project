@@ -1,0 +1,118 @@
+#!/bin/bash
+#SBATCH --job-name=b3_cnr_peaks
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=16G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/peaks.%A_%a.out
+
+# Step 3: peaks for every TF row of samples.tsv against its own block IgG (dedup BAM from
+# pipeline/scripts/02_build_igg_background.sb, IGG_METHOD=matched). One array task per row.
+#
+# ISL1, Flag, H3K27ac -> macs3/          narrow, q 0.01, --call-summits: the same MACS3 command
+#                                        and blacklist filter as pipeline/scripts/03_call_macs3.sb
+#                                        (keep them in sync)
+# H3K27me3            -> macs3_broad/    --broad, q 0.01, broad-cutoff 0.1, blacklist filtered
+# ISL1, Flag          -> macs3_relaxed/  p 0.01, no summits, top 300k by p, blacklist filtered:
+#                                        input for IDR. A group with one replicate (D15 CtrGFP,
+#                                        D15 KOISL1) also gets two pseudoreplicates called the same way.
+# Every task writes qc/peaks/<sample>.peak_stats.tsv: peaks and FRiP (read-1 mates of
+# filtered, duplicate-retained fragments that overlap a peak / all read-1 mates).
+#   cd pipeline && sbatch scripts/02_build_igg_background.sb
+#   sbatch --array=0-43 --dependency=afterok:<02 job> scripts/03_call_peaks.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n TF rows - 1>}"
+
+mapfile -t TF < <(awk -F'\t' 'NR>1 && $3=="TF" {print $2"\t"$4}' "${SAMPLE_SHEET}")
+row=${TF[${SLURM_ARRAY_TASK_ID}]:-}
+[[ -n "${row}" ]] || { echo "ERROR: no TF row at index ${SLURM_ARRAY_TASK_ID} (have ${#TF[@]})" >&2; exit 1; }
+sample=${row%%$'\t'*}
+control=${row##*$'\t'}
+# sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
+read -r day line antibody < <(awk -F'\t' -v s="${sample}" '$1==s {print $3, $4, $6}' "${METADATA}")
+[[ -n "${antibody:-}" ]] || { echo "ERROR: ${sample} not in ${METADATA}" >&2; exit 1; }
+
+target=${OUT_DIR}/bam/${sample}.filtered.bam
+control_bam=${OUT_DIR}/igg_background/${control}.dedup.bam
+[[ -s "${target}" ]] || { echo "ERROR: missing ${target}" >&2; exit 1; }
+[[ -s "${control_bam}" ]] || { echo "ERROR: missing ${control_bam} -- run pipeline 02 first" >&2; exit 1; }
+QC=${OUT_DIR}/qc/peaks
+mkdir -p "${QC}"
+
+frip () {
+  # $1 = peak file -> fraction of read-1 mates overlapping a peak
+  local in_peaks
+  in_peaks=$("${TOOLS}/samtools" view -c -f 64 -L <(cut -f1-3 "$1") "${target}")
+  awk -v a="${in_peaks}" -v b="${total}" 'BEGIN{printf "%.4f", a/b}'
+}
+total=$("${TOOLS}/samtools" view -c -f 64 "${target}")
+
+echo "calling peaks: ${sample} (${antibody}) vs $(basename "${control_bam}")"
+if [[ "${antibody}" == H3K27me3 ]]; then
+  OUT=${OUT_DIR}/macs3_broad
+  mkdir -p "${OUT}"
+  "${TOOLS}/macs3" callpeak -t "${target}" -c "${control_bam}" -f BAMPE -g hs \
+    -n "${sample}" -q "${MACS_QVALUE}" --broad --broad-cutoff 0.1 --keep-dup all -B --outdir "${OUT}"
+  peaks=${OUT}/${sample}_peaks.filtered.broadPeak
+  "${TOOLS}/bedtools" intersect -v -a "${OUT}/${sample}_peaks.broadPeak" -b "${BLACKLIST}" > "${peaks}"
+  mode=broad
+  n_raw=$(wc -l < "${OUT}/${sample}_peaks.broadPeak")
+else
+  OUT=${OUT_DIR}/macs3
+  mkdir -p "${OUT}"
+  "${TOOLS}/macs3" callpeak -t "${target}" -c "${control_bam}" -f BAMPE -g hs \
+    -n "${sample}" -q "${MACS_QVALUE}" --call-summits --keep-dup all -B --outdir "${OUT}"
+  peaks=${OUT}/${sample}_peaks.filtered.narrowPeak
+  "${TOOLS}/bedtools" intersect -v -a "${OUT}/${sample}_peaks.narrowPeak" -b "${BLACKLIST}" > "${peaks}"
+  "${TOOLS}/bedtools" intersect -v -a "${OUT}/${sample}_summits.bed" -b "${BLACKLIST}" \
+    > "${OUT}/${sample}_summits.filtered.bed"
+  mode=narrow
+  n_raw=$(wc -l < "${OUT}/${sample}_peaks.narrowPeak")
+fi
+# --call-summits writes one row per summit; count distinct regions as well.
+n_filtered=$(wc -l < "${peaks}")
+n_regions=$(cut -f1-3 "${peaks}" | sort -u | wc -l)
+f=$(frip "${peaks}")
+echo -e "sample\tday\tline\tantibody\tcontrol\tmode\traw_rows\tfiltered_rows\tfiltered_regions\tfragments\tfrip" \
+  > "${QC}/${sample}.peak_stats.tsv"
+echo -e "${sample}\t${day}\t${line}\t${antibody}\t${control}\t${mode}\t${n_raw}\t${n_filtered}\t${n_regions}\t${total}\t${f}" \
+  >> "${QC}/${sample}.peak_stats.tsv"
+echo "SUMMARY ${sample}: ${mode} raw_rows=${n_raw} filtered_regions=${n_regions} FRiP=${f}"
+
+[[ "${antibody}" == ISL1 || "${antibody}" == Flag ]] || exit 0
+
+REL=${OUT_DIR}/macs3_relaxed
+mkdir -p "${REL}"
+relaxed () {
+  # $1 = name, $2 = treatment BAM -> ${REL}/$1_peaks.relaxed.narrowPeak
+  "${TOOLS}/macs3" callpeak -t "$2" -c "${control_bam}" -f BAMPE -g hs \
+    -n "$1" -p 0.01 --keep-dup all --outdir "${REL}"
+  sort -k8,8gr "${REL}/$1_peaks.narrowPeak" | awk 'NR <= 300000' \
+    | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" > "${REL}/$1_peaks.relaxed.narrowPeak"
+  echo "RELAXED $1: $(wc -l < "${REL}/$1_peaks.relaxed.narrowPeak") peaks (p 0.01, top 300k, blacklist filtered)"
+}
+relaxed "${sample}" "${target}"
+
+n_reps=$(awk -F'\t' -v d="${day}" -v l="${line}" -v a="${antibody}" \
+  'NR>1 && $3==d && $4==l && $6==a' "${METADATA}" | wc -l)
+if (( n_reps == 1 )); then
+  # Pseudoreplicates: both mates share a read name, so splitting on the parity of its last
+  # field (the Illumina y coordinate) keeps pairs together and is reproducible.
+  pr=${REL}/${sample}
+  "${TOOLS}/samtools" view -h "${target}" | awk -v c1="${TOOLS}/samtools view -b -o ${pr}.pr1.bam -" \
+    -v c2="${TOOLS}/samtools view -b -o ${pr}.pr2.bam -" '
+    BEGIN { FS = OFS = "\t" }
+    /^@/  { print | c1; print | c2; next }
+          { n = split($1, f, ":"); if (f[n] % 2 == 0) print | c1; else print | c2 }
+    END   { close(c1); close(c2) }'
+  for h in pr1 pr2; do
+    echo "pseudoreplicate ${h}: $("${TOOLS}/samtools" view -c -f 64 "${pr}.${h}.bam") fragments"
+    relaxed "${sample}.${h}" "${pr}.${h}.bam"
+  done
+fi

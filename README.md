@@ -79,11 +79,27 @@ come from `results/qc/alignment/` (cutadapt, bowtie2, flagstat):
 - **One shallow library:** D22_H3CTR_rep1_ISL1 has 9.8 M read pairs and 6.8 M unique fragments.
   Every other library has at least 17 M unique fragments.
 
-Peak calling (planned, ENCODE-style):
-- **ISL1 and Flag:** MACS3 narrow peaks vs IgG.
-- **H3K27ac:** MACS3 narrow peaks.
-- **H3K27me3:** MACS3 `--broad`.
-- **Histone reproducibility:** replicated peaks by overlap (ENCODE's histone rule) rather than IDR.
+### Peak calling (ENCODE-style, matched IgG)
+
+Each TF row is called against its own block IgG, deduplicated by the pipeline's step 02
+(`IGG_METHOD=matched`). Target BAMs keep their duplicates, as in the pipeline.
+
+```
+cd pipeline
+sbatch scripts/02_build_igg_background.sb
+cd ..
+sbatch --array=0-43 --dependency=afterok:<02 job> scripts/03_call_peaks.sb
+```
+
+- **ISL1, Flag, H3K27ac:** `results/macs3/`. MACS3 narrow, q 0.01, `--call-summits`, the
+  pipeline's command, blacklist filtered.
+- **H3K27me3:** `results/macs3_broad/`. MACS3 `--broad`, q 0.01, broad cutoff 0.1, blacklist
+  filtered.
+- **ISL1 and Flag, for IDR:** `results/macs3_relaxed/`. p 0.01, top 300k peaks. The
+  single-replicate D15 CtrGFP and D15 KOISL1 groups also get two pseudoreplicates.
+- **Per-sample stats:** `results/qc/peaks/<sample>.peak_stats.tsv` (peaks and FRiP).
+- **Next:** IDR for ISL1/Flag. For histones, replicated peaks by overlap (ENCODE's histone
+  rule) rather than IDR.
 
 ## Local review copy (Mac)
 
