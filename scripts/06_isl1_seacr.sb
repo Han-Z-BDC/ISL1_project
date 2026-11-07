@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --job-name=b3_seacr
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/seacr.%A_%a.out
+
+# Step 6: SEACR peaks for each ISL1 library of REPRO_LINES (8 libraries), vs its own block IgG.
+#   - fragments: name-sorted filtered BAM -> bedtools bamtobed -bedpe -> same-chromosome pairs
+#     up to MAX_FRAGMENT bp -> bedtools genomecov -bg (Henikoff-lab CUT&RUN/CUT&Tag recipe)
+#   - target duplicates kept (as in step 03); IgG = the deduplicated block IgG (pipeline 02)
+#   - no spike-in / CPM scaling; SEACR_1.3.sh target.bg IgG.bg SEACR_NORM SEACR_MODE
+#   - blacklist filtered, chrM dropped
+# Output: results/isl1_consensus/seacr/<sample>.<SEACR_MODE>.bed (chr start end AUC max max_region)
+#         and the bedGraphs in results/isl1_consensus/seacr/bedgraph/ (kept on scratch).
+#   sbatch --array=0-7 scripts/06_isl1_seacr.sb
+#   then scripts/07_isl1_consensus.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n libraries - 1>}"
+
+# sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
+mapfile -t LIBS < <(awk -F'\t' -v L=" ${REPRO_LINES} " 'NR>1 && index(L, " "$4" ") && $6=="ISL1" {print $1}' "${METADATA}")
+sample=${LIBS[${SLURM_ARRAY_TASK_ID}]:-}
+[[ -n "${sample}" ]] || { echo "ERROR: no ISL1 library at index ${SLURM_ARRAY_TASK_ID} (have ${#LIBS[@]})" >&2; exit 1; }
+# samples.tsv: library_id sample_name role control_sample replicate
+control=$(awk -F'\t' -v s="${sample}" '$2==s {print $4}' "${SAMPLE_SHEET}")
+target=${OUT_DIR}/bam/${sample}.filtered.bam
+control_bam=${OUT_DIR}/igg_background/${control}.dedup.bam
+[[ -s "${target}" ]] || { echo "ERROR: missing ${target}" >&2; exit 1; }
+[[ -s "${control_bam}" ]] || { echo "ERROR: missing ${control_bam} -- run pipeline 02 first" >&2; exit 1; }
+[[ -x "${SEACR_DIR}/SEACR_1.3.sh" ]] || { echo "ERROR: missing ${SEACR_DIR}/SEACR_1.3.sh" >&2; exit 1; }
+
+S=${OUT_DIR}/isl1_consensus/seacr
+BG=${S}/bedgraph
+work=${S}/tmp/${sample}
+mkdir -p "${BG}" "${work}"
+echo "library: ${sample} vs ${control} (dedup); SEACR ${SEACR_NORM} ${SEACR_MODE}"
+
+"${TOOLS}/samtools" view -H "${target}" | awk -F'\t' '$1=="@SQ" {sub("SN:","",$2); sub("LN:","",$3); print $2"\t"$3}' > "${work}/genome.txt"
+
+bedgraph () {
+  # $1 = BAM, $2 = output bedGraph
+  "${TOOLS}/samtools" sort -n -@ 2 -m 2G -T "${work}/sort" -o "${work}/byname.bam" "$1"
+  "${TOOLS}/bedtools" bamtobed -bedpe -i "${work}/byname.bam" 2> "${work}/bamtobed.err" \
+    | awk -v m="${MAX_FRAGMENT}" 'BEGIN{OFS="\t"} $1==$4 && $6-$2 <= m {print $1, $2, $6}' \
+    | sort -k1,1 -k2,2n -k3,3n -S 4G -T "${work}" > "${work}/fragments.bed"
+  echo "$(basename "$1"): $(wc -l < "${work}/fragments.bed") fragments <= ${MAX_FRAGMENT} bp; bamtobed warnings: $(wc -l < "${work}/bamtobed.err")"
+  "${TOOLS}/bedtools" genomecov -bg -i "${work}/fragments.bed" -g "${work}/genome.txt" > "$2.part"
+  mv "$2.part" "$2"
+  rm -f "${work}/byname.bam" "${work}/fragments.bed"
+}
+bedgraph "${target}" "${BG}/${sample}.fragments.bg"
+[[ -s "${BG}/${control}.dedup.fragments.bg" ]] || bedgraph "${control_bam}" "${BG}/${control}.dedup.fragments.bg"
+
+# SEACR writes its temporary files to the working directory and needs Rscript and bedtools on PATH.
+cd "${work}"
+PATH="${SEACR_R_BIN}:${PATH}" bash "${SEACR_DIR}/SEACR_1.3.sh" "${BG}/${sample}.fragments.bg" \
+  "${BG}/${control}.dedup.fragments.bg" "${SEACR_NORM}" "${SEACR_MODE}" "${work}/${sample}"
+raw=${work}/${sample}.${SEACR_MODE}.bed
+awk '$1 != "chrM"' "${raw}" | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" \
+  | sort -k1,1 -k2,2n > "${S}/${sample}.${SEACR_MODE}.bed"
+echo "SEACR ${sample}: $(wc -l < "${raw}") regions, $(wc -l < "${S}/${sample}.${SEACR_MODE}.bed") after blacklist + chrM"
+cd "${S}"
+rm -rf "${work}"
