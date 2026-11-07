@@ -199,6 +199,47 @@ Nt:
   top-peak agreement in the per-sample checks.
 - **chrM:** 0-6 chrM peaks are in each set; the blacklist has no chrM entries. They are not
   removed yet.
+- **Histone marks: Nt chosen (2026-11-07).**
+
+### ISL1 consensus peaks (nf-core/cutandrun style, 2026-11-07)
+
+Standard CUT&RUN practice is to call each replicate, merge, and keep peaks found in both. That is
+nf-core/cutandrun with `--replicate_threshold 2`.
+
+```
+sbatch --array=0-7 scripts/06_isl1_seacr.sb
+sbatch --dependency=afterok:<06 job> scripts/07_isl1_consensus.sb
+```
+
+- **A_macs3:** step 03 MACS3 calls (q 0.01). Summit rows are collapsed to regions; rep1 and rep2
+  are merged (overlapping or book-ended), and regions with a peak from both replicates are kept.
+- **A_seacr:** SEACR 1.3 `norm stringent` against the deduplicated block IgG. Fragment bedGraphs
+  use fragments up to 1000 bp, with target duplicates kept. Same consensus rule as A_macs3.
+- **B / C:** the step 05 overlap and IDR sets, copied with chrM removed.
+- **chrM dropped** from every set. Output: `results/isl1_consensus/`, with `compare.tsv`.
+- **Resources:** jobs 35344508 and 35344509 completed; at most 4.5 GB and 39 min per task.
+
+Peaks per set. "Ref" is the share of the top 1000 peaks that overlap the earlier batches' D15 Ctr
+conservative ISL1 set (QC reference only; shuffled peaks match 0-0.8%):
+
+| Group | A_macs3 (rep1 / rep2 / both) | Ref | B Nt | Ref | C IDR Nt / Np | Ref (Np) |
+|---|---|---|---|---|---|---|
+| D9 | 18,937 / 18,734 / 157 | 13% | 18,788 | 6% | 7 / 29 | 14% |
+| D15 | 21,797 / 37,831 / 530 | 34% | 24,268 | 33% | 80 / 154 | 63% |
+| D18 | 25,400 / 18,355 / 976 | 70% | 22,139 | 81% | 480 / 960 | 81% |
+| D22 | 36,142 / 35,817 / 1,500 | 74% | 23,505 | 81% | 593 / 933 | 80% |
+
+- **SEACR fails on half the libraries.** SEACR's IgG-based threshold gave 0 peaks for D9 rep1,
+  D15 rep2 and D22 rep2 (empirical FDR 0.21-0.30). D22 rep1 (the shallow library) gave 23k peaks
+  at an FDR of 0.46. Only D18 has SEACR peaks in both replicates: 3,913 and 2,659, with 482 in
+  both.
+- **Few peaks are shared by the replicates.** At any cutoff, the both-replicate count is only
+  1.2-2.3 times what shuffled rep2 peaks give. At p 0.01 about 70% of shared peaks would be
+  chance. That suggests about 1-3k truly shared sites at D18 and D22.
+- **B's deeper peaks.** For D18 Nt, the share matching the reference by rank is: top 1000 81%,
+  1k-5k 33%, 5k-10k 11%, beyond 10k 5% (chance 0.4%).
+- **D9 and D15 H3CTR ISL1 are weak** against the reference at every set.
+- **Unplaced contigs:** a few peaks sit on unplaced contigs (e.g. `KI270442.1`); not removed yet.
 
 ## Local review copy (Mac)
 
