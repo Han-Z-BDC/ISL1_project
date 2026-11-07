@@ -154,6 +154,52 @@ sbatch --array=0-19 --dependency=afterok:<04 job> scripts/05_reproducible_peaks.
 - **Output:** `results/reproducibility/{overlap,idr}/<group>.{Nt,Np}.narrowPeak` and
   `results/reproducibility/qc/<group>.repro_qc.tsv`.
 
+Results (2026-11-06; jobs 35309994 and 35309995, all 60 tasks completed). Step 04 used at most
+7.6 GB and 1 h 44 min per task, and step 05 at most 14.3 GB and 1 h 33 min.
+
+- **Relaxed lists:** ISL1 215k-281k peaks per library, H3K27ac 183k-269k, H3K27me3 90k-182k. No
+  list reached its cap (300k / 500k), so the caps never applied.
+
+Reproducible sets. Self = N1 / N2 ratio and rescue = Np / Nt ratio. FRiP is for rep1 / rep2 in
+Nt:
+
+| Group | Method | N1 / N2 | Nt | Np | Self | Rescue | Flag | Nt Mb | Nt FRiP |
+|---|---|---|---|---|---|---|---|---|---|
+| D9_H3CTR_ISL1 | overlap | 23,676 / 21,282 | 18,792 | 28,684 | 1.11 | 1.53 | pass | 12.4 | 1.7 / 1.4% |
+| D9_H3CTR_ISL1 | IDR | 0 / 7 | 11 | 33 | inf | 3.00 | fail | 0.0 | 0.7 / 0.4% |
+| D15_H3CTR_ISL1 | overlap | 20,540 / 34,334 | 24,273 | 40,649 | 1.67 | 1.67 | pass | 17.0 | 2.8 / 2.7% |
+| D15_H3CTR_ISL1 | IDR | 44 / 17 | 85 | 159 | 2.59 | 1.87 | borderline | 0.1 | 1.3 / 1.2% |
+| D18_H3CTR_ISL1 | overlap | 27,900 / 22,759 | 22,144 | 22,094 | 1.23 | 1.00 | pass | 15.5 | 3.2 / 2.4% |
+| D18_H3CTR_ISL1 | IDR | 855 / 92 | 485 | 965 | 9.29 | 1.99 | borderline | 0.6 | 1.7 / 1.1% |
+| D22_H3CTR_ISL1 | overlap | 25,826 / 31,838 | 23,509 | 33,081 | 1.23 | 1.41 | pass | 17.4 | 3.2 / 3.2% |
+| D22_H3CTR_ISL1 | IDR | 123 / 474 | 597 | 938 | 3.85 | 1.57 | borderline | 0.7 | 1.0 / 1.6% |
+| D9_H3CTR_H3K27ac | overlap | 21,517 / 17,760 | 20,427 | 25,806 | 1.21 | 1.26 | pass | 14.4 | 1.3 / 1.3% |
+| D9_ISL1KO_H3K27ac | overlap | 19,537 / 17,865 | 13,773 | 22,796 | 1.09 | 1.66 | pass | 8.7 | 0.7 / 0.7% |
+| D15_H3CTR_H3K27ac | overlap | 53,230 / 56,334 | 71,628 | 78,798 | 1.06 | 1.10 | pass | 97.2 | 10.8 / 11.4% |
+| D15_ISL1KO_H3K27ac | overlap | 50,577 / 29,545 | 50,164 | 81,025 | 1.71 | 1.62 | pass | 59.2 | 6.5 / 5.4% |
+| D18_H3CTR_H3K27ac | overlap | 42,960 / 22,450 | 38,764 | 63,940 | 1.91 | 1.65 | pass | 37.4 | 4.0 / 3.1% |
+| D18_ISL1KO_H3K27ac | overlap | 16,587 / 22,111 | 27,103 | 34,376 | 1.33 | 1.27 | pass | 20.7 | 2.2 / 2.0% |
+| D22_H3CTR_H3K27ac | overlap | 55,046 / 42,029 | 58,227 | 67,493 | 1.31 | 1.16 | pass | 74.3 | 10.5 / 7.6% |
+| D22_ISL1KO_H3K27ac | overlap | 45,092 / 58,363 | 69,599 | 84,060 | 1.29 | 1.21 | pass | 94.6 | 11.8 / 10.8% |
+| D9_H3CTR_H3K27me3 | overlap | 32,089 / 27,258 | 27,476 | 34,004 | 1.18 | 1.24 | pass | 99.6 | 29.5 / 42.6% |
+| D9_ISL1KO_H3K27me3 | overlap | 27,313 / 25,412 | 26,450 | 27,169 | 1.07 | 1.03 | pass | 88.9 | 31.1 / 42.2% |
+| D15_H3CTR_H3K27me3 | overlap | 65,551 / 47,095 | 56,610 | 56,812 | 1.39 | 1.00 | pass | 169.3 | 34.0 / 45.0% |
+| D15_ISL1KO_H3K27me3 | overlap | 51,879 / 51,785 | 56,069 | 62,487 | 1.00 | 1.11 | pass | 166.2 | 39.2 / 42.5% |
+| D18_H3CTR_H3K27me3 | overlap | 55,698 / 49,899 | 53,900 | 55,914 | 1.12 | 1.04 | pass | 167.8 | 38.5 / 45.3% |
+| D18_ISL1KO_H3K27me3 | overlap | 55,128 / 59,776 | 60,960 | 62,742 | 1.08 | 1.03 | pass | 170.6 | 35.4 / 36.1% |
+| D22_H3CTR_H3K27me3 | overlap | 67,488 / 53,890 | 63,028 | 65,196 | 1.25 | 1.03 | pass | 181.8 | 39.2 / 34.2% |
+| D22_ISL1KO_H3K27me3 | overlap | 60,239 / 65,139 | 64,708 | 79,556 | 1.08 | 1.23 | pass | 208.8 | 39.5 / 39.3% |
+
+- **Histone marks:** all 16 groups pass by overlap, and Nt and Np are close. H3K27ac is strong at
+  D15 and D22 and weak at D9 and D18, as in the per-sample calls.
+- **ISL1, overlap:** all four groups pass, with 18.8k-24.3k Nt peaks.
+- **ISL1, IDR:** few peaks pass, from 11 Nt peaks (D9) to 597 (D22). For D18 Nt, IDR matched
+  27,835 pooled peaks in both replicates; the fit puts about 6% of them in the reproducible
+  component, and 485 pass IDR < 0.05. The replicates rank peaks differently, which fits the poor
+  top-peak agreement in the per-sample checks.
+- **chrM:** 0-6 chrM peaks are in each set; the blacklist has no chrM entries. They are not
+  removed yet.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
