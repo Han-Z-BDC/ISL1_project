@@ -241,6 +241,35 @@ conservative ISL1 set (QC reference only; shuffled peaks match 0-0.8%):
 - **D9 and D15 H3CTR ISL1 are weak** against the reference at every set.
 - **Unplaced contigs:** a few peaks sit on unplaced contigs (e.g. `KI270442.1`); not removed yet.
 
+SEACR relaxed (2026-11-08; jobs 35433987 and 35433988, completed; at most 1.7 GB and 3.5 min
+per task). The bedGraphs were reused and the same consensus rule applied (scripts/06 with
+`SEACR_MODE=relaxed`, then scripts/08). "Chance" is the both-replicate count after shuffling
+rep2's peaks. Consensus Mb, median width and the match to the reference are given in the rows
+below:
+
+| Group | Method | Rep1 | Rep2 | Union | Both | Chance | Both / chance | Median width | Ref top 1000 / all |
+|---|---|---|---|---|---|---|---|---|---|
+| D9 | MACS3 | 18,937 | 18,734 | 37,513 | 157 | 99 | 1.6 | 578 | 13% / 13% |
+| D9 | SEACR stringent | 0 | 4,641 | 4,641 | 0 | - | - | - | - |
+| D9 | SEACR relaxed | 0 | 38,207 | 38,207 | 0 | - | - | - | - |
+| D15 | MACS3 | 21,797 | 37,831 | 59,093 | 530 | 215 | 2.5 | 616 | 34% / 34% |
+| D15 | SEACR stringent | 1,440 | 0 | 1,440 | 0 | - | - | - | - |
+| D15 | SEACR relaxed | 9,146 | 0 | 9,146 | 0 | - | - | - | - |
+| D18 | MACS3 | 25,400 | 18,355 | 42,768 | 976 | 134 | 7.3 | 717 | 70% / 70% |
+| D18 | SEACR stringent | 3,913 | 2,659 | 6,086 | 482 | - | - | 6,063 | 71% / - |
+| D18 | SEACR relaxed | 18,880 | 22,463 | 37,551 | 3,644 | 1,140 | 3.2 | 5,336 | 66% / 46% |
+| D22 | MACS3 | 36,142 | 35,817 | 70,448 | 1,500 | 392 | 3.8 | 701 | 74% / 60% |
+| D22 | SEACR stringent | 22,953 | 0 | 22,953 | 0 | - | - | - | - |
+| D22 | SEACR relaxed | 22,953 | 0 | 22,953 | 0 | - | - | - | - |
+
+- **Relaxed mode keeps the same three libraries at 0 peaks** (D9 rep1, D15 rep2, D22 rep2;
+  SEACR FDR 0.26-0.44). Their IgG-overlap step removes every target region. D22 rep1 is
+  unchanged (FDR 0.46).
+- **Only D18 gains.** It has 3,644 SEACR relaxed peaks in both replicates against 1,140 by
+  chance. The regions are broad (median 5.3 kb), and 46% of them overlap the reference set.
+- **The MACS3 consensus is mostly above chance:** 7.3x at D18 and 3.8x at D22. Here the chance
+  baseline uses the step 03 per-replicate calls, not the looser step 04 lists tested earlier.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
