@@ -58,6 +58,9 @@ SEACR_R_BIN=/projects/hzhu10@xsede.org/software/anaconda/envs/cutrun_tools/bin  
 SEACR_NORM=norm                  # IgG scaled to target by SEACR (no spike-in here)
 SEACR_MODE=${SEACR_MODE:-stringent}   # relaxed run: sbatch --export=ALL,SEACR_MODE=relaxed
 MAX_FRAGMENT=1000                # fragments up to this length go into the SEACR bedGraphs
+# Group IgG test (scripts/10, then 04/05 with CONTROL=group, then 11): per day x line, the two
+# block IgGs depth matched (deeper one subsampled with this seed) and merged.
+GROUP_IGG_SEED=101
 # Replicate correlation / PCA (scripts/09): featureCounts from the isl1_downstream env.
 FEATURECOUNTS=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/featureCounts
 # QC reference only: earlier batches' D15 Ctr conservative IDR set (9,329 peaks; on scratch).

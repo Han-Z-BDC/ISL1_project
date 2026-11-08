@@ -21,29 +21,37 @@
 #         sample.pr1, sample.pr2; halves as BAMs in results/reproducibility/pseudoreps/.
 #   sbatch --array=0-39 scripts/04_relaxed_pseudoreps.sb
 #   then scripts/05_reproducible_peaks.sb
+# Group IgG test (CONTROL=group): every call is against the day x line group IgG of step 10, into
+# results/reproducibility_groupIgG/relaxed/. The halves from the matched run are reused (split
+# only if missing). ISL1 libraries also get the q 0.01 --call-summits call of step 03 against
+# the group IgG, into results/macs3_groupIgG/ (for the both-replicate consensus, step 11).
+#   sbatch --array=0-39 --export=ALL,CONTROL=group scripts/04_relaxed_pseudoreps.sb
 
 set -euo pipefail
 IGG_METHOD=matched
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
 : "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n libraries - 1>}"
+CONTROL=${CONTROL:-matched}
 
 # sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
 mapfile -t ROWS < <(awk -F'\t' -v L=" ${REPRO_LINES} " -v A=" ${REPRO_ANTIBODIES} " \
-  'NR>1 && index(L, " "$4" ") && index(A, " "$6" ") {print $1"\t"$6}' "${METADATA}")
+  'NR>1 && index(L, " "$4" ") && index(A, " "$6" ") {print $1"\t"$6"\t"$3"_"$4}' "${METADATA}")
 row=${ROWS[${SLURM_ARRAY_TASK_ID}]:-}
 [[ -n "${row}" ]] || { echo "ERROR: no library at index ${SLURM_ARRAY_TASK_ID} (have ${#ROWS[@]})" >&2; exit 1; }
-sample=${row%%$'\t'*}
-antibody=${row##*$'\t'}
+IFS=$'\t' read -r sample antibody dayline <<< "${row}"
 if [[ "${antibody}" == ISL1 ]]; then cap=${CAP_TF}; else cap=${CAP_HISTONE}; fi
 # samples.tsv: library_id sample_name role control_sample replicate
 control=$(awk -F'\t' -v s="${sample}" '$2==s {print $4}' "${SAMPLE_SHEET}")
 
 target=${OUT_DIR}/bam/${sample}.filtered.bam
-control_bam=${OUT_DIR}/igg_background/${control}.dedup.bam
+case "${CONTROL}" in
+  matched) control_bam=${OUT_DIR}/igg_background/${control}.dedup.bam; REL=${OUT_DIR}/reproducibility/relaxed ;;
+  group)   control_bam=${OUT_DIR}/group_igg/${dayline}.group_IgG.bam; REL=${OUT_DIR}/reproducibility_groupIgG/relaxed ;;
+  *) echo "ERROR: CONTROL must be matched or group, got '${CONTROL}'" >&2; exit 1 ;;
+esac
 [[ -s "${target}" ]] || { echo "ERROR: missing ${target}" >&2; exit 1; }
-[[ -s "${control_bam}" ]] || { echo "ERROR: missing ${control_bam} -- run pipeline 02 first" >&2; exit 1; }
+[[ -s "${control_bam}" ]] || { echo "ERROR: missing ${control_bam} -- run pipeline 02 (matched) or step 10 (group) first" >&2; exit 1; }
 
-REL=${OUT_DIR}/reproducibility/relaxed
 PR=${OUT_DIR}/reproducibility/pseudoreps
 mkdir -p "${REL}" "${PR}"
 
@@ -57,18 +65,33 @@ relaxed () {
   echo "RELAXED $1: $(wc -l < "${REL}/$1.relaxed.narrowPeak") peaks (p ${RELAXED_P}, top ${cap}, blacklist filtered)"
 }
 
-echo "library: ${sample} (${antibody}) vs $(basename "${control_bam}")"
+echo "library: ${sample} (${antibody}) vs $(basename "${control_bam}") [CONTROL=${CONTROL}]"
 relaxed "${sample}" "${target}"
 
+if [[ "${CONTROL}" == group && "${antibody}" == ISL1 ]]; then
+  # The step 03 ISL1 call (q 0.01, summits) against the group IgG.
+  M=${OUT_DIR}/macs3_groupIgG
+  mkdir -p "${M}"
+  "${TOOLS}/macs3" callpeak -t "${target}" -c "${control_bam}" -f BAMPE -g hs \
+    -n "${sample}" -q "${MACS_QVALUE}" --call-summits --keep-dup all --outdir "${M}"
+  "${TOOLS}/bedtools" intersect -v -a "${M}/${sample}_peaks.narrowPeak" -b "${BLACKLIST}" \
+    > "${M}/${sample}_peaks.filtered.narrowPeak"
+  echo "Q-CALL ${sample}: $(wc -l < "${M}/${sample}_peaks.filtered.narrowPeak") rows (q ${MACS_QVALUE}, summits, blacklist filtered)"
+fi
+
 # Halves: both mates share a read name, so splitting on the parity of its last field (the
-# Illumina y coordinate) keeps pairs together and is reproducible.
+# Illumina y coordinate) keeps pairs together and is reproducible. Reused if already split.
 pr=${PR}/${sample}
+if [[ -s "${pr}.pr1.bam" && -s "${pr}.pr2.bam" ]]; then
+  echo "halves exist, reused: ${pr}.pr1.bam ${pr}.pr2.bam"
+else
 "${TOOLS}/samtools" view -h "${target}" | awk -v c1="${TOOLS}/samtools view -b -o ${pr}.pr1.bam -" \
   -v c2="${TOOLS}/samtools view -b -o ${pr}.pr2.bam -" '
   BEGIN { FS = OFS = "\t" }
   /^@/  { print | c1; print | c2; next }
         { n = split($1, f, ":"); if (f[n] % 2 == 0) print | c1; else print | c2 }
   END   { close(c1); close(c2) }'
+fi
 for h in pr1 pr2; do
   echo "half ${h}: $("${TOOLS}/samtools" view -c -f 64 "${pr}.${h}.bam") fragments"
   relaxed "${sample}.${h}" "${pr}.${h}.bam"

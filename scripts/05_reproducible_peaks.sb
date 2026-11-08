@@ -30,11 +30,17 @@
 # Output: results/reproducibility/{overlap,idr}/<group>.{Nt,Np}.narrowPeak,
 #         results/reproducibility/qc/<group>.repro_qc.tsv (one row per method)
 #   sbatch --array=0-19 --dependency=afterok:<04 job> scripts/05_reproducible_peaks.sb
+# Group IgG test (CONTROL=group): pooled and pooled-half calls are made against the day x line
+# group IgG of step 10 (depth matched, so not the same as the two full block IgGs), and all
+# inputs and outputs are under results/reproducibility_groupIgG/. Halves are shared with the
+# matched run (results/reproducibility/pseudoreps/).
+#   sbatch --array=0-19 --export=ALL,CONTROL=group --dependency=afterok:<04 group job> scripts/05_reproducible_peaks.sb
 
 set -euo pipefail
 IGG_METHOD=matched
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
 : "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n groups - 1>}"
+CONTROL=${CONTROL:-matched}
 
 # sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
 mapfile -t GRPS < <(awk -F'\t' -v L=" ${REPRO_LINES} " -v A=" ${REPRO_ANTIBODIES} " \
@@ -47,12 +53,18 @@ mapfile -t REPS < <(awk -F'\t' -v g="${group}" 'NR>1 && $3"_"$4"_"$6==g {print $
 r1=${REPS[0]}; r2=${REPS[1]}
 if [[ "${antibody}" == ISL1 ]]; then cap=${CAP_TF}; methods="overlap idr"; else cap=${CAP_HISTONE}; methods="overlap"; fi
 ctl () { awk -F'\t' -v s="$1" '$2==s {print $4}' "${SAMPLE_SHEET}"; }
-c1=${OUT_DIR}/igg_background/$(ctl "${r1}").dedup.bam
-c2=${OUT_DIR}/igg_background/$(ctl "${r2}").dedup.bam
-
-R=${OUT_DIR}/reproducibility
+case "${CONTROL}" in
+  matched)
+    c1=${OUT_DIR}/igg_background/$(ctl "${r1}").dedup.bam
+    c2=${OUT_DIR}/igg_background/$(ctl "${r2}").dedup.bam
+    CONTROLS=("${c1}" "${c2}"); R=${OUT_DIR}/reproducibility ;;
+  group)
+    c1=${OUT_DIR}/group_igg/${group%_*}.group_IgG.bam; c2=${c1}
+    CONTROLS=("${c1}"); R=${OUT_DIR}/reproducibility_groupIgG ;;
+  *) echo "ERROR: CONTROL must be matched or group, got '${CONTROL}'" >&2; exit 1 ;;
+esac
 REL=${R}/relaxed
-PR=${R}/pseudoreps
+PR=${OUT_DIR}/reproducibility/pseudoreps
 mkdir -p "${R}/qc" "${R}/overlap" "${R}/idr"
 for f in "${OUT_DIR}/bam/${r1}.filtered.bam" "${OUT_DIR}/bam/${r2}.filtered.bam" "${c1}" "${c2}" \
          "${PR}/${r1}.pr1.bam" "${PR}/${r1}.pr2.bam" "${PR}/${r2}.pr1.bam" "${PR}/${r2}.pr2.bam"; do
@@ -61,11 +73,11 @@ done
 for n in "${r1}" "${r1}.pr1" "${r1}.pr2" "${r2}" "${r2}.pr1" "${r2}.pr2"; do
   [[ -s "${REL}/${n}.relaxed.narrowPeak" ]] || { echo "ERROR: missing ${REL}/${n}.relaxed.narrowPeak -- run 04 first" >&2; exit 1; }
 done
-echo "group ${group}: ${r1} ($(basename "${c1}")) + ${r2} ($(basename "${c2}")); methods: ${methods}"
+echo "group ${group}: ${r1} ($(basename "${c1}")) + ${r2} ($(basename "${c2}")); methods: ${methods}; CONTROL=${CONTROL}"
 
 relaxed_pooled () {
   # $1 = name, $2 $3 = treatment BAMs -> ${REL}/$1.relaxed.narrowPeak
-  "${TOOLS}/macs3" callpeak -t "$2" "$3" -c "${c1}" "${c2}" -f BAMPE -g hs \
+  "${TOOLS}/macs3" callpeak -t "$2" "$3" -c "${CONTROLS[@]}" -f BAMPE -g hs \
     -n "$1" -p "${RELAXED_P}" --keep-dup all --outdir "${REL}"
   sort -k8,8gr "${REL}/$1_peaks.narrowPeak" | awk -v n="${cap}" 'NR <= n' \
     | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" > "${REL}/$1.relaxed.narrowPeak"
