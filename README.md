@@ -270,6 +270,37 @@ below:
 - **The MACS3 consensus is mostly above chance:** 7.3x at D18 and 3.8x at D22. Here the chance
   baseline uses the step 03 per-replicate calls, not the looser step 04 lists tested earlier.
 
+### ISL1 replicate correlation and PCA (2026-11-08)
+
+`sbatch scripts/09_isl1_replicate_correlation.sb` (job 35434729, completed in 29 min, 0.7 GB).
+
+- **Peaks:** step 03 MACS3 calls, chr1-22/X/Y. Two kinds of union: rep1 + rep2 per day
+  (37.5k-70.4k), and all 8 ISL1 replicates (200,232).
+- **Counts:** fragments per peak with featureCounts (`-p --countReadPairs`). Duplicates are kept,
+  and the 8 block IgGs are counted the same way.
+- **Analysis:** log2(CPM + 1); Pearson and Spearman correlation; PCA (centered).
+- **Report:** `results/qc/replicate_correlation/isl1/report.html`.
+
+| Day | Union peaks | rep1 vs rep2 Pearson | Spearman | rep vs own IgG (Pearson) | Fragments in peaks |
+|---|---|---|---|---|---|
+| D9 | 37,500 | -0.45 | -0.53 | 0.16 / 0.05 | 1.6 / 1.5% |
+| D15 | 59,065 | -0.35 | -0.44 | 0.08 / 0.07 | 2.3 / 2.7% |
+| D18 | 42,756 | 0.13 | -0.27 | 0.25 / 0.17 | 2.4 / 1.9% |
+| D22 | 70,412 | -0.18 | -0.45 | 0.11 / 0.19 | 5.1 / 3.5% |
+
+- **Negative within-day correlation is a selection effect.** Most union peaks are called in only
+  one replicate, so they are high there and low in the other. Only D18 and D22 have a tail of
+  strong peaks on the diagonal.
+- **All-sample union:** Pearson is 0.11-0.44 between ISL1 libraries, about the same as against
+  the IgGs. The pairs are D9 0.24, D15 0.21, D18 0.41, D22 0.25. D18 rep1 and D22 rep2 correlate
+  best (0.44).
+- **PCA follows signal strength, not day.** On the top 5,000 variable peaks with IgG included:
+  - The IgGs cluster together, and D9 rep1/rep2 sit beside them.
+  - D15 and D18 rep2 are in between.
+  - D18 rep1 and D22 rep2 are furthest from IgG.
+  - D22 rep1, the shallow library at 6.8 M fragments, is an outlier on its own.
+- **Replicates pair by day only at D9,** where both look like background.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
