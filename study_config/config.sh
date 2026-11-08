@@ -56,7 +56,7 @@ IDR_THRESHOLD=0.05
 SEACR_DIR=/projects/hzhu10@xsede.org/software/SEACR      # SEACR 1.3 (base R only)
 SEACR_R_BIN=/projects/hzhu10@xsede.org/software/anaconda/envs/cutrun_tools/bin   # Rscript, bedtools
 SEACR_NORM=norm                  # IgG scaled to target by SEACR (no spike-in here)
-SEACR_MODE=stringent
+SEACR_MODE=${SEACR_MODE:-stringent}   # relaxed run: sbatch --export=ALL,SEACR_MODE=relaxed
 MAX_FRAGMENT=1000                # fragments up to this length go into the SEACR bedGraphs
 # QC reference only: earlier batches' D15 Ctr conservative IDR set (9,329 peaks; on scratch).
 ISL1_REFERENCE_PEAKS=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/results_group/final_peaks/conservative/D15_Ctr.narrowPeak

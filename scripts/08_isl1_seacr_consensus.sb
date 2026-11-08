@@ -1,0 +1,93 @@
+#!/bin/bash
+#SBATCH --job-name=b3_seacrcons
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/seacrcons.%j.out
+
+# Step 8: ISL1 both-replicate consensus (option A, same rule as step 07) for the SEACR calls of
+# mode SEACR_MODE (default here: relaxed), with A_macs3 (step 07) as a reference row. Adds:
+#   - chance: rep2 regions shuffled (same chromosome, blacklist excluded, seed 1) and merged with
+#     rep1 the same way; observed and chance both on chr1-22, X, Y
+#   - share of the top 1000 and of all consensus peaks overlapping ISL1_REFERENCE_PEAKS (QC only)
+# Output: results/isl1_consensus/A_seacr_<mode>/<group>.consensus.bed (chr start end name
+#         rep1_AUC rep2_AUC sum), results/isl1_consensus/seacr_<mode>.compare.tsv
+#   sbatch --export=ALL,SEACR_MODE=relaxed --dependency=afterok:<06 relaxed job> scripts/08_isl1_seacr_consensus.sb
+
+set -euo pipefail
+SEACR_MODE=${SEACR_MODE:-relaxed}
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+BT=${TOOLS}/bedtools
+C=${OUT_DIR}/isl1_consensus
+D=${C}/A_seacr_${SEACR_MODE}
+mkdir -p "${D}"
+for f in "${C}/reference.bed" "${C}/genome.txt"; do
+  [[ -s "${f}" ]] || { echo "ERROR: missing ${f} -- run step 07 first" >&2; exit 1; }
+done
+awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "${C}/genome.txt" > "${D}/genome.canonical.txt"
+
+mapfile -t GRPS < <(awk -F'\t' -v L=" ${REPRO_LINES} " 'NR>1 && index(L, " "$4" ") && $6=="ISL1" {print $3"_"$4"_"$6}' "${METADATA}" | sort -u)
+echo "SEACR mode ${SEACR_MODE}; groups: ${GRPS[*]}"
+
+canon () { awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "$1"; }
+both () {
+  # $1 $2 = region beds (chr start end ...) -> merged regions holding a region from both
+  { awk 'BEGIN{OFS="\t"} {print $1, $2, $3, 1}' "$1"; awk 'BEGIN{OFS="\t"} {print $1, $2, $3, 2}' "$2"; } \
+    | sort -k1,1 -k2,2n | "${BT}" merge -i - -c 4 -o count_distinct | awk '$4 == 2' | wc -l
+}
+chance () {
+  # $1 = rep1 bed, $2 = rep2 bed -> both-count after shuffling rep2 (canonical chromosomes)
+  canon "$1" > "${D}/tmp.r1.bed"
+  canon "$2" | cut -f1-3 | "${BT}" shuffle -i - -g "${D}/genome.canonical.txt" -chrom \
+    -excl "${BLACKLIST}" -noOverlapping -seed 1 | sort -k1,1 -k2,2n > "${D}/tmp.s2.bed"
+  both "${D}/tmp.r1.bed" "${D}/tmp.s2.bed"
+  rm -f "${D}/tmp.r1.bed" "${D}/tmp.s2.bed"
+}
+ref () {
+  # $1 = consensus bed (score col 7) -> "top1000_pct<TAB>all_pct"
+  local n top all
+  n=$(wc -l < "$1" | tr -d ' ')
+  (( n > 0 )) || { echo -e "NA\tNA"; return; }
+  top=$(sort -k7,7gr "$1" | head -1000 | cut -f1-3 | sort -k1,1 -k2,2n | "${BT}" intersect -u -a - -b "${C}/reference.bed" | wc -l)
+  all=$(cut -f1-3 "$1" | "${BT}" intersect -u -a - -b "${C}/reference.bed" | wc -l)
+  awk -v n="${n}" -v t="${top}" -v a="${all}" 'BEGIN{k=(n<1000?n:1000); printf "%.1f\t%.1f", 100*t/k, 100*a/n}'
+}
+
+out=${C}/seacr_${SEACR_MODE}.compare.tsv
+echo -e "group\tset\trep1_peaks\trep2_peaks\tunion\tboth\tboth_canonical\tchance_canonical\tobserved_over_chance\tMb\tmedian_width\ttop1000_in_reference_pct\tall_in_reference_pct" > "${out}"
+for group in "${GRPS[@]}"; do
+  mapfile -t REPS < <(awk -F'\t' -v g="${group}" 'NR>1 && $3"_"$4"_"$6==g {print $5"\t"$1}' "${METADATA}" | sort -n | cut -f2)
+  (( ${#REPS[@]} == 2 )) || { echo "ERROR: ${group} has ${#REPS[@]} replicates, expected 2" >&2; exit 1; }
+  r1=${REPS[0]}; r2=${REPS[1]}
+  for s in "${r1}" "${r2}"; do
+    awk 'BEGIN{OFS="\t"} $1 != "chrM" {print $1, $2, $3, $4}' "${C}/seacr/${s}.${SEACR_MODE}.bed" | sort -k1,1 -k2,2n > "${D}/${s}.regions.bed"
+  done
+  for set in "A_seacr_${SEACR_MODE}" A_macs3; do
+    [[ ${set} == A_macs3 ]] && S=${C}/A_macs3 || S=${D}
+    a=${S}/${r1}.regions.bed; b=${S}/${r2}.regions.bed
+    if [[ ${set} != A_macs3 ]]; then
+      { awk 'BEGIN{OFS="\t"} {print $1, $2, $3, 1}' "${a}"; awk 'BEGIN{OFS="\t"} {print $1, $2, $3, 2}' "${b}"; } \
+        | sort -k1,1 -k2,2n | "${BT}" merge -i - -c 4 -o count_distinct > "${D}/${group}.union.bed"
+      if [[ ! -s "${a}" || ! -s "${b}" ]]; then
+        : > "${D}/${group}.consensus.bed"    # a replicate without peaks: no consensus
+      else
+      awk 'BEGIN{OFS="\t"} $4 == 2 {print $1, $2, $3}' "${D}/${group}.union.bed" \
+        | "${BT}" map -g "${C}/genome.txt" -a - -b "${a}" -c 4 -o max \
+        | "${BT}" map -g "${C}/genome.txt" -a - -b "${b}" -c 4 -o max \
+        | awk -v g="${group}" 'BEGIN{OFS="\t"} {print $1, $2, $3, g"_cons_"NR, $4, $5, $4+$5}' > "${D}/${group}.consensus.bed"
+      fi
+    fi
+    cons=${S}/${group}.consensus.bed
+    canon "${a}" > "${D}/tmp.a.bed"; canon "${b}" > "${D}/tmp.b.bed"
+    obs=$(both "${D}/tmp.a.bed" "${D}/tmp.b.bed"); rm -f "${D}/tmp.a.bed" "${D}/tmp.b.bed"
+    ch=$(chance "${a}" "${b}")
+    geo=$(awk '{w[NR]=$3-$2; t+=$3-$2} END{if (NR == 0) {printf "0.0\t0"; exit} asort(w); printf "%.1f\t%d", t/1e6, w[int((NR+1)/2)]}' "${cons}")
+    echo -e "${group}\t${set}\t$(wc -l < "${a}" | tr -d ' ')\t$(wc -l < "${b}" | tr -d ' ')\t$(wc -l < "${S}/${group}.union.bed" | tr -d ' ')\t$(wc -l < "${cons}" | tr -d ' ')\t${obs}\t${ch}\t$(awk -v o="${obs}" -v c="${ch}" 'BEGIN{print (c > 0 ? sprintf("%.1f", o/c) : "NA")}')\t${geo}\t$(ref "${cons}")" >> "${out}"
+  done
+done
+column -t -s $'\t' "${out}"
