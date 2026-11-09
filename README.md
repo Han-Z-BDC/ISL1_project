@@ -387,6 +387,60 @@ electroporation day and the prep/sequencing batch. KO libraries are not included
 
 Control ISL1 replicates per collection day: D9 2, D15 4, D18 4 and D22 5, for 15 in total.
 
+### Control ISL1 sets from all replicates per day (2026-11-09)
+
+**Inputs**
+- `sbatch --array=0-6 scripts/14_ctr_relaxed.sb` (job 35482355): relaxed calls for Ctr rep3
+  onward, each against its own IgG (p 0.01, top 300k). This gives 141k-289k peaks per library.
+- `sbatch --array=0-2 scripts/15_ctr_multirep_sets.sb` (job 35482357; 33-111 min, max 23 GB):
+  D15, D18 and D22. The replicate list is `study_config/ctr_replicates.tsv`.
+- **Output:** `results/ctr_multi/<day>/`, chr1-22/X/Y only.
+
+**Methods**
+- **A:** merged q 0.01 calls, keeping regions with peaks from >= k replicates.
+- **B:** pooled relaxed peaks that overlap the relaxed peaks of >= k replicates by >= 50%.
+- **IDR:** every replicate pair against the pooled peak list.
+  - k = 2: passes in at least one pair.
+  - k = 3: passes in pairs that together involve >= 3 replicates.
+- **Chance (A only):** every replicate shuffled independently.
+- **Reference:** the earlier batches' D15 Ctr conservative set. It was built from what is now D18
+  rep3, so it is not independent of the earlier libraries.
+
+**Results**
+
+| Day (n) | A >=2 (chance) | A >=3 (chance) | B >=2 | B >=3 | IDR >=2 | IDR >=3 | IDR best pair |
+|---|---|---|---|---|---|---|---|
+| D15 (4) | 3,884 (506) | 903 (2) | 51,127 | 10,366 | 3,191 | 407 | rep3-rep4, 3,166 |
+| D18 (4) | 11,455 (1,170) | 4,191 (13) | 69,377 | 21,374 | 7,861 | 3,008 | rep3-rep4, 7,480 |
+| D22 (5) | 11,215 (1,550) | 4,953 (18) | 81,340 | 27,040 | 9,535 | 4,180 | rep4-rep5, 9,121 |
+| D22, 4-replicate mean | 8,664 (936) | 3,262 (7) | 59,620 | 18,182 | 7,174 | 2,649 | |
+
+IDR pairs, peaks passing:
+
+| Day | batch 3 rep1-rep2 | batch 3 x earlier | earlier x earlier |
+|---|---|---|---|
+| D15 | 73 | 82-346 | 3,166 |
+| D18 | 431 | 409-2,708 | 7,480 |
+| D22 | 522 | 547-1,783 | 3,200-9,121 |
+
+**Reading**
+- **The earlier libraries agree with each other far better** than batch 3 rep1/rep2 do, even
+  though each earlier pair spans batches 1 and 2.
+  - Among the batch 3 libraries, D15 rep2 and D18 rep2 agree worst with everything.
+  - D18 rep1 is the best, with 2.7k IDR peaks against each earlier library.
+- **A >=3 is highly specific.** Chance is 2-18 regions, or 0.2-0.4%.
+  - For the 4-replicate days it needs support across batches by construction.
+  - Median width is 0.85-1.0 kb, and 79-89% of the top 1000 fall in the reference set.
+- **A >=2 is about 10-14% chance overlap.** Most of its regions are supported by the earlier
+  libraries only.
+- **A >=3 and IDR agree.**
+  - 87-93% of A >=3 regions are in IDR >=2, and 40-70% are in IDR >=3.
+  - 87-98% of IDR >=3 peaks are in A >=2.
+- **B is too permissive** (10k-81k). Only 11-36% of all its regions fall in the reference set,
+  although its top 1000 are as good as the other methods'.
+- **D15 is the weakest day** (A >=3 903). With D22 cut to 4 replicates, D18 and D22 are similar
+  (A >=3 4,191 vs 3,262).
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
