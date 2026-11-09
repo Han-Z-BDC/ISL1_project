@@ -547,6 +547,26 @@ KO patterns and tiers:
 - **Ctr D18 vs D15 (1,593 regions) depends on D18 H3CTR rep2.** Without that library, only 227
   of the 1,593 remain.
 
+**More sensitive KO vs Ctr tests (step 19, job 35498604, 4 min).**
+`MARK=H3K27ac sbatch --export=ALL scripts/19_histone_diff_sensitive.sb`. Output:
+`results/diff/H3K27ac/sensitive/`.
+
+Regions at padj < 0.05, up / down in KO:
+
+| Test | No fold-change cut | 1.5-fold lfcThreshold test |
+|---|---|---|
+| D15 | 8 / 19 | 0 / 1 |
+| D18 | 0 / 2 | 0 / 0 |
+| D22 | 602 / 432 | 0 / 5 |
+| Shared across days (~ rep + day + genotype) | **972 / 1,385** | 0 / 0 |
+
+- **500 bp windows find essentially nothing.** Of 527,217 windows, 444,458 pass the pre-filter.
+  No window is significant per day; the shared test gives 3 up / 11 down. The Simes combination
+  per region finds 0. At about 10 fragments per window there is too little signal, and the
+  multiple-testing burden is large.
+- **Pooling days in the shared test is the real gain:** 2,357 regions.
+- **The lfcThreshold test is very strict with 2 replicates.**
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
