@@ -470,6 +470,57 @@ and copied under the repo on /pl/active (not tracked by git).
 - **Counts:** macs3_ge2 has 3,299 / 10,945 / 9,804 peaks (D15 / D18 / D22; median 612-811 bp).
   idr_any_pair has 3,365 / 7,873 / 9,577 (median 975-1,380 bp).
 
+### H3K27ac differential analysis, D15/D18/D22 (2026-11-09)
+
+**Inputs** (steps 16-17)
+- **Regions:** union of the 6 groups' matched-IgG overlap Nt sets, giving 179,438 regions
+  (238 Mb). Of these, 178,007 pass the pre-filter (>= 10 fragments in >= 2 libraries).
+- **Counts:** featureCounts on 12 libraries.
+- **QC PCA:**
+  - PC1 (55%) is day.
+  - PC2 (35%) tracks each library's fraction of fragments in the regions (r = -0.90), so it is
+    likely technical.
+  - rep2 sits below rep1 on PC1 in all 6 groups, which supports the replicate term.
+
+**Model** (`scripts/histone_deseq2.R`, job 35496947, 7 min, 19 GB)
+- DESeq2 `~ rep + genotype + day + genotype:day`, median-of-ratios normalization.
+- Wald contrasts use `~ rep + group`, with ashr-shrunk log2FC.
+- Outputs: `results/diff/H3K27ac/deseq2/` (tables, summary, ko_patterns, time_clusters,
+  report.html).
+- Tables write NA as empty fields.
+
+**Results.** Counts are regions at padj < 0.05; up = higher in the first-named group.
+
+| Test | Tested | padj < 0.05 (up / down) | and shrunk abs(log2FC) >= 0.585 | and >= 1 |
+|---|---|---|---|---|
+| KO vs Ctr, D15 | 8,901 | 27 (8 / 19) | 3 | 1 |
+| KO vs Ctr, D18 | 178,007 | 2 (0 / 2) | 0 | 0 |
+| KO vs Ctr, D22 | 53,766 | 1,034 (602 / 432) | 659 | 40 |
+| Interaction D22 vs D15 | 19,254 | 50 | 38 | 1 |
+| Interaction D18 vs D15 / D22 vs D18 | 178,007 | 1 / 0 | 0 | 0 |
+| Ctr, D18 vs D15 | 43,412 | 2,605 | 1,593 | 145 |
+| Ctr, D22 vs D18 | 33,059 | 4,391 | 2,106 | 14 |
+| Ctr, D22 vs D15 | 91,728 | 15,573 | 15,290 | 5,149 |
+| KO, D22 vs D15 | 84,826 | 12,985 | 12,666 | 3,150 |
+
+Likelihood-ratio tests at padj < 0.05: time 21,314; genotype (any day) 907; interaction 41.
+
+**Reading**
+- **KO vs Ctr differences appear only at D22,** with about 1,000 regions.
+  - D15 has 27.
+  - D18 has 2. D18 has the weakest H3K27ac libraries, so this is low power, not proof of no
+    effect. Dropping D18 H3CTR rep2 still gives 0.
+- **The D22 effect differs significantly from D15** for 50 regions. It cannot be separated from
+  D18, which has no power.
+- **ashr shrinkage with 2 replicates is conservative.** The shrunk |log2FC| >= 1 cut keeps only
+  40 of the 1,034 D22 regions, while 734 have a raw |log2FC| >= 1.
+- **A cluster of KO-lost regions** lies at chr9:101-104 Mb (GRIN3A, LINC03094, LINC00587; also
+  the top genotype-LRT hits). IgG coverage there matches Ctr (ratio 0.89-1.02 in both), so it is
+  not a deletion in the KO line.
+- **Library-size normalization** gives median KO vs Ctr log2FC of -0.21 at D15, -0.16 at D18 and
+  +0.05 at D22. This follows each library's fraction of fragments in the regions, so it is not
+  clear evidence of a global change.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
