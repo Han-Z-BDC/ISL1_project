@@ -463,6 +463,13 @@ scripts/15_ctr_multirep_sets.sb` (job 35494855, 23-29 min).
 - **IDR "any pair" is mostly the earlier x earlier pair.** The batch 3 library adds 16-372 peaks.
 - **B is too permissive:** 33k-54k regions at >=2, of which only 15-19% fall in the reference set.
 
+**Kept sets (2026-11-09): MACS3 >=2 of 3 and IDR any pair.** `bash scripts/18_isl1_ctr_final_peaks.sh`
+writes them to `results/isl1_ctr_final/{macs3_ge2,idr_any_pair}/<day>_Ctr_ISL1.bed`, on scratch
+and copied under the repo on /pl/active (not tracked by git).
+- **Columns:** chr, start, end, name, n_reps, reps, max -log10 p, n_batch3, n_earlier.
+- **Counts:** macs3_ge2 has 3,299 / 10,945 / 9,804 peaks (D15 / D18 / D22; median 612-811 bp).
+  idr_any_pair has 3,365 / 7,873 / 9,577 (median 975-1,380 bp).
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
