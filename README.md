@@ -361,6 +361,32 @@ Per-sample histone calls (step 03 vs step 12), matched -> group:
 - **ISL1 remains limited by its signal, not by the control.** D9 is still near chance under
   every method, and C stays at tens to hundreds of peaks.
 
+### Earlier control ISL1 libraries, own IgG, by collection day (2026-11-09)
+
+The earlier batches' control ISL1 libraries are treated as further Ctr replicates. Batch 3 H3CTR
+rep1/rep2 count as Ctr rep1/rep2, and the earlier libraries become rep3 onward, named by
+collection day. The mapping is in `study_config/ctr_matched_samples.tsv`, which also keeps the GFP
+electroporation day and the prep/sequencing batch. KO libraries are not included.
+
+`sbatch --array=0-6 scripts/13_ctr_matched_calls.sb` (job 35478797, amem; 6-37 min, 8.9 GB):
+- **Inputs:** BAMs are read in place from ISL1_cutNrun and batch 3.
+- **Command:** the same MACS3 call as step 03: q 0.01, summits, duplicates kept, own block IgG,
+  blacklist filtered.
+- **Output:** `results/ctr_matched/`.
+- **Check:** all 7 are identical to the October calls of the same libraries under their old names.
+
+| Sample | Was | Electroporated | Batch (prep / seq) | Fragments | IgG | Peak rows | Regions | FRiP |
+|---|---|---|---|---|---|---|---|---|
+| D15_Ctr_rep3 | D12 Ctr+GFP rep1 | D12 | 1 / 1 | 22.5 M | 13.5 M | 14,019 | 12,117 | 1.7% |
+| D15_Ctr_rep4 | D12 Ctr+GFP rep2 | D12 | 2 / 2 | 34.6 M | 29.2 M | 7,809 | 6,308 | 4.4% |
+| D18_Ctr_rep3 | D15 Ctr+GFP rep1 | D15 | 1 / 1 | 26.3 M | 13.9 M | 32,748 | 25,869 | 5.0% |
+| D18_Ctr_rep4 | D15_CtrGFP_rep2 (batch 3 run) | D15 | 2 / 3 | 38.3 M | 37.8 M | 41,834 | 36,669 | 4.6% |
+| D22_Ctr_rep3 | D22 Ctr rep1 | - | 1 / 1 | 19.7 M | 10.1 M | 8,878 | 8,133 | 1.8% |
+| D22_Ctr_rep4 | D22 Ctr rep2 | - | 2 / 2 | 36.6 M | 28.5 M | 31,146 | 21,226 | 6.0% |
+| D22_Ctr_rep5 | D22 Ctr rep3 | - | 2 / 2 | 33.6 M | 32.7 M | 18,286 | 13,699 | 3.2% |
+
+Control ISL1 replicates per collection day: D9 2, D15 4, D18 4 and D22 5, for 15 in total.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
