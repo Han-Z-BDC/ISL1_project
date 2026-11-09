@@ -10,8 +10,9 @@
 #     time within each genotype (D18 vs D15, D22 vs D18, D22 vs D15), KO vs Ctr at each day,
 #     and the interaction contrasts (KO - Ctr at day b) - (KO - Ctr at day a)
 #   significant: padj < PADJ and |shrunk log2FC| >= LFC (Wald); padj < PADJ (LRT)
-#   KO patterns per region from the three KO vs Ctr contrasts (consistent / two days / one day /
-#   mixed), with the interaction LRT padj alongside
+#   KO patterns per region from the three KO vs Ctr contrasts (all days / two days / one day /
+#   mixed), each with a tier from the interaction contrasts (see "Tier" below), and the
+#   interaction LRT padj alongside. LFC = 0.585 (1.5-fold) unless set in the environment.
 #   time clusters: regions significant in the time LRT, k-means (K, seed 1) on z-scored VST means
 #   of the 6 groups
 # Sensitivity checks (summaries only):
@@ -38,7 +39,8 @@ mark <- basename(dd)
 drop_sample <- if (length(args) == 2) args[2] else NA
 out <- file.path(dd, "deseq2"); tab <- file.path(out, "tables")
 dir.create(tab, showWarnings = FALSE, recursive = TRUE)
-PADJ <- 0.05; LFC <- 1; K <- 6
+PADJ <- 0.05; K <- 6
+LFC <- as.numeric(Sys.getenv("LFC", "0.585"))   # 1.5-fold on the ashr-shrunk scale (agreed 2026-11-09)
 ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "4"))
 register(MulticoreParam(ncores))
 set.seed(1)
@@ -148,13 +150,34 @@ lab <- apply(S, 1, function(s) {
   if (n == length(ko)) return(paste0("all_days_", dir))
   paste0(paste(dd_, collapse = "+"), "_only_", dir)
 })
-pat <- data.table(region = rownames(S), pattern = lab, S, L)
-setnames(pat, c("region", "pattern", paste0("sig_", sub("KO_vs_Ctr_", "", ko)), paste0("lfc_", sub("KO_vs_Ctr_", "", ko))))
+# Tier: is the day pattern backed by the interaction contrasts?
+#   one/two-day patterns: for every significant day a and non-significant day b, the interaction
+#     (KO - Ctr at a) - (KO - Ctr at b) must have padj < PADJ in the same direction
+#     -> confirmed (all such pairs), partly_confirmed (some), restricted_only (none)
+#   all-day patterns: consistent if the interaction LRT is not significant
+#   mixed: up at one day, down at another (no tier)
+kd <- sub("KO_vs_Ctr_", "", ko)
+ia <- function(a, b) {
+  n1 <- sprintf("interaction_%s_vs_%s", a, b); n2 <- sprintf("interaction_%s_vs_%s", b, a)
+  if (n1 %in% names(main)) list(p = main[[n1]]$padj, l = main[[n1]]$log2FC) else list(p = main[[n2]]$padj, l = -main[[n2]]$log2FC)
+}
+stopifnot(all(sapply(main, function(d) identical(d$region, rownames(S)))))
+lrt_int <- lrt_res$interaction$padj[match(rownames(S), lrt_res$interaction$region)]
+tier <- rep("", nrow(S))
+for (i in which(rowSums(S != 0) > 0)) {
+  s <- S[i, ]; n <- sum(s != 0)
+  if (any(s > 0) && any(s < 0)) { tier[i] <- "mixed"; next }
+  if (n == length(kd)) { tier[i] <- if (is.na(lrt_int[i]) || lrt_int[i] >= PADJ) "consistent" else "all_days_interaction"; next }
+  dir <- sign(sum(s)); ok <- logical(0)
+  for (a in kd[s != 0]) for (b in kd[s == 0]) { x <- ia(a, b); ok <- c(ok, !is.na(x$p[i]) && x$p[i] < PADJ && sign(x$l[i]) == dir) }
+  tier[i] <- if (all(ok)) "confirmed" else if (any(ok)) "partly_confirmed" else "restricted_only"
+}
+pat <- data.table(region = rownames(S), pattern = lab, tier = tier, S, L)
+setnames(pat, c("region", "pattern", "tier", paste0("sig_", kd), paste0("lfc_", kd)))
 pat <- merge(pat, lrt_res$interaction[, .(region, interaction_padj = padj)], by = "region")
 pat <- merge(regions, pat[pattern != "none"], by = "region")
-fwrite(pat[order(pattern, interaction_padj)], file.path(out, "ko_patterns.tsv"), sep = "\t")
-pat_summ <- data.table(table(lab))[order(-N)]; setnames(pat_summ, c("pattern", "regions"))
-pat_summ[, interaction_padj_lt_0.05 := sapply(pattern, function(p) pat[pattern == p, sum(interaction_padj < PADJ, na.rm = TRUE)])]
+fwrite(pat[order(pattern, tier, interaction_padj)], file.path(out, "ko_patterns.tsv"), sep = "\t")
+pat_summ <- pat[, .(regions = .N, interaction_LRT_padj_lt_0.05 = sum(interaction_padj < PADJ, na.rm = TRUE)), by = .(pattern, tier)][order(pattern, tier)]
 fwrite(pat_summ, file.path(out, "ko_pattern_summary.tsv"), sep = "\t")
 print(pat_summ)
 
@@ -245,7 +268,10 @@ td,th{border:1px solid #ccc;padding:3px 6px;text-align:right}img{max-width:100%}
 <p>', ncol(m), ' libraries, ', nrow(m), ' regions (union of replicated peaks, pre-filtered). Main analysis: median-of-ratios size factors,
 ~ rep + genotype + day + genotype:day. Wald: padj &lt; ', PADJ, ' and |ashr-shrunk log2FC| &ge; ', LFC, '. LRT: padj &lt; ', PADJ, '.</p>
 <h2>Summary</h2>', htab(summary_dt), '
-<h2>KO vs Ctr patterns (main)</h2><p>From the three per-day KO vs Ctr contrasts; interaction LRT significant count alongside.</p>', htab(pat_summ), '
+<h2>KO vs Ctr patterns (main)</h2><p>From the three per-day KO vs Ctr contrasts. Tier: one- or two-day patterns are
+<b>confirmed</b> when every interaction contrast between a significant day and a non-significant day has padj &lt; ', PADJ, ' in the same
+direction, <b>partly_confirmed</b> when some do, <b>restricted_only</b> when none do (significant at those days only, but not shown to
+differ from the other days). All-day patterns are <b>consistent</b> when the interaction LRT is not significant.</p>', htab(pat_summ), '
 <h2>MA plots, main</h2>', img(file.path(out, "ma_main.png")), '
 <h2>Time clusters</h2><p>', length(tsig), ' regions significant in the time LRT, k-means on z-scored group means (VST).</p>',
   htab(cl_tab), img(file.path(out, "time_clusters.png")), '

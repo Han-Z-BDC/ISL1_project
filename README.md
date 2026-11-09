@@ -521,6 +521,32 @@ Likelihood-ratio tests at padj < 0.05: time 21,314; genotype (any day) 907; inte
   +0.05 at D22. This follows each library's fraction of fragments in the regions, so it is not
   clear evidence of a global change.
 
+**Re-run with a 1.5-fold cut and two-tier labels (job 35497518).** Significant = padj < 0.05 and
+shrunk abs(log2FC) >= 0.585.
+
+KO vs Ctr, up / down:
+
+| Day | Main | Library-size normalization |
+|---|---|---|
+| D15 | 0 / 3 | 2 / 25 |
+| D18 | 0 / 0 | 0 / 0 |
+| D22 | 374 / 285 | 438 / 202 |
+
+KO patterns and tiers:
+
+| Pattern | Tier | Regions |
+|---|---|---|
+| D22 only, up | partly_confirmed (differs from D15) | 24 |
+| D22 only, up | restricted_only | 350 |
+| D22 only, down | partly_confirmed | 18 |
+| D22 only, down | restricted_only | 265 |
+| D15 only, down | confirmed | 1 |
+| D15 + D22 only, down | restricted_only | 2 |
+
+- **No D22-only region can be fully confirmed:** the D22 vs D18 interaction has no power.
+- **Ctr D18 vs D15 (1,593 regions) depends on D18 H3CTR rep2.** Without that library, only 227
+  of the 1,593 remain.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
