@@ -28,15 +28,32 @@ mark <- basename(dd)
 od <- dirname(dirname(dd))                       # results/
 out <- file.path(dd, "diffbind"); dir.create(file.path(out, "sites"), recursive = TRUE, showWarnings = FALSE)
 TH <- 0.05                                       # FDR threshold
-ncores <- as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", "4"))
+# DiffBind forks one counting worker per core, each holding a BAM's alignments: 12 workers ran out
+# of 240 GB (jobs 35500667/8), so counting uses DB_CORES (default 4).
+ncores <- as.integer(Sys.getenv("DB_CORES", "4"))
+# Region sets to run (both by default); a re-run of one set keeps the other's site tables, and the
+# summary and comparison are rebuilt from all site tables on disk.
+sets <- strsplit(Sys.getenv("DB_SETS", "diffbind_consensus,our_union"), ",")[[1]]
+
+# Per-library peaks and summit re-centring, from the environment (defaults = sharp marks).
+# Broad marks: DB_PEAK_DIR=macs3_broad DB_PEAK_SUFFIX=_peaks.filtered.broadPeak DB_PEAK_FORMAT=bed
+# DB_SUMMITS=0 (no re-centring: sites keep their full width).
+peak_dir <- Sys.getenv("DB_PEAK_DIR", "macs3")
+peak_suffix <- Sys.getenv("DB_PEAK_SUFFIX", "_peaks.filtered.narrowPeak")
+peak_format <- Sys.getenv("DB_PEAK_FORMAT", "narrow")
+summits <- as.integer(Sys.getenv("DB_SUMMITS", "200"))
+# Summit re-centring for our_union separately (DB_UNION_SUMMITS=0: full-width union regions, as in
+# our DESeq2 analysis); defaults to DB_SUMMITS.
+union_summits <- as.integer(Sys.getenv("DB_UNION_SUMMITS", as.character(summits)))
+cat(sprintf("peaks: %s/<sample>%s (%s); summits: %s\n", peak_dir, peak_suffix, peak_format, if (summits > 0) summits else "none"))
 
 samples <- fread(file.path(dd, "samples.tsv"))
 days <- intersect(c("D9", "D15", "D18", "D22"), unique(samples$day))
 ss <- data.frame(SampleID = samples$sample, Tissue = samples$day, Factor = samples$group,
                  Condition = samples$genotype, Treatment = samples$day, Replicate = samples$replicate,
                  bamReads = samples$bam,
-                 Peaks = file.path(od, "macs3", paste0(samples$sample, "_peaks.filtered.narrowPeak")),
-                 PeakCaller = "narrow", stringsAsFactors = FALSE)
+                 Peaks = file.path(od, peak_dir, paste0(samples$sample, peak_suffix)),
+                 PeakCaller = peak_format, stringsAsFactors = FALSE)
 stopifnot(all(file.exists(ss$Peaks)), all(file.exists(ss$bamReads)))
 
 regions <- fread(file.path(dd, "regions.bed"), header = FALSE, col.names = c("chr", "start", "end", "region", "n_groups", "groups"))
@@ -57,14 +74,18 @@ count_set <- function(set) {
   db <- dba(sampleSheet = ss, minOverlap = 2)
   db$config$cores <- ncores
   db$config$singleEnd <- FALSE
-  db <- dba.count(db, peaks = if (set == "our_union") union_gr else NULL, summits = 200,
-                  bUseSummarizeOverlaps = TRUE, bRemoveDuplicates = FALSE, minCount = 0)
+  # peaks must be omitted (not NULL) for DiffBind's own consensus: peaks = NULL means "re-use counts"
+  sm <- if (set == "our_union") union_summits else summits
+  a <- list(db, summits = if (sm > 0) sm else FALSE, bUseSummarizeOverlaps = TRUE,
+            bRemoveDuplicates = FALSE, minCount = 0)
+  if (set == "our_union") a$peaks <- union_gr
+  db <- do.call(dba.count, a)
   cat(sprintf("%s: %d sites counted\n", set, nrow(dba.peakset(db, bRetrieve = TRUE, DataType = DBA_DATA_FRAME))))
   db
 }
 
 summ <- list(); sig_sites <- list()
-for (set in c("diffbind_consensus", "our_union")) {
+for (set in sets) {
   db <- count_set(set)
   saveRDS(db, file.path(out, paste0(set, ".counted.rds")))
   for (nm in names(norms)) {
@@ -94,7 +115,18 @@ for (set in c("diffbind_consensus", "our_union")) {
     }
   }
 }
-summ_dt <- rbindlist(summ)
+# Rebuild from every site table on disk (covers sets run in earlier jobs).
+summ <- list(); sig_sites <- list()
+for (f in list.files(file.path(out, "sites"), pattern = "\\.tsv$", full.names = TRUE)) {
+  m <- regmatches(basename(f), regexec("^(diffbind_consensus|our_union)_(libsize|rip_native|background)_(.+)\\.tsv$", basename(f)))[[1]]
+  if (length(m) != 4) next
+  dt <- fread(f)
+  s <- dt[FDR < TH & seqnames %in% paste0("chr", c(1:22, "X", "Y"))]
+  summ[[length(summ) + 1]] <- data.table(sites = m[2], normalization = m[3], test = m[4], tested = nrow(dt),
+                                         up = sum(s$Fold > 0), down = sum(s$Fold < 0))
+  sig_sites[[paste(m[2], m[3], m[4])]] <- GRanges(s$seqnames, IRanges(s$start, s$end))
+}
+summ_dt <- rbindlist(summ)[order(sites, normalization, test)]
 fwrite(summ_dt, file.path(out, "summary.tsv"), sep = "\t")
 
 # ---- comparison with our DESeq2 region-level calls (padj only)
@@ -130,7 +162,7 @@ writeLines(paste0('<!doctype html><html><head><meta charset="utf-8"><title>', ma
 <style>body{font-family:sans-serif;max-width:1200px;margin:24px auto;padding:0 16px}table{border-collapse:collapse;font-size:12px;margin-bottom:16px}
 td,th{border:1px solid #ccc;padding:3px 6px;text-align:right}</style></head><body>
 <h1>', mark, ': DiffBind (', as.character(packageVersion("DiffBind")), ') cross-check</h1>
-<p>DESeq2, FDR &lt; ', TH, ', no fold-change cut; summits = 200 (401 bp sites). up = higher in KO, or in the later day.
+<p>DESeq2, FDR &lt; ', TH, ', no fold-change cut; summits = ', if (summits > 0) summits else "none", ' (DiffBind consensus), ', if (union_summits > 0) union_summits else "none", ' (our union). up = higher in KO, or in the later day.
 diffbind_consensus: per-library MACS3 peaks in &ge; 2 libraries; our_union: the step 16 union regions, re-centred on summits.</p>
 <h2>Counts</h2>', htab(summ_dt), '
 <h2>Overlap with our DESeq2 region calls (padj &lt; ', TH, ')</h2>', htab(comp_dt), '

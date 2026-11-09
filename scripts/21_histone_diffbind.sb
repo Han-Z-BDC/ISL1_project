@@ -12,6 +12,7 @@
 # Step 21: DiffBind cross-check for one mark (scripts/histone_diffbind.R). Needs steps 16, 17, 19
 # for the mark and the diffbind env (scripts/00e).
 #   MARK=H3K27ac sbatch --export=ALL scripts/21_histone_diffbind.sb
+#   broad mark: MARK=H3K27me3 DB_PEAK_DIR=macs3_broad DB_PEAK_SUFFIX=_peaks.filtered.broadPeak DB_PEAK_FORMAT=bed DB_SUMMITS=0 sbatch --export=ALL ...
 
 set -euo pipefail
 IGG_METHOD=matched

@@ -87,7 +87,8 @@ for (nm in c("composition", "efficiency")) {
   R <- lapply(se, fit_size)
   for (t in tests) {
     tabs <- lapply(R, `[[`, t)
-    m <- mergeResultsList(lapply(se, rowRanges), tab.list = tabs, equiweight = TRUE, tol = 100,
+    # unnamed lists: with names, csaw's internal do.call(c, ...) falls back to base c() and returns a list
+    m <- mergeResultsList(unname(lapply(se, rowRanges)), tab.list = unname(tabs), equiweight = TRUE, tol = 100,
                           merge.args = list(max.width = MAX_WIDTH))
     reg <- m$regions; comb <- m$combined
     dt <- data.table(chr = as.character(seqnames(reg)), start = start(reg) - 1L, end = end(reg),
