@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=hist_csawR
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=24:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/hist_csawR.%j.out
+
+# Step 22: csaw + edgeR cross-check for one mark (scripts/histone_csaw.R), genome-wide windows.
+# Needs steps 16, 17, 19 for the mark and the diffbind env (scripts/00e).
+#   MARK=H3K27ac sbatch --export=ALL scripts/22_histone_csaw.sb
+#   broad mark: MARK=H3K27me3 CSAW_WIDTHS=2000,500 CSAW_FC_BG=2 CSAW_MAX_WIDTH=30000 sbatch --export=ALL ...
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+MARK=${MARK:-H3K27ac}
+"${DIFFBIND_TOOLS}/Rscript" "${STUDY_DIR}/scripts/histone_csaw.R" "${OUT_DIR}/diff/${MARK}" "${BLACKLIST}"

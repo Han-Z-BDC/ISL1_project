@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=hist_diffbind
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=12:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/hist_diffbind.%j.out
+
+# Step 21: DiffBind cross-check for one mark (scripts/histone_diffbind.R). Needs steps 16, 17, 19
+# for the mark and the diffbind env (scripts/00e).
+#   MARK=H3K27ac sbatch --export=ALL scripts/21_histone_diffbind.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+MARK=${MARK:-H3K27ac}
+"${DIFFBIND_TOOLS}/Rscript" "${STUDY_DIR}/scripts/histone_diffbind.R" "${OUT_DIR}/diff/${MARK}"

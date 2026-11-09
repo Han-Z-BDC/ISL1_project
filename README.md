@@ -567,6 +567,56 @@ Regions at padj < 0.05, up / down in KO:
 - **Pooling days in the shared test is the real gain:** 2,357 regions.
 - **The lfcThreshold test is very strict with 2 replicates.**
 
+### H3K27me3 differential analysis, D15/D18/D22 (2026-11-09)
+
+**Inputs**
+- **Domains:** union of the 6 groups' matched-IgG Nt sets, merged with a 3 kb gap (step 16,
+  `MERGE_GAP=3000`). This gives 51,412 domains (369 Mb); 51,352 pass the pre-filter.
+- **QC PCA:** PC1 (81%) is day. **PC2 (11%) is genotype:** all KO libraries sit at +12 to +14,
+  Ctr at D18/D22 at -13 to -24.
+
+**Original method**
+- Step 17 (whole domains, job 35499125): 1.5-fold shrunk cut. Drop-one check uses D22 H3CTR rep2,
+  the lowest-FRiP library.
+- Step 19 (`WIN=5000`, job 35499126): padj only, shared test, and 5 kb windows.
+
+**csaw-style method** (step 20, `scripts/histone_csaw_style.R`, job 35499127, 11 min)
+- 2 kb and 5 kb windows over the domains, kept at >= 2x the 10 kb-bin background.
+- Three normalizations: background bins, library size, median-of-ratios.
+- Simes per domain; sub-domains are joined 2 kb windows, capped at 30 kb.
+- Size factors from the three normalizations agree within about 10%, so there is no sign of a
+  global shift.
+
+**Results.** Domains significant at padj < 0.05, total (up / down; up = later day or higher in KO).
+
+| Test | Original, whole domain | Original, 1.5x shrunk | csaw-style, background | csaw-style, libsize | csaw-style, median-of-ratios |
+|---|---|---|---|---|---|
+| Ctr D18 vs D15 | 2,235 (1,303 / 932) | 1,022 | 1,300 | 2,027 | 1,782 |
+| Ctr D22 vs D18 | 9,739 (3,595 / 6,144) | 6,336 | 6,855 | 9,591 | 8,970 |
+| Ctr D22 vs D15 | 14,434 (6,122 / 8,312) | 11,436 | 13,375 | 15,947 | 14,788 |
+| KO vs Ctr D15 | 357 (230 / 127) | 179 | 263 (211 / 52) | 420 | 278 |
+| KO vs Ctr D18 | 3,991 (1,236 / 2,755) | 1,591 | 2,499 (427 / 2,072) | 3,135 | 3,110 |
+| KO vs Ctr D22 | 4,810 (2,114 / 2,696) | 3,218 | 3,459 (1,327 / 2,132) | 4,522 | 4,391 |
+| KO vs Ctr shared | 6,753 (2,793 / 3,960) | - | 4,780 | 6,366 | 6,697 |
+
+**Day-specific KO patterns** (1.5x cut, with tiers):
+- D18+D22 lower in KO: 117 confirmed, 158 partly confirmed.
+- D22 only, lower / higher in KO: 64 / 46 confirmed.
+- D18 only, lower in KO: 21 confirmed.
+- All days, consistent: 45 lower, 69 higher.
+- Interaction LRT: 1,455.
+
+**Reading**
+- **The KO effect on H3K27me3 is much larger than on H3K27ac.** It is small at D15, appears at D18
+  (mostly loss in KO) and persists at D22.
+- **The methods agree.**
+  - 73-89% of the csaw-style background calls are also original whole-domain calls.
+  - Windows add few domains: 74-1,113 per test, versus 125-1,331 found only at whole-domain level.
+  - Most of the difference between methods comes from normalization (background gives the fewest
+    calls), not from windows vs domains.
+- **D22 KO vs Ctr depends partly on D22 H3CTR rep2:** without it, 2,010 of 3,218 calls (1.5x cut)
+  remain.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus

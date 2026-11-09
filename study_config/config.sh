@@ -63,6 +63,8 @@ MAX_FRAGMENT=1000                # fragments up to this length go into the SEACR
 GROUP_IGG_SEED=101
 # Replicate correlation / PCA (scripts/09): featureCounts from the isl1_downstream env.
 FEATURECOUNTS=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/featureCounts
+# DiffBind / csaw / edgeR env (scripts/00e builds it; scripts/21-22 use it).
+DIFFBIND_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/diffbind/bin
 # QC reference only: earlier batches' D15 Ctr conservative IDR set (9,329 peaks; on scratch).
 ISL1_REFERENCE_PEAKS=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/results_group/final_peaks/conservative/D15_Ctr.narrowPeak
 
