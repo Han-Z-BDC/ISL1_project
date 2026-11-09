@@ -441,6 +441,28 @@ IDR pairs, peaks passing:
 - **D15 is the weakest day** (A >=3 903). With D22 cut to 4 replicates, D18 and D22 are similar
   (A >=3 4,191 vs 3,262).
 
+### Control ISL1 from three chosen replicates per day (2026-11-09)
+
+**Which three:** the better batch 3 library plus the earlier libraries.
+- D15 and D18: rep1 + rep3 + rep4.
+- D22: rep2 + rep4 + rep5.
+- Basis: agreement with the earlier libraries. For D22, rep2 + rep4 + rep5 shares 91-94% of its
+  >=2 regions with rep3 + rep4 + rep5.
+
+**Run:** `SUBSET="D15:1,3,4 D18:1,3,4 D22:2,4,5" OUT_NAME=ctr_trio sbatch --array=0-2 --export=ALL
+scripts/15_ctr_multirep_sets.sb` (job 35494855, 23-29 min).
+- The pooled peak list for IDR and B is built from the three chosen libraries only.
+- Output: `results/ctr_trio/<day>/`.
+
+| Day | MACS3 >=2 of 3 (chance) | MACS3 3 of 3 | IDR, any pair | IDR, all 3 | IDR pairs: batch 3 x earlier, earlier x earlier |
+|---|---|---|---|---|---|
+| D15 | 3,299 (127) | 642 | 3,365 | 405 | 279 / 386, 3,349 |
+| D18 | 10,945 (748) | 3,812 | 7,873 | 2,988 | 2,651 / 2,811, 7,501 |
+| D22 | 9,804 (539) | 2,779 | 9,577 | 1,927 | 1,850 / 1,595, 9,483 |
+
+- **IDR "any pair" is mostly the earlier x earlier pair.** The batch 3 library adds 16-372 peaks.
+- **B is too permissive:** 33k-54k regions at >=2, of which only 15-19% fall in the reference set.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
