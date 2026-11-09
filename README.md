@@ -301,6 +301,66 @@ below:
   - D22 rep1, the shallow library at 6.8 M fragments, is an outlier on its own.
 - **Replicates pair by day only at D9,** where both look like background.
 
+### Group IgG test (2026-11-08)
+
+Question: does a deeper, shared IgG per day x line raise the number of reproducible peaks?
+
+**Method**
+- **Group IgG** (step 10, job 35436454): the deeper of the two block IgGs is subsampled to the
+  shallower one's depth (seed 101, fraction 0.73-0.98), then merged. Each group IgG holds
+  35.9-60.3 M fragments, about 2x a single block IgG. Details: `results/group_igg/group_igg_manifest.tsv`.
+- **Calls against the group IgG:**
+  - Step 04 with `CONTROL=group`: relaxed calls plus the ISL1 q 0.01 summit call (job 35437434).
+  - Step 12: per-sample histone calls (job 35437435).
+  - Step 05 with `CONTROL=group`: reproducible sets (job 35437436).
+  - Step 11: matched vs group comparison (job 35437437).
+- **Settings:** all as with the matched IgG; only the control changes. Steps 04, 05 and 12 ran on
+  amem with 240 G and 12 CPUs, peaking at 4-9 GB.
+- **Outputs:** `results/reproducibility_groupIgG/compare/{isl1_A.tsv,sets.tsv}`.
+
+**ISL1, matched -> group (chr1-22/X/Y)**
+
+| Day | A both-replicate | A chance | A ratio | B overlap Nt | C IDR Nt | C IDR Np | Ref match (A, top 1000) |
+|---|---|---|---|---|---|---|---|
+| D9 | 157 -> 256 | 99 -> 150 | 1.6 -> 1.7 | 18,781 -> 23,973 | 7 -> 6 | 29 -> 29 | 13 -> 10% |
+| D15 | 530 -> 698 | 215 -> 274 | 2.5 -> 2.5 | 24,261 -> 28,095 | 80 -> 85 | 153 -> 152 | 34 -> 30% |
+| D18 | 976 -> 1,151 | 134 -> 144 | 7.3 -> 8.0 | 22,132 -> 26,855 | 480 -> 536 | 960 -> 963 | 70 -> 72% |
+| D22 | 1,499 -> 1,688 | 392 -> 474 | 3.8 -> 3.6 | 23,494 -> 26,745 | 593 -> 659 | 932 -> 926 | 74 -> 75% |
+
+Per-replicate q 0.01 calls rise 5-30% (for example, D9 rep2 goes from 18.7k to 24.4k).
+
+**Histone overlap Nt, matched -> group.** All groups pass both ways.
+
+| Group | H3K27ac Nt | H3K27me3 Nt |
+|---|---|---|
+| D9 H3CTR | 20,426 -> 25,668 (+26%) | 27,448 -> 29,322 (+7%) |
+| D9 ISL1KO | 13,772 -> 16,757 (+22%) | 26,421 -> 28,192 (+7%) |
+| D15 H3CTR | 71,628 -> 77,629 (+8%) | 56,584 -> 60,492 (+7%) |
+| D15 ISL1KO | 50,163 -> 55,459 (+11%) | 56,040 -> 59,723 (+7%) |
+| D18 H3CTR | 38,763 -> 43,942 (+13%) | 53,877 -> 58,086 (+8%) |
+| D18 ISL1KO | 27,101 -> 31,773 (+17%) | 60,932 -> 66,176 (+9%) |
+| D22 H3CTR | 58,221 -> 65,376 (+12%) | 63,001 -> 67,915 (+8%) |
+| D22 ISL1KO | 69,592 -> 75,456 (+8%) | 64,674 -> 70,223 (+9%) |
+
+Per-sample histone calls (step 03 vs step 12), matched -> group:
+- **H3K27ac:** regions +5-16%, FRiP up by 4-15% of its value.
+- **H3K27me3:** regions +2-6%, FRiP up by 1-3% of its value.
+- Stats are in `results/qc/peaks_groupIgG/`.
+
+**Reading**
+- **Every call set grows with the group IgG,** by 7-28% for Nt and 13-63% for ISL1 option A.
+  - A deeper control gives a less noisy local lambda, so fewer regions are lost to IgG noise.
+  - The largest relative gains are in the weakest groups: D9, and H3K27ac at D9 and D18.
+- **Reproducibility itself does not improve.**
+  - For ISL1 A, chance overlap grows as much as the real overlap, so the ratio is unchanged
+    (1.6-8.0).
+  - The share matching the earlier batches' reference is unchanged.
+  - ENCODE self-consistency and rescue ratios move by under 0.2, and the flags are the same.
+- **Np is unchanged (±3%),** as expected: the matched pooled call already used both block IgGs
+  as its control.
+- **ISL1 remains limited by its signal, not by the control.** D9 is still near chance under
+  every method, and C stays at tens to hundreds of peaks.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
