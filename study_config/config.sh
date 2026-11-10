@@ -19,8 +19,15 @@ SCRATCH=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun
 LOGS=${SCRATCH}/logs
 METADATA=${STUDY_DIR}/study_config/sample_metadata.tsv
 
+# Symlinks to the raw Admera fastqs (setup_links.sh).
+RAW_LINKS=${SCRATCH}/raw_links
+# 10x 3' GEX libraries sequenced on the same lane (S268-S270); some of their reads leaked into the
+# CUT&RUN fastqs. scripts/00f_filter_10x.sb removes them (2026-11-10).
+TENX_FASTQ_DIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0003-11022026_200951
+
 # --- Pipeline inputs (names as in pipeline/config.example.sh) ------------
-RAW_DIR=${SCRATCH}/raw_links
+# The pipeline aligns the 10x-filtered fastqs (step 00f), not the raw links.
+RAW_DIR=${SCRATCH}/clean_fastq
 SAMPLE_SHEET=${STUDY_DIR}/study_config/samples.tsv
 
 # IgG background method for the pipeline's steps 02/03 (matched = each sample's own block IgG).
