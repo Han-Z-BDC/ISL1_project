@@ -671,6 +671,21 @@ Regions at padj < 0.05, up / down in KO:
 **H3K27me3 reading:** every method and region set agrees. About 75-85% of DiffBind's calls fall in
 our calls; csaw-style background calls are close to DiffBind background.
 
+**H3K27me3 with csaw** (job 35501130, 85 min)
+- Windows: genome-wide 2 kb and 500 bp, kept at >= 2x background (849k and 2.9M windows), merged
+  into 85,356 regions of up to 30 kb.
+- Normalization factors are 0.89-1.11 under both methods, so again there is no global shift.
+
+| Normalization | D15 | D18 | D22 | Shared |
+|---|---|---|---|---|
+| Composition | 325 (256 up / 69 down) | 3,542 (649 / 2,892) | 4,797 (1,980 / 2,817) | 6,095 |
+| Efficiency | 659 | 6,248 | 7,811 | 6,734 |
+
+Ctr D22 vs D15: 18,876 (composition) / 23,900 (efficiency).
+
+About 70-80% of csaw's regions with composition normalization fall in our calls. As with every
+other method, the KO effect on H3K27me3 starts at D18 and is mostly loss in KO.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
