@@ -617,6 +617,60 @@ Regions at padj < 0.05, up / down in KO:
 - **D22 KO vs Ctr depends partly on D22 H3CTR rep2:** without it, 2,010 of 3,218 calls (1.5x cut)
   remain.
 
+### Cross-checks with DiffBind and csaw (2026-11-09)
+
+**Setup**
+- Env: `scripts/00e_build_diffbind_env.sb` (job 35499514) builds DiffBind 3.12.0, csaw 1.36.0,
+  edgeR 4.0.16.
+- DiffBind: `scripts/21_histone_diffbind.sb`. For H3K27me3, use broad per-library calls and no
+  summit re-centring.
+- csaw: `scripts/22_histone_csaw.sb`.
+- Everything uses the same 12 libraries. Tests are at FDR / padj < 0.05, with no fold-change cut.
+- DiffBind counting with 12 cores ran out of 240 GB; it now uses 4.
+
+**H3K27ac, KO vs Ctr**
+
+| Method | D15 | D18 | D22 | Shared |
+|---|---|---|---|---|
+| Ours (DESeq2, full-width union regions) | 27 | 2 | 1,034 | 2,357 |
+| DiffBind on our union regions, full width, median-of-ratios | 42 | 20 | 1,381 | 3,234 |
+| DiffBind own consensus, 401 bp summit sites (rip / libsize / background) | 1 / 1 / 1 | 0 / 4 / 9 | 0 / 0 / 0 | 60 / 240 / 293 |
+| csaw, 150 bp + 1 kb genome windows (composition / efficiency) | 4 / 22 | 2 / 7 | 27 / 302 | 380 / 402 |
+
+**H3K27ac, Ctr D22 vs D15**
+
+| Method | Regions |
+|---|---|
+| Ours | 15,573 |
+| DiffBind on our union | 17,232 |
+| DiffBind consensus (rip) | 3,400 |
+| csaw (efficiency) | 3,209 |
+
+**H3K27ac reading**
+- **DiffBind on our union regions reproduces our calls.** It contains 1,013 of our 1,034 D22 regions
+  and all 27 at D15.
+- **DiffBind's summit sites cover the same places but miss the effect.** They overlap 938 of our 1,034
+  D22 regions, all in the same direction. The 401 bp summit windows measure much smaller fold changes
+  (e.g. log2FC 1.74 in the region vs 0.64 at the summit). The D22 KO change lies across the regions,
+  not at the summits.
+- **csaw tests only 9,533 regions** (windows at >= 3x background), the strongest sites. With efficiency
+  normalization it finds 302 D22 regions, 153 of them inside our calls.
+- **Library-size, composition and background normalization make D18 time changes one-directional.**
+  For example, Ctr D18 vs D15 under DiffBind libsize gives 6 up / 2,227 down. This follows the weak
+  D18 libraries.
+
+**H3K27me3, KO vs Ctr**
+
+| Method | D15 | D18 | D22 | Shared |
+|---|---|---|---|---|
+| Ours (whole domains) | 357 | 3,991 | 4,810 | 6,753 |
+| DiffBind on our domains, median-of-ratios | 802 | 4,690 | 4,936 | 6,609 |
+| DiffBind own broad consensus, median-of-ratios | 842 | 5,213 | 5,488 | 7,045 |
+| DiffBind own broad consensus, background | 487 | 3,061 | 3,462 | 4,340 |
+
+**H3K27me3 reading:** every method and region set agrees. About 75-85% of DiffBind's calls fall in
+our calls; csaw-style background calls are close to DiffBind background.
+
 ## Local review copy (Mac)
 
 `~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
