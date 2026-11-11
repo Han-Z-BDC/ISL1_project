@@ -22,7 +22,7 @@
 
 set -euo pipefail
 IGG_METHOD=matched
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
 MARK=${MARK:-H3K27ac}
 DIFF_DAYS=${DIFF_DAYS:-"D15 D18 D22"}
 MERGE_GAP=${MERGE_GAP:-0}

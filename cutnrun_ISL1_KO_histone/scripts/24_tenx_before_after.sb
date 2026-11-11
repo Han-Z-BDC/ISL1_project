@@ -25,7 +25,7 @@
 
 set -euo pipefail
 IGG_METHOD=matched
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
 OLD=${SCRATCH}/results_with10x; NEW=${OUT_DIR}; C=${NEW}/tenx_check; Q=${SCRATCH}/tenx_filter
 ST=${TOOLS}/samtools; BT=${TOOLS}/bedtools
 mkdir -p "${C}/tenx_frags" "${C}/lost" "${C}/tmp"

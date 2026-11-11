@@ -15,7 +15,7 @@
 
 set -euo pipefail
 IGG_METHOD=matched
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
 
 MM=/projects/hzhu10@xsede.org/software/micromamba_bootstrap/bin/micromamba
 export MAMBA_ROOT_PREFIX=/projects/hzhu10@xsede.org/software/micromamba_bootstrap

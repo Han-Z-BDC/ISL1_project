@@ -19,7 +19,7 @@
 
 set -euo pipefail
 IGG_METHOD=matched
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
 T=${SLURM_CPUS_PER_TASK:-4}
 ST=${TOOLS}/samtools
 SRC=${OUT_DIR}/igg_background

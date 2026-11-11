@@ -13,7 +13,7 @@
 
 set -euo pipefail
 IGG_METHOD=matched
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
 SRC=${OUT_DIR}/ctr_trio
 F=${OUT_DIR}/isl1_ctr_final
 KEEP=${STUDY_DIR}/results/isl1_ctr_final

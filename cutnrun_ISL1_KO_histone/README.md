@@ -7,7 +7,7 @@ the general lab pipeline
 [cutnrun-pipeline](https://github.com/ZhuLab-CUAnschutz/cutnrun-pipeline), vendored unchanged
 in `pipeline/` (copied from commit `1afe307`).
 
-Repo (Alpine): `/pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun` -- local git, not pushed
+Repo (Alpine): `/pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone` -- part of `Han-Z-BDC/ISL1_project` (GitHub, private)
 to GitHub yet.
 
 ## Data

@@ -29,7 +29,7 @@
 
 set -euo pipefail
 IGG_METHOD=matched
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
 : "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n libraries - 1>}"
 CONTROL=${CONTROL:-matched}
 
