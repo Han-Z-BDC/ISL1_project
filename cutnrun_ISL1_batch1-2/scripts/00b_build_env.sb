@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_env
+#SBATCH --partition=acompile
+#SBATCH --qos=compile
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=30G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/build_env.%j.out
+#SBATCH --error=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/build_env.%j.err
+
+# Build the cutnrun env from pipeline/environment.yml (= TOOLS in study_config/config.sh), then
+# record the exact resolved versions in study_config/cutnrun_env.export.yml for the methods.
+# Uses the lab micromamba bootstrap (no miniforge module on acompile; job 34348718 failed on it).
+# 30G: a micromamba solve OOMed at 13G for another lab env.
+#   sbatch scripts/00b_build_env.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+MM=/projects/hzhu10@xsede.org/software/micromamba_bootstrap/bin/micromamba
+export MAMBA_ROOT_PREFIX=/projects/hzhu10@xsede.org/software/micromamba_bootstrap
+ENVDIR=$(dirname "${TOOLS}")
+
+"${MM}" create -y -p "${ENVDIR}" -f "${PIPELINE_DIR}/environment.yml"
+"${MM}" env export -p "${ENVDIR}" --no-build > "${STUDY_DIR}/study_config/cutnrun_env.export.yml"
+
+for t in fastqc multiqc cutadapt bowtie2 samtools macs3 bamCoverage bedtools; do
+  [[ -x "${TOOLS}/${t}" ]] || { echo "ERROR: ${t} missing from ${TOOLS}" >&2; exit 1; }
+done
+echo "cutnrun env ready: ${TOOLS}"

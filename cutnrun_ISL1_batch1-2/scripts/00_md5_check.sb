@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_md5
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=4G
+#SBATCH --time=04:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/md5_check.%j.out
+#SBATCH --error=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/md5_check.%j.err
+
+# Step 0: verify one Admera delivery against its md5.txt. md5sum is single-threaded per file,
+# so 4 files are checked in parallel. Non-zero exit if any file fails.
+#   batch 2 (7535-0002): 32/32 OK, 2026-10-16, job 34347701 (run from the ISL1_scRNAseq repo
+#                        right after the move; result in ISL1_scRNAseq/logs on scratch)
+#   batch 1 (7535-0001): not yet checked
+#
+#   sbatch scripts/00_md5_check.sb 7535-0001-08202026_144755
+
+set -euo pipefail
+
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+BATCH="${1:?usage: sbatch scripts/00_md5_check.sb <batch folder under ${RAW_BASE}>}"
+CHECK_DIR="${RAW_BASE}/${BATCH}"
+RESULT="${LOGS}/md5_check.${BATCH}.${SLURM_JOB_ID}.result"
+cd "${CHECK_DIR}"
+echo "[$(date)] Checking $(wc -l < md5.txt) files in ${CHECK_DIR}"
+xargs -P "${SLURM_CPUS_PER_TASK}" -L 1 sh -c 'echo "$0  $1" | md5sum -c -' < md5.txt | sort > "${RESULT}"
+
+cat "${RESULT}"
+n_ok=$(grep -c ": OK$" "${RESULT}" || true)
+echo "[$(date)] ${n_ok}/$(wc -l < md5.txt) OK"
+[ "${n_ok}" -eq "$(wc -l < md5.txt)" ]

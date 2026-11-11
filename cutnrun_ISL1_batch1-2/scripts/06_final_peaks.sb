@@ -1,0 +1,65 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cnr_final_peaks
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+#SBATCH --time=00:30:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/logs/final_peaks.%j.out
+
+# Step 6: the two final ISL1 peak sets per group, kept and analyzed separately downstream.
+#   conservative  true-replicate IDR, best pair (04c: <group>.reproducible.narrowPeak) = Nt
+#   optimal       ENCODE optimal: the larger of Nt and the pooled-pseudoreplicate IDR set (04d) = Np
+# A single-replicate group (D15 Ctr) has only its self-pseudoreplicate set, used for both and
+# reported as unreplicated. Every set: chr1-22, X, Y only; blacklist removed; sorted; peaks
+# renamed <group>_<set>_<n>. Summits (column 10 = offset from start) are also written as BED.
+# Output: ${GROUP_OUT}/final_peaks/{conservative,optimal}/<group>.{narrowPeak,summits.bed}
+# and final_peaks_summary.tsv.
+#   sbatch scripts/06_final_peaks.sb
+
+set -euo pipefail
+shopt -s inherit_errexit   # a failure inside finalize's $(...) must stop the job
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_cutNrun/study_config/config.sh
+
+IDR=${GROUP_OUT}/idr
+FP=${GROUP_OUT}/final_peaks
+mkdir -p "${FP}/conservative" "${FP}/optimal"
+summary=${FP}/final_peaks_summary.tsv
+echo -e "group\tset\tn_reps\tsource\tidr_peaks\tfinal_peaks" > "${summary}"
+
+finalize () {
+  # $1 = source narrowPeak, $2 = set, $3 = group -> ${FP}/$2/$3.{narrowPeak,summits.bed}
+  local out=${FP}/$2/$3
+  awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "$1" \
+    | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" \
+    | sort -k1,1 -k2,2n \
+    | awk -v p="$3_$2" 'BEGIN{FS=OFS="\t"} {$4 = p "_" NR; print}' > "${out}.narrowPeak"
+  awk 'BEGIN{FS=OFS="\t"} {s = $2 + $10; print $1, s, s + 1, $4, $9}' "${out}.narrowPeak" > "${out}.summits.bed"
+  wc -l < "${out}.narrowPeak"
+}
+
+for group in $(awk -F'\t' 'NR>1 && $6=="ISL1" {print $3"_"$4}' "${METADATA}" | sort -u); do
+  n_reps=$(awk -F'\t' -v g="${group}" 'NR>1 && $6=="ISL1" && $3"_"$4==g' "${METADATA}" | wc -l)
+  nt_file=${IDR}/${group}.reproducible.narrowPeak
+  [[ -s "${nt_file}" ]] || { echo "ERROR: missing ${nt_file} -- run 04c first" >&2; exit 1; }
+  nt=$(wc -l < "${nt_file}")
+
+  if (( n_reps == 1 )); then
+    cons_src=${nt_file}; opt_src=${nt_file}; cons_tag=self_pseudorep; opt_tag=self_pseudorep; np=${nt}
+  else
+    np_file=${IDR}/${group}.pooled_pseudorep.pass.narrowPeak
+    [[ -s "${np_file}" ]] || { echo "ERROR: missing ${np_file} -- run 04d first" >&2; exit 1; }
+    np=$(wc -l < "${np_file}")
+    cons_src=${nt_file}; cons_tag=true_replicates
+    if (( np > nt )); then opt_src=${np_file}; opt_tag=pooled_pseudorep; else opt_src=${nt_file}; opt_tag=true_replicates; fi
+  fi
+
+  n_cons=$(finalize "${cons_src}" conservative "${group}")
+  n_opt=$(finalize "${opt_src}" optimal "${group}")
+  echo -e "${group}\tconservative\t${n_reps}\t${cons_tag}\t${nt}\t${n_cons}" >> "${summary}"
+  echo -e "${group}\toptimal\t${n_reps}\t${opt_tag}\t$( [[ ${opt_tag} == pooled_pseudorep ]] && echo "${np}" || echo "${nt}")\t${n_opt}" >> "${summary}"
+  echo "FINAL ${group}: conservative ${n_cons} (of ${nt}), optimal ${n_opt} (${opt_tag})"
+done

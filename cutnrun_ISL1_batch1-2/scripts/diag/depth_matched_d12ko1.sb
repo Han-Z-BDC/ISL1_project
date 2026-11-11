@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --partition=acpu --qos=cpu-normal --cpus-per-task=2 --mem=12G --time=03:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/diag/depth_matched_d12ko1.%j.out
+# Exploratory: is D12_KO_rep1 (28 peaks vs own IgG, 10,803 vs pool) a depth effect or own-IgG content?
+# Call it against other IgGs downsampled to its own IgG depth (9,350,997 dedup fragments).
+set -euo pipefail
+S=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun; E=/projects/hzhu10@xsede.org/software/anaconda/envs/cutnrun/bin
+D=$S/diag/depth_matched; mkdir -p $D
+N=9350997; t=$S/results/bam/D12_KO_rep1_ISL1.filtered.bam
+for x in "D12_KO_rep2_IgG $S/results/igg_background/D12_KO_rep2_IgG.dedup.bam" "pool $S/results_pooled/igg_background/pooled_deduplicated_IgG.bam"; do
+  set -- $x; n=$($E/samtools view -@2 -c -f 64 $2); f=$(awk -v t=$N -v n=$n "BEGIN{printf \"%.8f\", t/n}")
+  $E/samtools view -@2 -b -s 7.${f#0.} -o $D/$1.at_own_depth.bam $2; $E/samtools index $D/$1.at_own_depth.bam
+  echo "$1: $n -> $($E/samtools view -c -f 64 $D/$1.at_own_depth.bam) fragments"
+  $E/macs3 callpeak -t $t -c $D/$1.at_own_depth.bam -f BAMPE -g hs -n D12_KO_rep1_vs_$1 -q 0.01 --call-summits --keep-dup all --outdir $D 2> $D/$1.macs3.log
+  $E/bedtools intersect -v -a $D/D12_KO_rep1_vs_$1_peaks.narrowPeak -b /pl/active/ZhuLab_BDC/genome/GRCh38_unified_blacklist.bed | cut -f1-3 | sort -u > $D/$1.peaks.bed
+  echo "RESULT D12_KO_rep1_ISL1 vs $1 at own-IgG depth: $(wc -l < $D/$1.peaks.bed) peaks; in pooled-call set: $($E/bedtools intersect -u -a $D/$1.peaks.bed -b $S/results_pooled/macs3/D12_KO_rep1_ISL1_peaks.filtered.narrowPeak | wc -l)"
+done
