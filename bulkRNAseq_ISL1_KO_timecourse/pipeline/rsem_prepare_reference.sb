@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tc_rsem_ref
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/rsem_ref.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/rsem_ref.%j.err
+
+# One-time: build RSEM's own reference (transcript sequences + index) from the
+# same genome fasta/GTF the STAR index uses. Independent of the STAR index
+# itself -- RSEM just needs matching fasta/GTF, not a matching STAR build.
+# Shared, cluster-wide location (like the STAR index) so any future project
+# against this genome build can reuse it -- not regenerated per-repo.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
+# Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
+
+mkdir -p "$(dirname "${RSEM_REF}")"
+
+if [[ -f "${RSEM_REF}.grp" ]]; then
+  echo "RSEM reference already exists at ${RSEM_REF}, skipping."
+  exit 0
+fi
+
+echo "[$(date)] Building RSEM reference"
+"${TOOLS}/rsem-prepare-reference" \
+  --gtf "${GTF}" \
+  --num-threads "${SLURM_CPUS_PER_TASK}" \
+  "${GENOME_DIR}/fasta/genome.fa" \
+  "${RSEM_REF}"
+
+echo "[$(date)] Done: ${RSEM_REF}"

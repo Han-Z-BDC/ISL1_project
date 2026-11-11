@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tc_fastp
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=12G
+#SBATCH --time=02:00:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/fastp.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/fastp.%j.err
+
+# Step 2: fastp adapter/quality trim, single-end, one sample per array-ish
+# loop iteration (12 samples, light per-sample cost -- looping in one job is
+# simpler than an array here and still finishes well inside the time limit).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
+# Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
+
+TRIM_DIR="${OUT_DIR}/results/trimmed"
+mkdir -p "${TRIM_DIR}" "${OUT_DIR}/qc/fastp" "${LOGS}"
+
+for s in "${SAMPLES[@]}"; do
+  echo "[$(date)] fastp: ${s}"
+  # --trim_poly_g explicit (not relying on platform auto-detect): raw FastQC
+  # showed a poly-G overrepresented sequence (~0.9% of reads, 50bp G-run) --
+  # the classic 2-channel Illumina dark-cycle artifact, not rRNA/contamination.
+  "${TOOLS}/fastp" \
+    -i "${RAW_DIR}/${s}.fastq.gz" \
+    -o "${TRIM_DIR}/${s}.trimmed.fastq.gz" \
+    --trim_poly_g \
+    --thread "${SLURM_CPUS_PER_TASK}" \
+    --json "${OUT_DIR}/qc/fastp/${s}.fastp.json" \
+    --html "${OUT_DIR}/qc/fastp/${s}.fastp.html"
+done
+
+echo "[$(date)] Done."

@@ -1,0 +1,55 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tc_star
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=36G
+#SBATCH --time=04:00:00
+#SBATCH --array=0-11
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/star.%A_%a.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/star.%A_%a.err
+
+# Step 3: STAR alignment, one array task per sample.
+# --mem=36G with --cpus-per-task=12 (ceiling 12*3.75=45G) -- the STARindex_2.7.5c
+# on-disk footprint is ~26G, genome load needs comfortably more than that but
+# well under the 45G ceiling; sized this way (not smaller cpus w/ same mem) so
+# it still schedules quickly per the acpu memory-scaling gotcha.
+# ENCODE-standard STAR options (see docs/star_index_notes.md), plus
+# --quantMode TranscriptomeSAM for downstream RSEM (script 03) and
+# GeneCounts as a free STAR-native cross-check.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
+# Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
+
+s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
+TRIM_DIR="${OUT_DIR}/results/trimmed"
+STAR_OUT="${OUT_DIR}/results/star/${s}"
+mkdir -p "${STAR_OUT}" "${LOGS}"
+
+echo "[$(date)] STAR align: ${s}"
+"${TOOLS}/STAR" \
+  --runMode alignReads \
+  --runThreadN "${SLURM_CPUS_PER_TASK}" \
+  --genomeDir "${STAR_INDEX}" \
+  --readFilesIn "${TRIM_DIR}/${s}.trimmed.fastq.gz" \
+  --readFilesCommand zcat \
+  --outFileNamePrefix "${STAR_OUT}/" \
+  --outSAMtype BAM SortedByCoordinate \
+  --quantMode TranscriptomeSAM GeneCounts \
+  --outFilterType BySJout \
+  --outFilterMultimapNmax 20 \
+  --alignSJoverhangMin 8 \
+  --alignSJDBoverhangMin 1 \
+  --outFilterMismatchNmax 999 \
+  --outFilterMismatchNoverReadLmax 0.04 \
+  --alignIntronMin 20 \
+  --alignIntronMax 1000000 \
+  --alignMatesGapMax 1000000 \
+  --sjdbScore 1
+
+"${TOOLS}/samtools" index "${STAR_OUT}/Aligned.sortedByCoord.out.bam"
+
+echo "[$(date)] Done: ${s}"
