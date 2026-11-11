@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_sc_cellranger
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=256G
+#SBATCH --time=24:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.out
+#SBATCH --error=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.err
+
+# Step 1: cellranger multi on each OCM channel listed in RUNS (config.sh).
+# OCM data must go through `multi` (not `count`) -- the [samples] section of
+# configs/<run_id>.multi.csv maps OCM barcodes (OB1-OB4) to sample names, and
+# Cell Ranger demultiplexes into ${CELLRANGER_OUT}/<run_id>/outs/per_sample_outs/<sample_id>/
+# (on scratch, see config.sh).
+# amem per lab convention for cellranger. The amem QOS enforces MinMemory=240G, so
+# 256G (same as earlier cr_migl runs) even though Cell Ranger itself needs ~64G;
+# --localmem leaves headroom under the Slurm limit.
+# Rerunning resumes an interrupted run in place (same --id, same cwd).
+# Optional arguments: run_id(s) to process (default: all of RUNS). Lets each OCM channel
+# go in its own job, e.g. 2026-11-05:
+#   for r in HZ_Diff34_D40_scRNA_combined HZ_Diff37_D15_scRNA HZ_Diff37_D22_scRNA; do sbatch scripts/01_cellranger_multi.sb $r; done
+
+set -euo pipefail
+
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+
+# GPFS scratch reports an overflowed inode count on compute nodes (df -i shows
+# IUsed ~ -9e18), which Cell Ranger preflight reads as "only N free inodes" and
+# aborts. Real usage is ~36%. Same workaround as HERV_pancreatic_differentiation.
+export MRO_DISK_SPACE_CHECK=disable
+
+mkdir -p "${CELLRANGER_OUT}" "${LOGS}"
+cd "${CELLRANGER_OUT}"
+
+LOCALMEM=$(( SLURM_MEM_PER_NODE / 1024 - 16 ))
+
+if [ $# -gt 0 ]; then TODO_RUNS=("$@"); else TODO_RUNS=("${RUNS[@]}"); fi
+
+for run in "${TODO_RUNS[@]}"; do
+  csv="${REPO_DIR}/configs/${run}.multi.csv"
+  if grep -q TODO "${csv}"; then
+    echo "ERROR: ${csv} still has TODO sample names -- fill in the OCM barcode -> sample map first" >&2
+    exit 1
+  fi
+
+  echo "[$(date)] cellranger multi: ${run} (${SLURM_CPUS_PER_TASK} cores, ${LOCALMEM}G)"
+  "${CELLRANGER}" multi \
+    --id="${run}" \
+    --csv="${csv}" \
+    --localcores="${SLURM_CPUS_PER_TASK}" \
+    --localmem="${LOCALMEM}"
+done
+
+echo "[$(date)] Done. Per-sample outputs: ${CELLRANGER_OUT}/<run_id>/outs/per_sample_outs/"

@@ -1,0 +1,48 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=22G
+#SBATCH --time=01:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=detect_doublets
+#SBATCH --output=logs/detect_doublets.%A_%a.out
+# acpu's MaxMemPerCPU is 3840MB (3.75GB), a hard per-partition ratio --
+# --mem must stay at or under cpus-per-task x 3.75GB (here: 22.5G) or the
+# scheduler needs to silently allocate more CPUs than requested, making
+# the job harder to backfill on a busy partition.
+# Bumped from cpus=4/mem=14G during the first real batch1/batch2 run (23
+# samples): HZ_04_HZ021_D22_rep2 OOM'd at that budget -- same scaling
+# pattern as 1.2_remove_background.sb's identical bump, larger samples in
+# this batch exceed what the single-sample D12 test needed.
+# --array is set at submission time by scripts/submit_1.3_detect_doublets.sh --
+# don't hardcode a range here.
+
+# One array task per sample: runs scDblFinder then Scrublet (calibrated off
+# scDblFinder's own call rate) on step 1.2's SoupX-corrected output, and
+# removes any cell either tool flags (union). Requires 1.2_remove_background.sb
+# to have already completed for every sample.
+# See scripts/1.3_detect_doublets.py for the detection logic.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- this script must be submitted via sbatch from the repo root (see scripts/submit_*.sh), not run directly}"
+source "${P}/config.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_1.3_detect_doublets.sh, not sbatch directly}"
+
+mkdir -p "${OUT_DIR}/detect_doublets" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+
+soupx_h5ad="${OUT_DIR}/remove_background/h5ad/${sample_id}.soupx_corrected.h5ad"
+[[ -s "${soupx_h5ad}" ]] || { echo "ERROR: ${soupx_h5ad} not found -- run scripts/submit_1.2_remove_background.sh first" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/1.3_detect_doublets.py" \
+  --sample-id "${sample_id}" \
+  --soupx-h5ad "${soupx_h5ad}" \
+  --config "${CONFIG_DIR}/detect_doublets.yaml" \
+  --outdir "${OUT_DIR}/detect_doublets"

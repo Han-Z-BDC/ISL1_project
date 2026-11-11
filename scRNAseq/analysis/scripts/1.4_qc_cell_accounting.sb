@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_qc_accounting
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=00:20:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/qc_accounting.%j.out
+
+# Step 1.4: cells removed per sample per QC step -- see the .py docstring. Reads obs only.
+# Submit from the repo root: sbatch analysis/scripts/1.4_qc_cell_accounting.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+export OUT_DIR SAMPLE_SHEET
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/1.4_qc_cell_accounting.py"

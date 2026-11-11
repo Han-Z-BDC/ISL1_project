@@ -1,0 +1,59 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=00:30:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=rna_qc
+#SBATCH --output=logs/rna_qc.%A_%a.out
+# acpu's MaxMemPerCPU is 3840MB (3.75GB), a hard per-partition ratio, not
+# just a soft default -- --mem must stay at or under cpus-per-task x
+# 3.75GB or the scheduler needs to silently allocate more CPUs than
+# requested to satisfy it, which makes the job much harder to backfill on
+# a busy partition. 7G/2cpu is under that ceiling (7.5G) with real margin
+# over what this step actually used on the real Day 12 sample (2.65GB
+# peak, confirmed via sacct MaxRSS after the first real run).
+# --array is set at submission time by scripts/submit_1.1_rna_qc.sh -- don't
+# hardcode a range here, it has to match however many samples are in
+# samples.tsv right now, which changes per project.
+
+# One array task per sample: loads its CellRanger RNA h5, computes QC
+# metrics, applies the step 1.1 filter (configs/qc_RNA.yaml), and writes an
+# annotated h5ad, a filtered h5ad, a before/after plot, and a summary CSV.
+# See scripts/1.1_rna_qc.py for the actual filtering logic.
+#
+# samples.tsv's h5_path column names raw_feature_bc_matrix.h5 -- that's
+# the anchor identifying the sample's outs/ directory, used here to derive
+# the FILTERED sibling (CellRanger's own called cells), which is what
+# this step actually reads. The raw file itself only gets used later, by
+# step 1.2 (SoupX), for its ambient-RNA background estimate -- matching
+# the lab's own notebook exactly (it loads filtered_feature_bc_matrix.h5
+# for QC/thresholding and only touches raw_feature_bc_matrix.h5 for
+# SoupX). Running step 1.1's MAD threshold against the RAW matrix instead
+# would compute the median/MAD over a population dominated by empty
+# droplets, the same failure mode ATAC QC's design deliberately avoids.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- this script must be submitted via sbatch from the repo root (see scripts/submit_*.sh), not run directly}"
+source "${P}/config.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_1.1_rna_qc.sh, not sbatch directly}"
+
+mkdir -p "${OUT_DIR}/rna_qc" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+
+outs_dir=$(dirname "${h5_rel}")
+filtered_h5_path="${IN_DIR}/${outs_dir}/filtered_feature_bc_matrix.h5"
+[[ -s "${filtered_h5_path}" ]] || { echo "ERROR: ${filtered_h5_path} not found -- expected as a sibling of samples.tsv's raw_feature_bc_matrix.h5" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/1.1_rna_qc.py" \
+  --sample-id "${sample_id}" \
+  --h5-path "${filtered_h5_path}" \
+  --config "${CONFIG_DIR}/qc_RNA.yaml" \
+  --outdir "${OUT_DIR}/rna_qc"

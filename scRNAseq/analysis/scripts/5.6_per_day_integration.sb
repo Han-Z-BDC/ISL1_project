@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_per_day_integration
+#SBATCH --partition=ah200
+#SBATCH --qos=gpu-normal
+#SBATCH --gres=gpu:h200_2g.35gb:1
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=03:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/per_day_integration.%j.out
+
+# Step 5.6: per-day no integration / Harmony / scVI (per sample) -- see the .py docstring.
+# GPU for scVI (same ah200 MIG slice as 5.5); 64G because the full 12-sample raw object is
+# loaded before splitting by day.
+# Submit from the repo root: sbatch analysis/scripts/5.6_per_day_integration.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+export OUT_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/5.6_per_day_integration.py"

@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=22G
+#SBATCH --time=01:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=remove_background
+#SBATCH --output=logs/remove_background.%A_%a.out
+# acpu's MaxMemPerCPU is 3840MB (3.75GB), a hard per-partition ratio --
+# --mem must stay at or under cpus-per-task x 3.75GB (here: 22.5G) or the
+# scheduler needs to silently allocate more CPUs than requested, which
+# makes the job much harder to backfill on a busy partition. The
+# original 48G/4cpu request (12x the natural ceiling) was almost
+# certainly why this job sat PENDING far longer than step 1.1's smaller
+# request on the same partition, at the same time -- caught after the
+# fact when it was still stuck an hour later than expected.
+# Bumped from cpus=4/mem=14G during the first real batch1/batch2 run
+# (27 samples): 2 of 27 OOM'd at MaxRSS ~14.68G against that budget
+# (largest raw h5 in the batch, 0.35G, vs. the 0.17G single-sample D12
+# test this was originally sized against).
+# --array is set at submission time by scripts/submit_1.2_remove_background.sh
+# -- don't hardcode a range here.
+
+# One array task per sample: runs SoupX ambient-RNA correction on step 1.1's
+# filtered output. Requires 1.1_rna_qc.sb to have already completed for every
+# sample -- this reads {sample}.qc_filtered.h5ad from its output directory.
+# See scripts/1.2_remove_background.py for the correction logic.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- this script must be submitted via sbatch from the repo root (see scripts/submit_*.sh), not run directly}"
+source "${P}/config.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_1.2_remove_background.sh, not sbatch directly}"
+
+mkdir -p "${OUT_DIR}/remove_background" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+
+filtered_h5ad="${OUT_DIR}/rna_qc/h5ad/${sample_id}.qc_filtered.h5ad"
+[[ -s "${filtered_h5ad}" ]] || { echo "ERROR: ${filtered_h5ad} not found -- run scripts/submit_1.1_rna_qc.sh first" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/1.2_remove_background.py" \
+  --sample-id "${sample_id}" \
+  --filtered-h5ad "${filtered_h5ad}" \
+  --raw-h5-path "${IN_DIR}/${h5_rel}" \
+  --config "${CONFIG_DIR}/remove_background.yaml" \
+  --outdir "${OUT_DIR}/remove_background"

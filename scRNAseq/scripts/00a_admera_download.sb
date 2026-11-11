@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=08:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=admera_260924_0015
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/admera_260924_0015.%j.out
+
+set -euo pipefail
+
+# Download Admera Health project 260924-0015 (delivered 2026-10-08) by FTP mirror.
+# Record of what was actually run (job 33674668, from /projects/.../jobs/ISL1_scRNAseq/,
+# copied from jobs/templates/transfer/admera.download.sb). Credentials are NOT stored in
+# git: export them before submitting, e.g.
+#   ADMERA_FTP_USER=... ADMERA_FTP_PASS=... sbatch --export=ALL scripts/00a_admera_download.sb
+# lftp exits non-zero if any server folder is missing (the empty readme/ and expired
+# 7535-0001 folders did this), so check md5 (scripts/00_md5_check.sb), not the job state.
+: "${ADMERA_FTP_USER:?set ADMERA_FTP_USER}" "${ADMERA_FTP_PASS:?set ADMERA_FTP_PASS}"
+
+
+OUTDIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq
+mkdir -p "$OUTDIR"
+cd "$OUTDIR"
+
+/projects/hzhu10@xsede.org/software/anaconda/envs/cml-env/bin/lftp -u "${ADMERA_FTP_USER}","${ADMERA_FTP_PASS}" -p 21 ftp://148.77.47.94 <<EOF
+set net:timeout 30
+set net:max-retries 10
+set net:reconnect-interval-base 10
+set ftp:passive-mode yes
+set ssl:verify-certificate no
+mirror --continue --parallel=4 --verbose . "$OUTDIR"
+bye
+EOF

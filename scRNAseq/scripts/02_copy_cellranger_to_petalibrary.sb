@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cr_to_pl
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=3G
+#SBATCH --time=04:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/copy_cellranger_to_pl.%j.out
+
+# Step 2: copy the Cell Ranger multi output from scratch (purged after 90 days) to
+# PetaLibrary, into /pl/active/ZhuLab_BDC/Leia_rotation (requested 2026-10-16).
+# Whole pipestance folder (~24G, ~12.5k files), not just outs/. rsync -aH: Cell Ranger hard-links
+# many outs/ files to its SC_MULTI_CS stage files, and plain -a copies each link as a separate
+# file (first attempt, job 34345828: 48G instead of 24G). Resumes if re-run. Verified at the end
+# with a checksum dry run (must list nothing) + file count + disk usage.
+# Also recreates cellranger_std/ (the pipeline's <sample>/outs/{raw,filtered}_feature_bc_matrix.h5
+# layout, see study_config/setup_links.sh) as symlinks into the PetaLibrary copy, so it survives
+# the scratch purge.
+# Submit from the repo root: sbatch scripts/02_copy_cellranger_to_petalibrary.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+
+ROOT=/pl/active/ZhuLab_BDC/Leia_rotation
+DEST="${ROOT}/cellranger"
+mkdir -p "${DEST}"
+
+for run in "${RUNS[@]}"; do
+  src="${CELLRANGER_OUT}/${run}"
+  [[ -d "${src}/outs" ]] || { echo "ERROR: ${src}/outs missing" >&2; exit 1; }
+  echo "[$(date)] rsync ${src} -> ${DEST}/"
+  rsync -aH --stats "${src}" "${DEST}/"
+
+  n_src=$(find "${src}" -type f | wc -l); n_dst=$(find "${DEST}/${run}" -type f | wc -l)
+  d_src=$(du -sb "${src}" | cut -f1); d_dst=$(du -sb "${DEST}/${run}" | cut -f1)
+  echo "[$(date)] ${run}: files ${n_src} -> ${n_dst}, du bytes ${d_src} -> ${d_dst}"
+  [[ "${n_src}" -eq "${n_dst}" ]] || { echo "ERROR: file count mismatch for ${run}" >&2; exit 1; }
+  diffs=$(rsync -aHn --checksum --itemize-changes "${src}" "${DEST}/" | grep -v '^\.d' | wc -l || true)
+  echo "[$(date)] ${run}: checksum dry run lists ${diffs} differing entries (must be 0)"
+  [[ "${diffs}" -eq 0 ]] || { echo "ERROR: checksum mismatch for ${run}" >&2; exit 1; }
+done
+# cellranger_std: same symlink layout as scratch, pointed at the PetaLibrary copy
+tail -n +2 "${SAMPLE_SHEET}" | while IFS=$'\t' read -r s _; do
+  c="${DEST}/HZ_Diff34_D40_scRNA/outs/per_sample_outs/${s}/count"
+  mkdir -p "${ROOT}/cellranger_std/${s}/outs"
+  ln -sfn "${c}/sample_raw_feature_bc_matrix.h5"      "${ROOT}/cellranger_std/${s}/outs/raw_feature_bc_matrix.h5"
+  ln -sfn "${c}/sample_filtered_feature_bc_matrix.h5" "${ROOT}/cellranger_std/${s}/outs/filtered_feature_bc_matrix.h5"
+  [[ -s "${ROOT}/cellranger_std/${s}/outs/raw_feature_bc_matrix.h5" ]] || { echo "ERROR: broken link for ${s}" >&2; exit 1; }
+done
+echo "[$(date)] Done. Copy verified; cellranger_std links point into ${DEST}."
