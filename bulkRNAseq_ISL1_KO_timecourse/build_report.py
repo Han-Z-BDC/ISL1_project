@@ -285,6 +285,73 @@ for c in range(1, N_CLUSTERS + 1):
     t = ct[ct["cluster"] == c].head(25)["gene_name"].tolist()
     clus_tops.append(f"<li><b>Cluster {c}</b> ({int((clus == c).sum()):,} genes): {html.escape(', '.join(t))}</li>")
 
+# ---------------------------------------------------------------- heatmap of the clustered genes
+# Rows: the clustered genes, grouped by cluster; within a cluster ordered by average-linkage
+# hierarchical clustering (Euclidean, optimal leaf order) on the same group-mean z-scores used
+# for k-means. Columns: the 12 samples. Colour: VST z-scored per gene across the 12 samples.
+from scipy.cluster.hierarchy import leaves_list, linkage
+
+HEAT_LABELS = ["INS", "ISL1", "MAFA", "MAFB", "PAX6", "NEUROD1", "NKX2-2", "GCG", "ARX", "SST", "IRX2", "TTR",
+               "LOXL4", "ENTPD3", "FFAR1", "HADH", "NKX6-1", "TAC1", "IFI6", "CXCL1", "NEUROG3", "TPH1"]
+ZCLIP = 2.5
+gid_all = sig_int["gene_id"].to_numpy()
+row_order = []
+for c in range(1, N_CLUSTERS + 1):
+    idx = np.where(clus == c)[0]
+    if len(idx) > 2:
+        lk = linkage(z.to_numpy()[idx], method="average", metric="euclidean", optimal_ordering=True)
+        idx = idx[leaves_list(lk)]
+    row_order.extend(idx.tolist())
+row_order = np.array(row_order)
+hv = v.loc[gid_all[row_order], order].astype(float)
+hz = hv.sub(hv.mean(axis=1), axis=0).div(hv.std(axis=1, ddof=1).replace(0, np.nan), axis=0).fillna(0)
+hnames = sig_int["gene_name"].to_numpy()[row_order]
+hclus = clus[row_order]
+n_rows = len(row_order)
+
+DIVERGING = [[0.0, "#184f95"], [0.2, "#3987e5"], [0.4, "#b7d3f6"], [0.5, "#f0efec"],
+             [0.6, "#f4b9b8"], [0.8, "#e34948"], [1.0, "#a3292a"]]
+xlab = [short(s_) for s_ in order]
+fig = go.Figure(go.Heatmap(
+    z=hz.clip(-ZCLIP, ZCLIP).to_numpy(), x=xlab, y=np.arange(n_rows), colorscale=DIVERGING, zmin=-ZCLIP, zmax=ZCLIP,
+    customdata=np.repeat(np.stack([hnames, hclus.astype(str)], axis=1)[:, None, :], len(order), axis=1),
+    hovertemplate="<b>%{customdata[0]}</b> (cluster %{customdata[1]})<br>%{x}<br>z = %{z:.2f}<extra></extra>",
+    colorbar=dict(title=dict(text="z-score<br>(VST)", font=dict(color=C["text2"])), thickness=12, len=0.5, x=1.16)))
+# cluster bands: separators and labels
+bounds = np.r_[0, np.cumsum([int((clus == c).sum()) for c in range(1, N_CLUSTERS + 1)])]
+for b in bounds[1:-1]:
+    fig.add_shape(type="line", xref="paper", x0=0, x1=1, yref="y", y0=b - 0.5, y1=b - 0.5,
+                  line=dict(color=C["surface"], width=4))
+fig.add_shape(type="line", xref="x", x0=5.5, x1=5.5, yref="paper", y0=0, y1=1, line=dict(color=C["surface"], width=4))
+centers = (bounds[:-1] + bounds[1:]) / 2 - 0.5
+fig.update_yaxes(autorange="reversed", showgrid=False, tickmode="array", tickvals=centers,
+                 ticktext=[f"Cluster {c}<br>n = {int((clus == c).sum())}" for c in range(1, N_CLUSTERS + 1)],
+                 ticks="", zeroline=False)
+fig.update_xaxes(showgrid=False, tickangle=-45, side="bottom")
+# gene labels on the right, spread out so they do not overlap, with leader lines to their rows
+HEAT_H, MT, MB = 1000, 40, 90
+px_per_row = (HEAT_H - MT - MB) / n_rows
+pos = {g: int(np.where(hnames == g)[0][0]) for g in HEAT_LABELS if g in set(hnames)}
+items = sorted(pos.items(), key=lambda kv: kv[1])
+min_gap = 16 / px_per_row  # 16 px between labels
+placed = []
+for g, r in items:
+    y_lab = r if not placed else max(r, placed[-1][2] + min_gap)
+    placed.append((g, r, y_lab))
+overflow = placed[-1][2] - (n_rows - 1) if placed else 0
+if overflow > 0:  # shift the stack up if it runs past the bottom
+    placed = [(g, r, yl - overflow) for g, r, yl in placed]
+    for i in range(len(placed) - 2, -1, -1):
+        if placed[i][2] > placed[i + 1][2] - min_gap:
+            placed[i] = (placed[i][0], placed[i][1], placed[i + 1][2] - min_gap)
+for g, r, yl in placed:
+    fig.add_annotation(xref="paper", x=1.0, yref="y", y=r, text=g, showarrow=True, arrowhead=0, arrowwidth=1,
+                       arrowcolor=C["text2"], ax=55, ay=(yl - r) * px_per_row, xanchor="left",
+                       font=dict(size=10, color=C["text"]))
+layout(fig, HEAT_H)
+fig.update_layout(margin=dict(l=90, r=170, t=MT, b=MB))
+heat_html = fig_html(fig)
+
 # ---------------------------------------------------------------- marker genes
 nm = norm.set_index("gene_name")
 mk = [g for g in MARKERS if g in nm.index]
@@ -421,6 +488,12 @@ The cluster number is a choice, not a result; the patterns are the summary.</p>
 {clus_html}
 <p>Most significant genes per cluster (by interaction p):</p>
 <ul>{''.join(clus_tops)}</ul>
+<h4>Heatmap of the clustered genes</h4>
+<p>All {n_int:,} clustered genes (rows) in the 12 samples (columns, Ctr then KO, by day). Colour: VST z-scored per gene
+across the 12 samples, clipped at &plusmn;{ZCLIP:g}; red above the gene's mean, blue below. Rows are grouped by cluster and
+ordered within each cluster by hierarchical clustering (average linkage) of the group-mean z-scores used for k-means.
+Labeled on the right: selected islet and marker genes.</p>
+{heat_html}
 
 <h2>Islet marker genes</h2>
 <p>Normalized counts (log scale); points are replicates, lines join group means. ISL1 transcripts are reduced in KO

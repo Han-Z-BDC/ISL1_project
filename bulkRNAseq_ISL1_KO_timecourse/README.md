@@ -64,8 +64,9 @@ limma-voom as a cross-check is to be added.
 
 `build_report.py` (run with `~/anaconda3/bin/python3`, plotly) reads `results/DE_DESeq2/` and the MultiQC tables in
 `results/qc/` fetched from Alpine, and writes `results/report_DESeq2_timecourse.html`: DE summary, sample QC, PCA, sample
-correlation, volcano plots of KO vs Ctr per day with top-gene tables, time-course clusters of the interaction genes and
-islet marker genes. It also writes `results/DE_DESeq2/timecourse_clusters_LRT_interaction.tsv`: genes with interaction
+correlation, volcano plots of KO vs Ctr per day with top-gene tables, time-course clusters of the interaction genes, a
+heatmap of all clustered genes in the 12 samples (rows grouped by cluster, ordered within cluster by average-linkage
+hierarchical clustering) and islet marker genes. It also writes `results/DE_DESeq2/timecourse_clusters_LRT_interaction.tsv`: genes with interaction
 padj < 0.05, z-scored mean VST per group, k-means with 6 clusters (seed 12345, best of 25 starts; clusters numbered by
 size). Files to fetch: everything in `results/DE_DESeq2/`, and from `qc/`: `multiqc_full_report.html` and
 `multiqc_full_report_data/multiqc_{star,umitools_dedup,featurecounts,rseqc_infer_experiment,fastp}.txt` (into `results/qc/`).
