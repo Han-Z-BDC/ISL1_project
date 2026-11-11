@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tc_compare
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=00:30:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/compare.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/compare.%j.err
+
+# DESeq2 vs limma-voom comparison (08_compare_DE_methods.R).
+# Run after 06_deseq2_timecourse.sb and 07_limma_voom_timecourse.sb.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
+
+echo "[$(date)] compare"
+"${R_ENV}/bin/Rscript" "${OUT_DIR}/pipeline/08_compare_DE_methods.R" "${OUT_DIR}"
+echo "[$(date)] Done"
