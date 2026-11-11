@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tc_deseq2
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=15G
+#SBATCH --time=01:00:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/deseq2.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/deseq2.%j.err
+
+# DESeq2 time-course analysis (06_deseq2_timecourse.R) on the featureCounts table.
+# First writes results/counts/gene_annotation.tsv (gene_id, gene_name, gene_type) from the
+# GTF gene lines, then runs the R script in r_env. Run after 03b_featurecounts.sb.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
+
+ANNOT="${OUT_DIR}/results/counts/gene_annotation.tsv"
+echo "[$(date)] gene annotation from ${GTF}"
+awk -F'\t' 'BEGIN{OFS="\t"; print "gene_id","gene_name","gene_type"}
+  $3=="gene" {
+    id=$9; sub(/.*gene_id "/,"",id); sub(/".*/,"",id)
+    nm=$9; if (nm ~ /gene_name "/) {sub(/.*gene_name "/,"",nm); sub(/".*/,"",nm)} else nm=id
+    ty=$9; if (ty ~ /gene_type "/) {sub(/.*gene_type "/,"",ty); sub(/".*/,"",ty)} else ty="NA"
+    print id,nm,ty }' "${GTF}" > "${ANNOT}"
+echo "[$(date)] $(($(wc -l < "${ANNOT}") - 1)) genes"
+
+echo "[$(date)] DESeq2"
+"${R_ENV}/bin/Rscript" "${OUT_DIR}/pipeline/06_deseq2_timecourse.R" "${OUT_DIR}"
+echo "[$(date)] Done"

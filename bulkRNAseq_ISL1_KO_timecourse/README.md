@@ -43,4 +43,19 @@ method). featureCounts counts uniquely mapped reads on exons, summarized by `gen
 There is no gene-body coverage step: in 3'-end libraries reads pile up at the 3' end by design, so it cannot show
 RNA degradation.
 
-Differential expression (DESeq2, with limma-voom as cross-check) is to be added once counts exist.
+## Differential expression (DESeq2)
+
+`pipeline/06_deseq2_timecourse.sb` writes `results/counts/gene_annotation.tsv` (gene_id, gene_name, gene_type from the
+GTF) and runs `pipeline/06_deseq2_timecourse.R` in `r_env` (DESeq2 1.46, apeglm 1.28). Output: `results/DE_DESeq2/`.
+
+- Model: `~ genotype + day + genotype:day`, fitted as the equivalent 6-level `group` (Ctr_D15 ... KO_D22). Day is a
+  factor. No replicate term: rep1 and rep2 are not differentiation batches. All 12 samples in one fit.
+- Genes kept: >= 10 counts in >= 2 samples.
+- Wald tests (adjusted p from the MLE fold change; `log2FC_shrunk` from apeglm for ranking and plots):
+  `KO_vs_Ctr_D15/D18/D22.tsv`; day effects within each genotype, `<Ctr|KO>_D18_vs_D15`, `_D22_vs_D15`, `_D22_vs_D18`.
+- Likelihood-ratio tests: `LRT_interaction.tsv` (full vs `~ genotype + day`: the KO effect changes with day) and
+  `LRT_genotype.tsv` (full vs `~ day`: a KO effect at any day).
+- Also: `summary.tsv` (genes at padj < 0.05 per test), `normalized_counts.tsv`, `vst.tsv`, `pca_top500.tsv`,
+  `pca_variance.tsv`, `sample_correlation_vst.tsv`, `size_factors.tsv`, `sessionInfo.txt`.
+
+limma-voom as a cross-check is to be added.
