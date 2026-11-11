@@ -16,9 +16,9 @@
 # on-disk footprint is ~26G, genome load needs comfortably more than that but
 # well under the 45G ceiling; sized this way (not smaller cpus w/ same mem) so
 # it still schedules quickly per the acpu memory-scaling gotcha.
-# ENCODE-standard STAR options (see docs/star_index_notes.md), plus
-# --quantMode TranscriptomeSAM for downstream RSEM (script 03) and
-# GeneCounts as a free STAR-native cross-check.
+# ENCODE-standard STAR options (see ../bulkRNAseq/docs/star_index_notes.md), plus
+# GeneCounts as a free STAR-native cross-check. The read name (with its UMI
+# suffix) is kept in the BAM for 03_umi_dedup.sb.
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
@@ -38,7 +38,7 @@ echo "[$(date)] STAR align: ${s}"
   --readFilesCommand zcat \
   --outFileNamePrefix "${STAR_OUT}/" \
   --outSAMtype BAM SortedByCoordinate \
-  --quantMode TranscriptomeSAM GeneCounts \
+  --quantMode GeneCounts \
   --outFilterType BySJout \
   --outFilterMultimapNmax 20 \
   --alignSJoverhangMin 8 \

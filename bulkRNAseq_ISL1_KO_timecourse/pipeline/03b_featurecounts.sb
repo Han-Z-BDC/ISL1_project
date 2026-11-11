@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tc_featurecounts
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=01:00:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/featurecounts.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/featurecounts.%j.err
+
+# Gene-level counts from the UMI-deduplicated BAMs, all 12 samples in one table.
+# 3'-end counting data: one count per molecule, no length correction (so no RSEM).
+# -s 1: forward-stranded (Plasmidsaurus; confirm with infer_experiment in 04_qc_bam.sb).
+# Defaults kept: exon features summarized by gene_id, multi-mapping and multi-overlapping
+# reads not counted. Run after every 03_umi_dedup.sb task has finished.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
+
+COUNT_DIR="${OUT_DIR}/results/counts"
+mkdir -p "${COUNT_DIR}" "${LOGS}"
+
+BAMS=()
+for s in "${SAMPLES[@]}"; do
+  BAMS+=("${OUT_DIR}/results/dedup/${s}.dedup.bam")
+done
+
+echo "[$(date)] featureCounts on ${#BAMS[@]} BAMs"
+"${TOOLS}/featureCounts" \
+  -T "${SLURM_CPUS_PER_TASK}" \
+  -s 1 \
+  -a "${GTF}" \
+  -o "${COUNT_DIR}/featureCounts.gene.txt" \
+  "${BAMS[@]}"
+
+echo "[$(date)] Done: ${COUNT_DIR}/featureCounts.gene.txt (+ .summary)"

@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tc_umidedup
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=15G
+#SBATCH --time=08:00:00
+#SBATCH --array=0-11
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/umidedup.%A_%a.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/umidedup.%A_%a.err
+
+# UMI deduplication of each STAR BAM (Plasmidsaurus 3'-end libraries: the 14-nt UMI is
+# the last "_"-separated field of the read name, e.g. ..._GATACTCTTACGGC).
+# umi_tools dedup, directional method (default): reads at the same position and strand
+# whose UMIs match or differ by one base (from a more abundant UMI) count as one molecule.
+# umi_tools is single-threaded; 4 CPUs only to give 15G under acpu's 3.75G/CPU cap.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
+
+s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
+IN_BAM="${OUT_DIR}/results/star/${s}/Aligned.sortedByCoord.out.bam"
+DEDUP_DIR="${OUT_DIR}/results/dedup"
+QC_DIR="${OUT_DIR}/qc/umi_dedup"
+mkdir -p "${DEDUP_DIR}" "${QC_DIR}" "${LOGS}"
+
+echo "[$(date)] umi_tools dedup: ${s}"
+"${TOOLS}/umi_tools" dedup \
+  --stdin="${IN_BAM}" \
+  --stdout="${DEDUP_DIR}/${s}.dedup.bam" \
+  --log="${QC_DIR}/${s}.dedup.log" \
+  --extract-umi-method=read_id \
+  --umi-separator="_" \
+  --method=directional \
+  --random-seed=12345
+
+"${TOOLS}/samtools" index "${DEDUP_DIR}/${s}.dedup.bam"
+
+echo "[$(date)] Done: ${s} -> ${DEDUP_DIR}/${s}.dedup.bam"

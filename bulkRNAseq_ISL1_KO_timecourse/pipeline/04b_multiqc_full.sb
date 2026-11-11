@@ -18,7 +18,7 @@ set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
 # Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
 
-echo "[$(date)] MultiQC (full pipeline: raw fastqc + fastp + STAR + bam QC)"
-"${TOOLS}/multiqc" "${OUT_DIR}/qc" -o "${OUT_DIR}/qc" --force -n multiqc_full_report
+echo "[$(date)] MultiQC (full pipeline: raw fastqc + fastp + STAR + UMI dedup + featureCounts + bam QC)"
+"${TOOLS}/multiqc" "${OUT_DIR}/qc" "${OUT_DIR}/results/star" "${OUT_DIR}/results/counts" -o "${OUT_DIR}/qc" --force -n multiqc_full_report
 
 echo "[$(date)] Done. Report: ${OUT_DIR}/qc/multiqc_full_report.html"

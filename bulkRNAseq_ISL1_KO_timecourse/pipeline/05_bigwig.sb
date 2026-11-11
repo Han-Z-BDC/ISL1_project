@@ -21,7 +21,7 @@ source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/c
 # Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
 
 s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
-BAM="${OUT_DIR}/results/star/${s}/Aligned.sortedByCoord.out.bam"
+BAM="${OUT_DIR}/results/dedup/${s}.dedup.bam"
 BW_DIR="${OUT_DIR}/results/bigwig"
 mkdir -p "${BW_DIR}" "${LOGS}"
 

@@ -14,11 +14,12 @@
 # Step 5: post-alignment BAM QC, one array task per sample (NOT a serial loop --
 # geneBody_coverage.py is slow enough per-BAM that looping over all 12 samples
 # in one job blew past the time limit on the first attempt; array tasks run
-# in parallel like the STAR/RSEM/bigwig steps).
+# in parallel like the STAR/dedup/bigwig steps).
 #
-# infer_experiment.py's output here is what scripts/03_rsem_quant.sb's
-# --strandedness should actually be set to -- check this BEFORE trusting the
-# RSEM counts if this step hasn't been run yet when RSEM was.
+# flagstat/idxstats on the STAR BAM (mapping before dedup); rseqc on the
+# UMI-deduplicated BAM. infer_experiment.py must confirm forward strandedness
+# (featureCounts -s 1 in 03b_featurecounts.sb) before the counts are used.
+# geneBody_coverage is expected to pile up at the 3' end (3'-end library).
 #
 # Assumes the BED12 gene model already exists at ${GENOME_DIR}/genes/genes.bed12
 # (derived once, via gtfToGenePred/genePredToBed -- not redone here to avoid
@@ -30,6 +31,7 @@ source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/c
 
 s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
 BAM="${OUT_DIR}/results/star/${s}/Aligned.sortedByCoord.out.bam"
+DEDUP_BAM="${OUT_DIR}/results/dedup/${s}.dedup.bam"
 BAMQC_DIR="${OUT_DIR}/qc/bam"
 BED12="${GENOME_DIR}/genes/genes.bed12"
 mkdir -p "${BAMQC_DIR}" "${LOGS}"
@@ -40,14 +42,14 @@ echo "[$(date)] samtools QC: ${s}"
 
 if [[ -s "${BED12}" ]]; then
   echo "[$(date)] rseqc infer_experiment: ${s}"
-  "${TOOLS}/infer_experiment.py" -i "${BAM}" -r "${BED12}" \
+  "${TOOLS}/infer_experiment.py" -i "${DEDUP_BAM}" -r "${BED12}" \
     > "${BAMQC_DIR}/${s}.infer_experiment.txt" 2>&1
 
   echo "[$(date)] rseqc geneBody_coverage (slow): ${s}"
   # geneBody_coverage.py writes a stray log.txt into the CWD (not -o's
   # directory) -- cd into BAMQC_DIR first so 12 array tasks don't race on
   # writing the same file at the repo root.
-  ( cd "${BAMQC_DIR}" && "${TOOLS}/geneBody_coverage.py" -i "${BAM}" -r "${BED12}" \
+  ( cd "${BAMQC_DIR}" && "${TOOLS}/geneBody_coverage.py" -i "${DEDUP_BAM}" -r "${BED12}" \
       -o "${s}.genebody" 2>&1 | tail -20 )
 else
   echo "WARNING: ${BED12} not found -- skipping rseqc steps." >&2
