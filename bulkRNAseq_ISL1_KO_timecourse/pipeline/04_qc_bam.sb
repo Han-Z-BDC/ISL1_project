@@ -4,30 +4,26 @@
 #SBATCH --qos=cpu-normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=8G
-#SBATCH --time=01:30:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=4G
+#SBATCH --time=00:30:00
 #SBATCH --array=0-11
 #SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/bamqc.%A_%a.out
 #SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/logs/bamqc.%A_%a.err
 
-# Step 5: post-alignment BAM QC, one array task per sample (NOT a serial loop --
-# geneBody_coverage.py is slow enough per-BAM that looping over all 12 samples
-# in one job blew past the time limit on the first attempt; array tasks run
-# in parallel like the STAR/dedup/bigwig steps).
-#
-# flagstat/idxstats on the STAR BAM (mapping before dedup); rseqc on the
-# UMI-deduplicated BAM. infer_experiment.py must confirm forward strandedness
+# Post-alignment BAM QC, one array task per sample (about a minute each).
+# flagstat/idxstats on the STAR BAM (mapping before dedup); rseqc infer_experiment
+# on the UMI-deduplicated BAM, which must confirm forward strandedness
 # (featureCounts -s 1 in 03b_featurecounts.sb) before the counts are used.
-# geneBody_coverage is expected to pile up at the 3' end (3'-end library).
 #
-# Assumes the BED12 gene model already exists at ${GENOME_DIR}/genes/genes.bed12
-# (derived once, via gtfToGenePred/genePredToBed -- not redone here to avoid
-# 12 array tasks racing to write the same file).
+# No rseqc geneBody_coverage: these are 3'-end libraries, so reads pile up at the
+# 3' end by design and the plot cannot show degradation; over all genes it also ran
+# past 1.5 h per sample.
+#
+# Assumes the BED12 gene model already exists at ${GENOME_DIR}/genes/genes.bed12.
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
-# Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
 
 s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
 BAM="${OUT_DIR}/results/star/${s}/Aligned.sortedByCoord.out.bam"
@@ -40,19 +36,8 @@ echo "[$(date)] samtools QC: ${s}"
 "${TOOLS}/samtools" flagstat "${BAM}" > "${BAMQC_DIR}/${s}.flagstat.txt"
 "${TOOLS}/samtools" idxstats "${BAM}" > "${BAMQC_DIR}/${s}.idxstats.txt"
 
-if [[ -s "${BED12}" ]]; then
-  echo "[$(date)] rseqc infer_experiment: ${s}"
-  "${TOOLS}/infer_experiment.py" -i "${DEDUP_BAM}" -r "${BED12}" \
-    > "${BAMQC_DIR}/${s}.infer_experiment.txt" 2>&1
-
-  echo "[$(date)] rseqc geneBody_coverage (slow): ${s}"
-  # geneBody_coverage.py writes a stray log.txt into the CWD (not -o's
-  # directory) -- cd into BAMQC_DIR first so 12 array tasks don't race on
-  # writing the same file at the repo root.
-  ( cd "${BAMQC_DIR}" && "${TOOLS}/geneBody_coverage.py" -i "${DEDUP_BAM}" -r "${BED12}" \
-      -o "${s}.genebody" 2>&1 | tail -20 )
-else
-  echo "WARNING: ${BED12} not found -- skipping rseqc steps." >&2
-fi
+echo "[$(date)] rseqc infer_experiment: ${s}"
+"${TOOLS}/infer_experiment.py" -i "${DEDUP_BAM}" -r "${BED12}" \
+  > "${BAMQC_DIR}/${s}.infer_experiment.txt" 2>&1
 
 echo "[$(date)] Done: ${s}"

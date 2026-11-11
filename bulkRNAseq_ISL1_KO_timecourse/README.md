@@ -33,12 +33,14 @@ All steps run with `sbatch` on acpu, in this order:
 | STAR alignment (array 0-11) | `pipeline/02_star_align.sb` | `results/star/<sample>/` |
 | UMI deduplication, `umi_tools dedup` (array 0-11) | `pipeline/03_umi_dedup.sb` | `results/dedup/`, `qc/umi_dedup/` |
 | Gene counts, `featureCounts -s 1` | `pipeline/03b_featurecounts.sb` | `results/counts/featureCounts.gene.txt` |
-| BAM QC: flagstat, idxstats (STAR BAM); rseqc (dedup BAM) (array 0-11) | `pipeline/04_qc_bam.sb` | `qc/bam/` |
+| BAM QC: flagstat, idxstats (STAR BAM); rseqc infer_experiment (dedup BAM) (array 0-11) | `pipeline/04_qc_bam.sb` | `qc/bam/` |
 | MultiQC over all QC | `pipeline/04b_multiqc_full.sb` | `qc/multiqc_full_report.html` |
 | CPM bigwigs from dedup BAMs (array 0-11) | `pipeline/05_bigwig.sb` | `results/bigwig/` |
 
 UMI deduplication reads the UMI from the read name (`--extract-umi-method=read_id --umi-separator=_`, directional
 method). featureCounts counts uniquely mapped reads on exons, summarized by `gene_id`, forward strand. The rseqc
 `infer_experiment` output from `04_qc_bam.sb` must confirm forward strandedness before the counts are used.
+There is no gene-body coverage step: in 3'-end libraries reads pile up at the 3' end by design, so it cannot show
+RNA degradation.
 
 Differential expression (DESeq2, with limma-voom as cross-check) is to be added once counts exist.

@@ -2,5 +2,3 @@
 qc/
 results/
 logs/
-# rseqc geneBody_coverage.py writes log.txt into the cwd
-log.txt
