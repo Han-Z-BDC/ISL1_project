@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_rnaseq_bigwig
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=12G
+#SBATCH --time=02:00:00
+#SBATCH --array=0-11
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/bigwig.%A_%a.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/bigwig.%A_%a.err
+
+# Step 6: deeptools bamCoverage -> CPM-normalized bigwig per sample, for
+# genome-browser viewing (same purpose as ENCODE's bedGraphToBigWig step,
+# different tool -- deeptools is already in this env and simpler to drive
+# per-sample than standing up kent-source tools).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/config.sh
+
+s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
+BAM="${OUT_DIR}/results/star/${s}/Aligned.sortedByCoord.out.bam"
+BW_DIR="${OUT_DIR}/results/bigwig"
+mkdir -p "${BW_DIR}" "${LOGS}"
+
+echo "[$(date)] bamCoverage: ${s}"
+"${TOOLS}/bamCoverage" \
+  -b "${BAM}" \
+  -o "${BW_DIR}/${s}.cpm.bw" \
+  -p "${SLURM_CPUS_PER_TASK}" \
+  --normalizeUsing CPM \
+  --binSize 10
+
+echo "[$(date)] Done: ${s} -> ${BW_DIR}/${s}.cpm.bw"

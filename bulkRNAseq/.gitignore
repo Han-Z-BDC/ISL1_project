@@ -1,0 +1,13 @@
+# Raw data lives on cluster storage only, never in git (destined for GEO instead).
+raw_data/
+
+# Pipeline outputs are regenerable from raw data via the scripts — not tracked.
+# This repo tracks code only (scripts/, config, docs), not results.
+qc/
+results/
+logs/
+
+# Stray tool-generated logs that land in cwd instead of an output dir
+# (e.g. rseqc's geneBody_coverage.py writes log.txt at cwd) -- safety net,
+# the script itself also cd's into the right output dir first.
+log.txt

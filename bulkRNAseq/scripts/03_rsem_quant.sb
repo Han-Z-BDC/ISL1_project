@@ -1,0 +1,44 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_rnaseq_rsem
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=24G
+#SBATCH --time=03:00:00
+#SBATCH --array=0-11
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/rsem.%A_%a.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/rsem.%A_%a.err
+
+# Step 4: RSEM gene/isoform quantification from STAR's transcriptome BAM.
+# --mem=24G / --cpus=8 (ceiling 8*3.75=30G) -- RSEM's EM step loads the
+# transcript BAM + reference into memory; 24G is generous margin for this
+# genome without breaching the ceiling.
+#
+# Strandedness: confirmed via scripts/04_qc_bam.sb's rseqc infer_experiment.py
+# across all 12 samples (85.9-87.5% "++,--" / sense-strand reads, consistent,
+# not the ~50/50 split unstranded data would show) -- this library IS
+# forward/sense-stranded, not unstranded. Was run with --strandedness none
+# in the original pass; corrected here.
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/config.sh
+
+s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
+STAR_OUT="${OUT_DIR}/results/star/${s}"
+RSEM_OUT="${OUT_DIR}/results/rsem"
+mkdir -p "${RSEM_OUT}" "${LOGS}"
+
+echo "[$(date)] RSEM quantify: ${s}"
+"${TOOLS}/rsem-calculate-expression" \
+  --bam \
+  --no-bam-output \
+  --strandedness forward \
+  -p "${SLURM_CPUS_PER_TASK}" \
+  --seed 12345 \
+  "${STAR_OUT}/Aligned.toTranscriptome.out.bam" \
+  "${RSEM_REF}" \
+  "${RSEM_OUT}/${s}"
+
+echo "[$(date)] Done: ${s} -> ${RSEM_OUT}/${s}.genes.results"

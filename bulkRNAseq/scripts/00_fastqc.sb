@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_rnaseq_fastqc
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=12G
+#SBATCH --time=02:00:00
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/fastqc.%j.out
+#SBATCH --error=/pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/logs/fastqc.%j.err
+
+# Step 1: FastQC on all raw fastqs + MultiQC aggregate report.
+# --mem=12G with --cpus-per-task=12 stays under acpu's MaxMemPerCPU=3.75GB/cpu
+# (12*3.75=45G ceiling) -- FastQC needs only ~a few hundred MB/thread, 12G is
+# already generous margin, not sized up further so the job still schedules fast.
+
+set -euo pipefail
+
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_bulkRNAseq/config.sh
+
+mkdir -p "${OUT_DIR}/qc/raw_fastqc" "${LOGS}"
+
+FASTQS=()
+for s in "${SAMPLES[@]}"; do
+  FASTQS+=("${RAW_DIR}/${s}.fastq.gz")
+done
+
+echo "[$(date)] Running FastQC on ${#FASTQS[@]} samples with ${SLURM_CPUS_PER_TASK} threads"
+"${TOOLS}/fastqc" -t "${SLURM_CPUS_PER_TASK}" -o "${OUT_DIR}/qc/raw_fastqc" "${FASTQS[@]}"
+
+echo "[$(date)] Running MultiQC"
+"${TOOLS}/multiqc" "${OUT_DIR}/qc/raw_fastqc" -o "${OUT_DIR}/qc/raw_fastqc" --force
+
+echo "[$(date)] Done. Report: ${OUT_DIR}/qc/raw_fastqc/multiqc_report.html"
