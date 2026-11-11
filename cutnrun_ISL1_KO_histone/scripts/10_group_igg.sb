@@ -1,0 +1,53 @@
+#!/bin/bash
+#SBATCH --job-name=b3_group_igg
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/group_igg.%j.out
+
+# Step 10: one IgG background per day x line of REPRO_LINES (8 groups), from the group's two
+# deduplicated block IgGs (pipeline 02). Depth matched (agreed 2026-11-08): the deeper IgG is
+# subsampled to the shallower one's fragment count (samtools --subsample, seed GROUP_IGG_SEED,
+# by read name so pairs stay together), then the two are merged. Batches 1-2 merged without
+# downsampling; here each replicate's IgG contributes about equally.
+# Output: results/group_igg/<day>_<line>.group_IgG.bam (+ .bai), group_igg_manifest.tsv
+#   sbatch scripts/10_group_igg.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+T=${SLURM_CPUS_PER_TASK:-4}
+ST=${TOOLS}/samtools
+SRC=${OUT_DIR}/igg_background
+G=${OUT_DIR}/group_igg
+mkdir -p "${G}"
+frags () { "${ST}" view -c -f 64 "$1"; }
+
+manifest=${G}/group_igg_manifest.tsv
+echo -e "group\tigg_1\tigg_2\tfragments_1\tfragments_2\tsubsampled\tfraction\tfragments_kept\tgroup_fragments" > "${manifest}"
+# sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
+for group in $(awk -F'\t' -v L=" ${REPRO_LINES} " 'NR>1 && index(L, " "$4" ") && $6=="IgG" {print $3"_"$4}' "${METADATA}" | sort -u); do
+  mapfile -t IGG < <(awk -F'\t' -v g="${group}" 'NR>1 && $6=="IgG" && $3"_"$4==g {print $5"\t"$1}' "${METADATA}" | sort -n | cut -f2)
+  (( ${#IGG[@]} == 2 )) || { echo "ERROR: ${group} has ${#IGG[@]} IgGs, expected 2" >&2; exit 1; }
+  a=${SRC}/${IGG[0]}.dedup.bam; b=${SRC}/${IGG[1]}.dedup.bam
+  for f in "${a}" "${b}"; do [[ -s "${f}" ]] || { echo "ERROR: missing ${f}" >&2; exit 1; }; done
+  na=$(frags "${a}"); nb=$(frags "${b}")
+  if (( na >= nb )); then deep=${a}; dname=${IGG[0]}; keep=${b}; target=${nb}; ndeep=${na}
+  else deep=${b}; dname=${IGG[1]}; keep=${a}; target=${na}; ndeep=${nb}; fi
+  frac=$(awk -v t="${target}" -v n="${ndeep}" 'BEGIN{printf "%.6f", t/n}')
+  sub=${G}/${dname}.subsampled.bam
+  "${ST}" view -@ "${T}" -b --subsample "${frac}" --subsample-seed "${GROUP_IGG_SEED}" -o "${sub}" "${deep}"
+  kept=$(frags "${sub}")
+  out=${G}/${group}.group_IgG.bam
+  "${ST}" merge -@ "${T}" -f "${out}" "${keep}" "${sub}"
+  "${ST}" index "${out}"
+  total=$(frags "${out}")
+  rm -f "${sub}"
+  echo -e "${group}\t${IGG[0]}\t${IGG[1]}\t${na}\t${nb}\t${dname}\t${frac}\t${kept}\t${total}" >> "${manifest}"
+  echo "${group}: ${IGG[0]} ${na}, ${IGG[1]} ${nb}; ${dname} subsampled to ${kept} (fraction ${frac}); group ${total}"
+done
+column -t "${manifest}"

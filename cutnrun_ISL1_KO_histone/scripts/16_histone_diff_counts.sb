@@ -1,0 +1,68 @@
+#!/bin/bash
+#SBATCH --job-name=hist_counts
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/hist_counts.%j.out
+
+# Step 16 (histone differential, part 1; agreed 2026-11-09): regions and counts for one mark.
+#   - regions: union of the matched-IgG overlap Nt sets (step 05) of DIFF_DAYS x REPRO_LINES,
+#     chr1-22/X/Y, merged (bedtools merge -d MERGE_GAP); each region keeps the groups it came from
+#   - counts: fragments per region for the mark's libraries of those groups, featureCounts
+#     -p --countReadPairs (duplicates kept, as for the peak calls)
+#   - pre-filter (for step 17): >= MIN_COUNT fragments in >= MIN_LIBS libraries; all regions are
+#     counted and kept in the matrix, the filter is only a flag
+#   - QC: PCA and correlation on log2(CPM + 1) of the filtered regions (diff_qc.py)
+# Output: results/diff/<mark>/{regions.bed,regions.saf,samples.tsv,counts.txt(.summary),filter.tsv,qc/}
+#   MARK=H3K27ac sbatch --export=ALL scripts/16_histone_diff_counts.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+MARK=${MARK:-H3K27ac}
+DIFF_DAYS=${DIFF_DAYS:-"D15 D18 D22"}
+MERGE_GAP=${MERGE_GAP:-0}
+MIN_COUNT=${MIN_COUNT:-10}
+MIN_LIBS=${MIN_LIBS:-2}
+BT=${TOOLS}/bedtools
+D=${OUT_DIR}/diff/${MARK}
+mkdir -p "${D}/qc"
+
+# Samples: sample_metadata.tsv = sample_name library_id day line replicate antibody batch_folder
+awk -F'\t' -v L=" ${REPRO_LINES} " -v Y=" ${DIFF_DAYS} " -v m="${MARK}" -v B="${OUT_DIR}/bam" 'BEGIN{OFS="\t"; print "sample", "day", "genotype", "replicate", "group", "bam"}
+  NR>1 && $6==m && index(L, " "$4" ") && index(Y, " "$3" ") {print $1, $3, $4, $5, $3"_"$4, B"/"$1".filtered.bam"}' \
+  "${METADATA}" | { read -r h; echo "${h}"; sort -t$'\t' -k2,2V -k3,3 -k4,4n; } > "${D}/samples.tsv"
+mapfile -t BAMS < <(tail -n +2 "${D}/samples.tsv" | cut -f6)
+mapfile -t GROUPS_ < <(tail -n +2 "${D}/samples.tsv" | cut -f5 | sort -u)
+echo "${MARK}: ${#BAMS[@]} libraries, ${#GROUPS_[@]} groups (${GROUPS_[*]})"
+for f in "${BAMS[@]}"; do [[ -s "${f}" ]] || { echo "ERROR: missing ${f}" >&2; exit 1; }; done
+
+# Regions
+: > "${D}/tmp.groups.bed"
+for g in "${GROUPS_[@]}"; do
+  nt=${OUT_DIR}/reproducibility/overlap/${g}_${MARK}.Nt.narrowPeak
+  [[ -s "${nt}" ]] || { echo "ERROR: missing ${nt} -- run step 05 first" >&2; exit 1; }
+  awk -F'\t' -v g="${g}" 'BEGIN{OFS="\t"} $1 ~ /^chr([0-9]+|X|Y)$/ {print $1, $2, $3, g}' "${nt}" >> "${D}/tmp.groups.bed"
+  echo "Nt ${g}: $(awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "${nt}" | wc -l)"
+done
+sort -k1,1 -k2,2n "${D}/tmp.groups.bed" | "${BT}" merge -i - -d "${MERGE_GAP}" -c 4,4 -o count_distinct,distinct \
+  | awk -v m="${MARK}" 'BEGIN{OFS="\t"} {printf "%s\t%s\t%s\t%s_r%06d\t%s\t%s\n", $1, $2, $3, m, NR, $4, $5}' > "${D}/regions.bed"
+rm -f "${D}/tmp.groups.bed"
+awk 'BEGIN{OFS="\t"; print "GeneID", "Chr", "Start", "End", "Strand"} {print $4, $1, $2 + 1, $3, "+"}' "${D}/regions.bed" > "${D}/regions.saf"
+echo "regions: $(wc -l < "${D}/regions.bed"), $(awk '{t+=$3-$2} END{printf "%.1f", t/1e6}' "${D}/regions.bed") Mb (merge gap ${MERGE_GAP})"
+
+# Counts
+"${FEATURECOUNTS}" -T "${SLURM_CPUS_PER_TASK:-12}" -p --countReadPairs -F SAF -a "${D}/regions.saf" \
+  -o "${D}/counts.txt" "${BAMS[@]}" 2> "${D}/featureCounts.log"
+
+# Pre-filter flag: region, n libraries with >= MIN_COUNT, pass (1/0)
+awk -v c="${MIN_COUNT}" -v k="${MIN_LIBS}" 'BEGIN{FS=OFS="\t"} /^#/ || $1=="Geneid" {next}
+  {n=0; for (i=7; i<=NF; i++) if ($i >= c) n++; print $1, n, (n >= k)}' "${D}/counts.txt" \
+  | { echo -e "region\tlibs_ge_${MIN_COUNT}\tpass"; cat; } > "${D}/filter.tsv"
+echo "pre-filter (>= ${MIN_COUNT} fragments in >= ${MIN_LIBS} libraries): $(awk 'NR>1 && $3==1' "${D}/filter.tsv" | wc -l) of $(($(wc -l < "${D}/filter.tsv") - 1)) regions pass"
+
+"${TOOLS}/python3" "${STUDY_DIR}/scripts/diff_qc.py" "${D}"

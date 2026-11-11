@@ -1,0 +1,85 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=cutnrun_align
+#SBATCH --output=logs/align.%A_%a.out
+# --array is set at submission time by scripts/submit_align.sh -- don't
+# hardcode a range here, it has to match however many samples are in
+# samples.tsv right now, which changes per project.
+
+# One array task per sample: trims, aligns, and filters it. Duplicates are
+# MARKED but NOT removed here -- every sample's filtered BAM keeps its
+# duplicates. Whether/how duplicates get used downstream is decided per
+# role in 02_build_igg_background.sb (IgG side, per IGG_METHOD) and
+# 03_call_macs3.sb (target side always keeps them, --keep-dup all).
+#
+# Running as an array instead of one job looping over every sample matters
+# once you have more than a handful of samples: each sample gets its own
+# fresh 24-hour budget and runs in parallel, and one sample failing doesn't
+# take the rest down with it. Submit with scripts/submit_align.sh, not
+# `sbatch` directly, so the array range always matches samples.tsv.
+
+set -euo pipefail
+# Slurm runs a copy of this script from its spool dir, so BASH_SOURCE cannot locate the repo;
+# use the directory sbatch was called from, which must be the repo root.
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- submit via sbatch from the repo root, not run directly}"
+[[ -f "${P}/config.sh" ]] || { echo "ERROR: no config.sh in ${P} -- submit from the repo root" >&2; exit 1; }
+source "${P}/config.sh"
+bash "${P}/scripts/validate_samples.sh"
+
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- submit it with scripts/submit_align.sh, not sbatch directly}"
+
+T=${SLURM_CPUS_PER_TASK:-8}
+TRIM=${OUT_DIR}/trimmed; BAM=${OUT_DIR}/bam; QC=${OUT_DIR}/qc/alignment; TMP=${OUT_DIR}/tmp
+mkdir -p "${TRIM}" "${BAM}" "${QC}" "${TMP}" "${P}/logs"
+
+for s in 1 2 3 4 rev.1 rev.2; do
+  [[ -s "${BOWTIE2_INDEX}.${s}.bt2" || -s "${BOWTIE2_INDEX}.${s}.bt2l" ]] \
+    || { echo "ERROR: incomplete Bowtie2 index at ${BOWTIE2_INDEX}" >&2; exit 1; }
+done
+
+# Load every data row (skip the header) into an array, one per line, and
+# pick out just this array task's row.
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID} -- does --array's range match samples.tsv?" >&2; exit 1; }
+IFS=$'\t' read -r library sample role control replicate <<< "${row}"
+
+r1=${RAW_DIR}/${library}_R1_001.fastq.gz
+r2=${RAW_DIR}/${library}_R2_001.fastq.gz
+tr1=${TRIM}/${sample}_R1.trim.fastq.gz
+tr2=${TRIM}/${sample}_R2.trim.fastq.gz
+x=${TMP}/${sample}
+
+"${TOOLS}/cutadapt" -j "${T}" \
+  -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
+  -q 20 -m 20 --overlap 5 \
+  -o "${tr1}" -p "${tr2}" "${r1}" "${r2}" \
+  > "${QC}/${sample}.cutadapt.log" 2>&1
+
+"${TOOLS}/bowtie2" -x "${BOWTIE2_INDEX}" -1 "${tr1}" -2 "${tr2}" -p "${T}" \
+  --phred33 --very-sensitive-local --dovetail --no-unal --no-mixed --no-discordant \
+  -I 10 -X 700 \
+  2> "${QC}/${sample}.bowtie2.log" \
+  | "${TOOLS}/samtools" view -@ "${T}" -b -o "${x}.raw.bam" -
+
+"${TOOLS}/samtools" sort -@ "${T}" -n -o "${x}.name.bam" "${x}.raw.bam"
+"${TOOLS}/samtools" fixmate -@ "${T}" -m "${x}.name.bam" "${x}.fixmate.bam"
+"${TOOLS}/samtools" sort -@ "${T}" -o "${x}.coord.bam" "${x}.fixmate.bam"
+"${TOOLS}/samtools" markdup -@ "${T}" -s -f "${QC}/${sample}.markdup.metrics.txt" \
+  "${x}.coord.bam" "${x}.marked.bam"
+
+# MAPQ filter, properly paired, drop unmapped/secondary/supplementary/QC-fail.
+# Duplicates are marked (flag 1024) but intentionally NOT excluded here.
+"${TOOLS}/samtools" view -@ "${T}" -b -q "${MAPQ}" -f 2 -F 2828 \
+  -o "${BAM}/${sample}.filtered.bam" "${x}.marked.bam"
+"${TOOLS}/samtools" index -@ "${T}" "${BAM}/${sample}.filtered.bam"
+"${TOOLS}/samtools" flagstat -@ "${T}" "${BAM}/${sample}.filtered.bam" > "${QC}/${sample}.flagstat.txt"
+
+rm -f "${x}.raw.bam" "${x}.name.bam" "${x}.fixmate.bam" "${x}.coord.bam" "${x}.marked.bam"
+echo "done: ${sample}"

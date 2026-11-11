@@ -1,0 +1,83 @@
+#!/bin/bash
+#SBATCH --job-name=tenx_cmp
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=12:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/tenx_cmp.%j.out
+
+# Step 24 (agreed 2026-11-10): what removing the 10x reads (step 00f) changed.
+#   OLD = ${SCRATCH}/results_with10x (the analysis on the raw fastqs), NEW = ${OUT_DIR}
+#   libraries.tsv  per library: pairs removed by 00f, fragments in the old filtered BAM, 10x
+#                  fragments that were in it (read names removed by 00f), fragments in the new
+#                  BAM, peaks (step 03 q 0.01 calls) old / new
+#   tenx_frags/<sample>.bed  the 10x fragments of the old filtered BAMs (read 1 rows, chr1-22/X/Y)
+#   sets.tsv       old / new peak sets: regions, old with no new overlap ("lost"), new with no old
+#                  overlap ("gained"), and lost regions overlapping a 10x fragment of any library
+#                  ISL1 kept sets (isl1_ctr_final), D9 consensus, histone overlap Nt sets
+#   diff.tsv       DiffBind our_union rip_native, FDR < 0.05, per test: old / new, overlap
+#   lost/<set>.bed the lost regions
+# Output: results/tenx_check/ (copied to the repo's results/tenx_check on /pl/active)
+#   sbatch --dependency=afterok:<21 jobs>:<23a> scripts/24_tenx_before_after.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+OLD=${SCRATCH}/results_with10x; NEW=${OUT_DIR}; C=${NEW}/tenx_check; Q=${SCRATCH}/tenx_filter
+ST=${TOOLS}/samtools; BT=${TOOLS}/bedtools
+mkdir -p "${C}/tenx_frags" "${C}/lost" "${C}/tmp"
+canon () { awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "$@"; }
+regions () { canon "$1" | cut -f1-3 | sort -k1,1 -k2,2n | "${BT}" merge -i -; }
+
+# Per library
+echo -e "sample\tpairs_in\tremoved\tremoved_with_10x_barcode\tpct_removed\told_fragments\ttenx_in_old_bam\tpct_tenx_in_old_bam\tnew_fragments\told_peaks\tnew_peaks" > "${C}/libraries.tsv"
+tail -n +2 "${SAMPLE_SHEET}" | cut -f2 | while read -r s; do
+  zcat "${Q}/${s}.removed_names.txt.gz" > "${C}/tmp/names.txt"
+  "${ST}" view -@ 12 -f 64 -N "${C}/tmp/names.txt" "${OLD}/bam/${s}.filtered.bam" \
+    | awk 'BEGIN{OFS="\t"} $3 ~ /^chr([0-9]+|X|Y)$/ {t=$9; if (t > 0) print $3, $4 - 1, $4 - 1 + t; else if (t < 0) print $3, $8 - 1, $8 - 1 - t}' \
+    | sort -k1,1 -k2,2n > "${C}/tenx_frags/${s}.bed"
+  tenx=$("${ST}" view -@ 12 -c -f 64 -N "${C}/tmp/names.txt" "${OLD}/bam/${s}.filtered.bam")
+  of=$("${ST}" idxstats "${OLD}/bam/${s}.filtered.bam" | awk '{m+=$3} END{printf "%d", m/2}')
+  nf=$("${ST}" idxstats "${NEW}/bam/${s}.filtered.bam" | awk '{m+=$3} END{printf "%d", m/2}')
+  pk () { local f; for f in "$1"/macs3/"${s}"_peaks.filtered.narrowPeak "$1"/macs3_broad/"${s}"_peaks.filtered.broadPeak; do [[ -s "${f}" ]] && { regions "${f}" | wc -l; return; }; done; echo NA; }
+  q=$(awk -F'\t' 'NR==2 {print $2"\t"$3"\t"$4"\t"$6}' "${Q}/${s}.tsv")
+  echo -e "${s}\t${q}\t${of}\t${tenx}\t$(awk -v a="${tenx}" -v b="${of}" 'BEGIN{printf "%.4f", 100*a/b}')\t${nf}\t$(pk "${OLD}")\t$(pk "${NEW}")" >> "${C}/libraries.tsv"
+done
+cat "${C}"/tenx_frags/*.bed | sort -k1,1 -k2,2n > "${C}/tmp/all_tenx.bed"
+echo "10x fragments in the old filtered BAMs: $(wc -l < "${C}/tmp/all_tenx.bed")"
+
+# Peak sets
+echo -e "set\told\tnew\tlost\tgained\tlost_on_10x_fragment\told_on_10x_fragment" > "${C}/sets.tsv"
+cmp_set () {   # name old_bed new_bed
+  regions "$2" > "${C}/tmp/o.bed"; regions "$3" > "${C}/tmp/n.bed"
+  "${BT}" intersect -v -a "${C}/tmp/o.bed" -b "${C}/tmp/n.bed" > "${C}/lost/$1.bed"
+  echo -e "$1\t$(wc -l < "${C}/tmp/o.bed")\t$(wc -l < "${C}/tmp/n.bed")\t$(wc -l < "${C}/lost/$1.bed")\t$("${BT}" intersect -v -a "${C}/tmp/n.bed" -b "${C}/tmp/o.bed" | wc -l)\t$("${BT}" intersect -u -a "${C}/lost/$1.bed" -b "${C}/tmp/all_tenx.bed" | wc -l)\t$("${BT}" intersect -u -a "${C}/tmp/o.bed" -b "${C}/tmp/all_tenx.bed" | wc -l)" >> "${C}/sets.tsv"
+}
+for set in macs3_ge2 idr_any_pair; do for d in D15 D18 D22; do
+  cmp_set "ISL1_${set}_${d}" "${OLD}/isl1_ctr_final/${set}/${d}_Ctr_ISL1.bed" "${NEW}/isl1_ctr_final/${set}/${d}_Ctr_ISL1.bed"
+done; done
+cmp_set ISL1_D9_2of2 "${OLD}/reproducibility_groupIgG/compare/A_matched/D9_H3CTR_ISL1.consensus.bed" "${NEW}/tracks/sf/D9_H3CTR_ISL1.consensus.bed"
+for f in "${NEW}"/reproducibility/overlap/D*_{H3CTR,ISL1KO}_H3K27{ac,me3}.Nt.narrowPeak; do
+  b=$(basename "${f}" .narrowPeak); cmp_set "${b}" "${OLD}/reproducibility/overlap/${b}.narrowPeak" "${f}"
+done
+
+# DiffBind on our union regions, median-of-ratios
+echo -e "mark\ttest\told_sig\tnew_sig\told_sig_in_new_sig\tnew_sig_in_old_sig" > "${C}/diff.tsv"
+for m in H3K27ac H3K27me3; do
+  for f in "${NEW}/diff/${m}/diffbind/sites"/our_union_rip_native_*.tsv; do
+    t=$(basename "${f}" .tsv); t=${t#our_union_rip_native_}
+    sig () { awk -F'\t' 'BEGIN{OFS="\t"} NR==1{for(i=1;i<=NF;i++) c[$i]=i; next} $c["FDR"] < 0.05 {print $c["seqnames"], $c["start"] - 1, $c["end"]}' "$1" | sort -k1,1 -k2,2n; }
+    sig "${OLD}/diff/${m}/diffbind/sites/our_union_rip_native_${t}.tsv" > "${C}/tmp/o.bed"; sig "${f}" > "${C}/tmp/n.bed"
+    echo -e "${m}\t${t}\t$(wc -l < "${C}/tmp/o.bed")\t$(wc -l < "${C}/tmp/n.bed")\t$("${BT}" intersect -u -a "${C}/tmp/o.bed" -b "${C}/tmp/n.bed" | wc -l)\t$("${BT}" intersect -u -a "${C}/tmp/n.bed" -b "${C}/tmp/o.bed" | wc -l)" >> "${C}/diff.tsv"
+  done
+done
+rm -r "${C}/tmp"
+
+for t in libraries sets diff; do echo "== ${t}"; column -t -s$'\t' "${C}/${t}.tsv"; done
+KEEP=${STUDY_DIR}/results/tenx_check
+mkdir -p "${KEEP}"
+rsync -a --exclude 'tenx_frags/' "${C}/" "${KEEP}/"
+echo "copied to ${KEEP}"

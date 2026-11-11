@@ -1,0 +1,85 @@
+#!/bin/bash
+# ISL1 KO / H3 control CUT&RUN time course (Admera delivery 7535-0003, 2026-11-02): study config.
+# setup_links.sh symlinks pipeline/config.sh -> this file, so the vendored pipeline/
+# (cutnrun-pipeline) reads it unchanged. Variable names follow pipeline/config.example.sh; the
+# extra ones at the top are study-only.
+
+set -euo pipefail
+
+STUDY_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+PIPELINE_DIR=${STUDY_DIR}/pipeline
+
+# --- Study-only paths ----------------------------------------------------
+# One Admera delivery, verified against its md5.txt after download (md5_check.txt: 130/130 OK);
+# the 124 CUT&RUN fastqs were moved here from the scRNA folder on 2026-11-05.
+RAW_BASE=/pl/active/ZhuLab_BDC/raw_data/ISL1_cut_N_run
+RAW_BATCHES=(7535-0003-11022026_200951)
+# All outputs (logs + results) on scratch -- purged after 90 days, copy keepers to /pl/active.
+SCRATCH=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun
+LOGS=${SCRATCH}/logs
+METADATA=${STUDY_DIR}/study_config/sample_metadata.tsv
+
+# Symlinks to the raw Admera fastqs (setup_links.sh).
+RAW_LINKS=${SCRATCH}/raw_links
+# 10x 3' GEX libraries sequenced on the same lane (S268-S270); some of their reads leaked into the
+# CUT&RUN fastqs. scripts/00f_filter_10x.sb removes them (2026-11-10).
+TENX_FASTQ_DIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0003-11022026_200951
+
+# --- Pipeline inputs (names as in pipeline/config.example.sh) ------------
+# The pipeline aligns the 10x-filtered fastqs (step 00f), not the raw links.
+RAW_DIR=${SCRATCH}/clean_fastq
+SAMPLE_SHEET=${STUDY_DIR}/study_config/samples.tsv
+
+# IgG background method for the pipeline's steps 02/03 (matched = each sample's own block IgG).
+IGG_METHOD=${IGG_METHOD:-matched}
+case "${IGG_METHOD}" in
+  matched) OUT_DIR=${SCRATCH}/results ;;
+  pooled)  OUT_DIR=${SCRATCH}/results_pooled ;;
+  *) echo "ERROR: IGG_METHOD must be matched or pooled, got '${IGG_METHOD}'" >&2; exit 1 ;;
+esac
+
+# hg38 (UCSC) bowtie2 index and the GRCh38 unified blacklist already on PetaLibrary.
+BOWTIE2_INDEX=/pl/active/ZhuLab_BDC/genome/hg38_bt2/hg38
+BLACKLIST=/pl/active/ZhuLab_BDC/genome/GRCh38_unified_blacklist.bed
+
+# Same env as ISL1_cutNrun, built from pipeline/environment.yml (cutnrun-pipeline @1afe307).
+TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/cutnrun/bin
+
+MAPQ=20
+MACS_QVALUE=0.01
+
+# Reproducible peaks (scripts/04-05, ENCODE design). Relaxed calls: p 0.01, top N peaks
+# (ENCODE: 300k for TFs, 500k for histone marks). IDR env as built for ISL1_cutNrun.
+REPRO_LINES="H3CTR ISL1KO"       # D15 CtrGFP / KOISL1 set aside (2026-11-06)
+REPRO_ANTIBODIES="ISL1 H3K27ac H3K27me3"
+RELAXED_P=0.01
+CAP_TF=300000
+CAP_HISTONE=500000
+IDR_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/idr/bin
+IDR_THRESHOLD=0.05
+
+# ISL1 consensus peaks (scripts/06-07, nf-core/cutandrun style; agreed 2026-11-07): per-replicate
+# MACS3 (step 03) and SEACR calls, merged per group, kept if found in both replicates.
+SEACR_DIR=/projects/hzhu10@xsede.org/software/SEACR      # SEACR 1.3 (base R only)
+SEACR_R_BIN=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin   # Rscript (R 4.3.3), bedtools 2.31.1
+SEACR_NORM=norm                  # IgG scaled to target by SEACR (no spike-in here)
+SEACR_MODE=${SEACR_MODE:-stringent}   # relaxed run: sbatch --export=ALL,SEACR_MODE=relaxed
+MAX_FRAGMENT=1000                # fragments up to this length go into the SEACR bedGraphs
+# Group IgG test (scripts/10, then 04/05 with CONTROL=group, then 11): per day x line, the two
+# block IgGs depth matched (deeper one subsampled with this seed) and merged.
+GROUP_IGG_SEED=101
+# Replicate correlation / PCA (scripts/09): featureCounts from the isl1_downstream env.
+FEATURECOUNTS=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/featureCounts
+# DiffBind / csaw / edgeR env (scripts/00e builds it; scripts/21-22 use it).
+DIFFBIND_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/diffbind/bin
+# QC reference only: earlier batches' D15 Ctr conservative IDR set (9,329 peaks; on scratch).
+ISL1_REFERENCE_PEAKS=/scratch/alpine/hzhu10@xsede.org/ISL1_cutNrun/results_group/final_peaks/conservative/D15_Ctr.narrowPeak
+
+# Pooled IgG (pipeline 02, IGG_METHOD=pooled): not used yet; set POOL_TARGET_FRAGMENTS from the
+# alignment metrics before using it.
+mapfile -t POOL_IGG_SAMPLES < <(awk -F'\t' 'NR>1 && $3=="IgG" {print $2}' "${SAMPLE_SHEET}")
+POOL_IGG_SEEDS=($(seq 101 $((100 + ${#POOL_IGG_SAMPLES[@]}))))
+POOL_TARGET_FRAGMENTS=
+if [[ "${IGG_METHOD}" == pooled ]]; then
+  [[ -n "${POOL_TARGET_FRAGMENTS}" ]] || { echo "ERROR: POOL_TARGET_FRAGMENTS not set in study_config/config.sh" >&2; exit 1; }
+fi

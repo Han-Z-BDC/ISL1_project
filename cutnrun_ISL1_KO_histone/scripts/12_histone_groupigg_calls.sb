@@ -1,0 +1,62 @@
+#!/bin/bash
+#SBATCH --job-name=b3_hist_grp
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=16G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/hist_grp.%A_%a.out
+
+# Step 12 (group IgG test): the step 03 per-sample histone calls, repeated against the day x line
+# group IgG of step 10 (depth matched). One array task per H3K27ac / H3K27me3 library of
+# REPRO_LINES (32). Same MACS3 commands and blacklist filter as step 03, without -B bedGraphs:
+#   H3K27ac  -> macs3_groupIgG/        narrow, q 0.01, --call-summits
+#   H3K27me3 -> macs3_broad_groupIgG/  --broad, q 0.01, broad-cutoff 0.1
+# Stats as step 03 (qc/peaks_groupIgG/<sample>.peak_stats.tsv), with Mb covered added.
+#   sbatch --array=0-31 --dependency=afterok:<10 job> scripts/12_histone_groupigg_calls.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-<n libraries - 1>}"
+
+# sample_metadata.tsv: sample_name library_id day line replicate antibody batch_folder
+mapfile -t ROWS < <(awk -F'\t' -v L=" ${REPRO_LINES} " 'NR>1 && index(L, " "$4" ") && ($6=="H3K27ac" || $6=="H3K27me3") {print $1"\t"$3"\t"$4"\t"$6}' "${METADATA}")
+row=${ROWS[${SLURM_ARRAY_TASK_ID}]:-}
+[[ -n "${row}" ]] || { echo "ERROR: no histone library at index ${SLURM_ARRAY_TASK_ID} (have ${#ROWS[@]})" >&2; exit 1; }
+IFS=$'\t' read -r sample day line antibody <<< "${row}"
+
+target=${OUT_DIR}/bam/${sample}.filtered.bam
+control_bam=${OUT_DIR}/group_igg/${day}_${line}.group_IgG.bam
+[[ -s "${target}" ]] || { echo "ERROR: missing ${target}" >&2; exit 1; }
+[[ -s "${control_bam}" ]] || { echo "ERROR: missing ${control_bam} -- run step 10 first" >&2; exit 1; }
+QC=${OUT_DIR}/qc/peaks_groupIgG
+mkdir -p "${QC}"
+total=$("${TOOLS}/samtools" view -c -f 64 "${target}")
+
+echo "calling peaks: ${sample} (${antibody}) vs $(basename "${control_bam}")"
+if [[ "${antibody}" == H3K27me3 ]]; then
+  OUT=${OUT_DIR}/macs3_broad_groupIgG
+  mkdir -p "${OUT}"
+  "${TOOLS}/macs3" callpeak -t "${target}" -c "${control_bam}" -f BAMPE -g hs \
+    -n "${sample}" -q "${MACS_QVALUE}" --broad --broad-cutoff 0.1 --keep-dup all --outdir "${OUT}"
+  raw=${OUT}/${sample}_peaks.broadPeak; peaks=${OUT}/${sample}_peaks.filtered.broadPeak; mode=broad
+else
+  OUT=${OUT_DIR}/macs3_groupIgG
+  mkdir -p "${OUT}"
+  "${TOOLS}/macs3" callpeak -t "${target}" -c "${control_bam}" -f BAMPE -g hs \
+    -n "${sample}" -q "${MACS_QVALUE}" --call-summits --keep-dup all --outdir "${OUT}"
+  raw=${OUT}/${sample}_peaks.narrowPeak; peaks=${OUT}/${sample}_peaks.filtered.narrowPeak; mode=narrow
+fi
+"${TOOLS}/bedtools" intersect -v -a "${raw}" -b "${BLACKLIST}" > "${peaks}"
+n_raw=$(wc -l < "${raw}")
+n_filtered=$(wc -l < "${peaks}")
+n_regions=$(cut -f1-3 "${peaks}" | sort -u | wc -l)
+mb=$(cut -f1-3 "${peaks}" | sort -k1,1 -k2,2n | "${TOOLS}/bedtools" merge -i - | awk '{t+=$3-$2} END{printf "%.1f", t/1e6}')
+in_peaks=$("${TOOLS}/samtools" view -c -f 64 -L <(cut -f1-3 "${peaks}") "${target}")
+f=$(awk -v a="${in_peaks}" -v b="${total}" 'BEGIN{printf "%.4f", a/b}')
+echo -e "sample\tday\tline\tantibody\tcontrol\tmode\traw_rows\tfiltered_rows\tfiltered_regions\tMb\tfragments\tfrip" > "${QC}/${sample}.peak_stats.tsv"
+echo -e "${sample}\t${day}\t${line}\t${antibody}\t${day}_${line}.group_IgG\t${mode}\t${n_raw}\t${n_filtered}\t${n_regions}\t${mb}\t${total}\t${f}" >> "${QC}/${sample}.peak_stats.tsv"
+echo "SUMMARY ${sample}: ${mode} raw_rows=${n_raw} filtered_regions=${n_regions} Mb=${mb} FRiP=${f}"

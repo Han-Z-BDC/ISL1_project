@@ -1,0 +1,65 @@
+#!/bin/bash
+#SBATCH --job-name=ctr_matched
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/ctr_matched.%A_%a.out
+
+# Step 13: the earlier control ISL1 libraries, called against each library's own IgG and named by
+# collection day as further Ctr replicates (agreed 2026-11-09). Batch 3 H3CTR rep1/rep2 count as
+# Ctr rep1/rep2, so these are rep3 onward. One array task per row of
+# study_config/ctr_matched_samples.tsv (7):
+#   - D15_Ctr_rep3/rep4 = batch 1/2 D12 Ctr+GFP (electroporated D12, collected D15)
+#   - D18_Ctr_rep3      = batch 1 D15 Ctr+GFP (electroporated D15, collected D18)
+#   - D18_Ctr_rep4      = batch 3 D15_CtrGFP_rep2 (prepared in batch 2, collected D18)
+#   - D22_Ctr_rep3-5    = batch 1-2 D22 Ctr rep1-3 (no electroporation)
+# BAMs are read in place from the ISL1_cutNrun / batch 3 results (nothing copied or renamed on
+# disk). Same MACS3 command as step 03 (BAMPE, hs, q MACS_QVALUE, --call-summits, --keep-dup all,
+# own block IgG dedup BAM as control), then blacklist filtered. The October calls (same command,
+# old names) are compared as a check: rows, and identical coordinates.
+# Output: results/ctr_matched/macs3/<sample>_peaks.filtered.narrowPeak,
+#         results/ctr_matched/qc/<sample>.peak_stats.tsv
+#   sbatch --array=0-6 scripts/13_ctr_matched_calls.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array, --array=0-6}"
+MAP=${STUDY_DIR}/study_config/ctr_matched_samples.tsv
+
+# ctr_matched_samples.tsv: sample collection_day condition replicate gfp_electroporation
+#   electroporation_day prep_batch seq_batch original_sample library_id isl1_bam igg_bam october_peaks
+row=$(awk -F'\t' -v i="${SLURM_ARRAY_TASK_ID}" 'NR == i + 2' "${MAP}")
+[[ -n "${row}" ]] || { echo "ERROR: no row at index ${SLURM_ARRAY_TASK_ID} in ${MAP}" >&2; exit 1; }
+IFS=$'\t' read -r sample cday cond rep gfp eday pbatch sbatch_ orig lib target control_bam old <<< "${row}"
+for f in "${target}" "${control_bam}"; do [[ -s "${f}" ]] || { echo "ERROR: missing ${f}" >&2; exit 1; }; done
+
+M=${OUT_DIR}/ctr_matched/macs3
+QC=${OUT_DIR}/ctr_matched/qc
+mkdir -p "${M}" "${QC}"
+echo "calling peaks: ${sample} (was ${orig}) vs $(basename "${control_bam}")"
+"${TOOLS}/macs3" callpeak -t "${target}" -c "${control_bam}" -f BAMPE -g hs \
+  -n "${sample}" -q "${MACS_QVALUE}" --call-summits --keep-dup all --outdir "${M}"
+peaks=${M}/${sample}_peaks.filtered.narrowPeak
+"${TOOLS}/bedtools" intersect -v -a "${M}/${sample}_peaks.narrowPeak" -b "${BLACKLIST}" > "${peaks}"
+
+n_rows=$(wc -l < "${peaks}")
+n_regions=$(cut -f1-3 "${peaks}" | sort -u | wc -l)
+mb=$(cut -f1-3 "${peaks}" | sort -k1,1 -k2,2n | "${TOOLS}/bedtools" merge -i - | awk '{t+=$3-$2} END{printf "%.2f", t/1e6}')
+total=$("${TOOLS}/samtools" view -c -f 64 "${target}")
+igg=$("${TOOLS}/samtools" view -c -f 64 "${control_bam}")
+in_peaks=$("${TOOLS}/samtools" view -c -f 64 -L <(cut -f1-3 "${peaks}") "${target}")
+frip=$(awk -v a="${in_peaks}" -v b="${total}" 'BEGIN{printf "%.4f", a/b}')
+# Check against the October call of the same library (same command, old name).
+old_rows=NA; same=NA
+if [[ -s "${old}" ]]; then
+  old_rows=$(wc -l < "${old}")
+  if cmp -s <(cut -f1-3,5,7-10 "${old}" | sort) <(cut -f1-3,5,7-10 "${peaks}" | sort); then same=yes; else same=no; fi
+fi
+echo -e "sample\tcollection_day\tcondition\treplicate\tgfp_electroporation\telectroporation_day\tprep_batch\tseq_batch\toriginal_sample\tfragments\tigg_fragments\tpeak_rows\tregions\tMb\tfrip\toctober_rows\tidentical_to_october" > "${QC}/${sample}.peak_stats.tsv"
+echo -e "${sample}\t${cday}\t${cond}\t${rep}\t${gfp}\t${eday}\t${pbatch}\t${sbatch_}\t${orig}\t${total}\t${igg}\t${n_rows}\t${n_regions}\t${mb}\t${frip}\t${old_rows}\t${same}" >> "${QC}/${sample}.peak_stats.tsv"
+echo "SUMMARY ${sample}: rows=${n_rows} regions=${n_regions} Mb=${mb} FRiP=${frip} october=${old_rows} identical=${same}"

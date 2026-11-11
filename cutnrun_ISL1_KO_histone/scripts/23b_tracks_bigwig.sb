@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --job-name=tracks_bw
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=04:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/tracks_bw.%A_%a.out
+
+# Step 23b (browser tracks, part 2): one bigWig per library of results/tracks/sf/scale_factors.tsv.
+# deepTools bamCoverage: fragments (read 1 extended to the mate, --samFlagInclude 64 --extendReads),
+# scaled by the 23a scale (--normalizeUsing None), blacklist excluded, duplicates kept as in the BAM.
+# Output: results/tracks/replicates/<kind>/<name>.bw
+#   sbatch --array=0-<n-1>%20 --dependency=afterok:<23a> scripts/23b_tracks_bigwig.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_KO_histone_cutNrun/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array}"
+T=${OUT_DIR}/tracks
+# Empty fields (IgG size_factor is NA) become NA: bash read with a tab IFS merges consecutive tabs
+row=$(awk -F'\t' -v i="${SLURM_ARRAY_TASK_ID}" 'BEGIN{OFS="\t"} NR == i + 2 {for (j = 1; j <= NF; j++) if ($j == "") $j = "NA"; print}' "${T}/sf/scale_factors.tsv")
+[[ -n "${row}" ]] || { echo "no row ${SLURM_ARRAY_TASK_ID}; nothing to do"; exit 0; }
+IFS=$'\t' read -r name kind bam bin groups fragments sf scale <<< "${row}"
+mkdir -p "${T}/replicates/${kind}"
+echo "${name} (${kind}): bin ${bin}, scale ${scale} (fragments ${fragments}, size factor ${sf})"
+"${TOOLS}/bamCoverage" -b "${bam}" -o "${T}/replicates/${kind}/${name}.bw" --binSize "${bin}" \
+  --scaleFactor "${scale}" --normalizeUsing None --extendReads --samFlagInclude 64 \
+  --blackListFileName "${BLACKLIST}" --numberOfProcessors "${SLURM_CPUS_PER_TASK:-12}"
+ls -la "${T}/replicates/${kind}/${name}.bw"
