@@ -1,7 +1,9 @@
 """Step 6.1: Leiden resolution sweep on the chosen embedding (log, unintegrated).
 
 Embedding chosen by the user 2026-10-11 from 5.4b: log path, no integration (all 4 samples
-share one OCM channel/library; replicates already mix). Neighbors/Leiden conventions match
+share one OCM channel/library; replicates already mix). Kept for the 12-sample run
+(2026-11-08: D15, D22, D40 x ctr/KO x rep1/rep2), where integrating on diff_batch would also
+remove day differences (Diff37 = D15 + D22, Diff34 = D40). Neighbors/Leiden conventions match
 the lab pipeline's RNA track (pipeline/configs/normalize_rna.yaml: 30 PCs, n_neighbors=15,
 random_state=1234) and diff-multiome's _cluster_resolution_sweep.py (flavor="igraph",
 n_iterations=2, directed=False, same resolution list). The UMAP is recomputed from this same
@@ -13,10 +15,11 @@ Outputs: ${OUT_DIR}/clustering/
                                          obsm X_pca_log + X_umap, obs leiden_r* for every resolution
   cluster_sweep.csv                      barcode -> cluster at every resolution
   n_clusters.csv
-  composition_r*.csv                     cluster x sample cell counts
+  composition_r*.csv                     cluster x sample cell counts, % of each day-genotype's cells
   markers_r*.csv                         top 10 Wilcoxon markers per cluster (log1p_norm)
   lineage.csv                            each cluster's main parent at the next-lower resolution
-  plots/umap_leiden_grid.png, umap_genotype.png, dotplot_r*.png, composition_r*.png
+  plots/umap_leiden_grid.png, umap_genotype.png (genotype / replicate / day), dotplot_r*.png,
+        composition_r*.png
 
 Run through Slurm: sbatch analysis/scripts/6.1_cluster_resolution_sweep.sb
 """
@@ -90,7 +93,8 @@ def main():
     sc.pp.normalize_total(a, target_sum=1e4)
     sc.pp.log1p(a)
     a.layers["log1p_norm"] = a.X.copy()
-    a.obs["genotype"] = a.obs["stage"].astype(str).str.replace("D40-", "", regex=False)  # ctr / KO
+    a.obs["day"] = a.obs["stage"].astype(str).str.split("-").str[0]       # D15 / D22 / D40
+    a.obs["genotype"] = a.obs["stage"].astype(str).str.split("-").str[1]  # ctr / KO
 
     a.obsm["X_pca_log30"] = a.obsm["X_pca_log"][:, :N_PCS]
     sc.pp.neighbors(a, use_rep="X_pca_log30", n_neighbors=N_NEIGHBORS, random_state=RANDOM_STATE)
@@ -119,9 +123,11 @@ def main():
     plt.close(fig)
 
     # genotype / replicate reference on the same UMAP
-    pal = {"ctr": "#3b6fb6", "KO": "#d0573f", "rep1": "#4c9a6a", "rep2": "#9b6bc0"}
+    pal = {"ctr": "#3b6fb6", "KO": "#d0573f", "rep1": "#4c9a6a", "rep2": "#9b6bc0",
+           "D15": "#e3a72f", "D22": "#2a9d8f", "D40": "#7a4fa3"}
+    days = sorted(a.obs["day"].unique(), key=lambda d: int(d[1:]))
     order = np.random.default_rng(0).permutation(a.n_obs)
-    fig, axes = plt.subplots(1, 4, figsize=(22, 5.2), sharex=True, sharey=True)
+    fig, axes = plt.subplots(1, 5, figsize=(27.5, 5.2), sharex=True, sharey=True)
     g = a.obs["genotype"].to_numpy(); r = a.obs["tech_batch"].astype(str).to_numpy()
     axes[0].scatter(u[order, 0], u[order, 1], s=1.2, c=[pal[x] for x in g[order]], linewidths=0)
     axes[0].set_title("merged (ctr + KO)")
@@ -132,18 +138,25 @@ def main():
         ax.set_title(f"{gg} only (n={m.sum():,})")
     axes[3].scatter(u[order, 0], u[order, 1], s=1.2, c=[pal[x] for x in r[order]], linewidths=0)
     axes[3].set_title("replicate")
+    d = a.obs["day"].to_numpy()
+    axes[4].scatter(u[order, 0], u[order, 1], s=1.2, c=[pal[x] for x in d[order]], linewidths=0)
+    axes[4].set_title("day")
     for ax in axes:
         ax.set_xticks([]); ax.set_yticks([])
-    for k, ax in (("ctr", axes[0]), ("KO", axes[0]), ("rep1", axes[3]), ("rep2", axes[3])):
+    for k, ax in [("ctr", axes[0]), ("KO", axes[0]), ("rep1", axes[3]), ("rep2", axes[3])] + [(x, axes[4]) for x in days]:
         ax.scatter([], [], c=pal[k], s=20, label=k)
-    axes[0].legend(fontsize=9); axes[3].legend(fontsize=9)
+    axes[0].legend(fontsize=9); axes[3].legend(fontsize=9); axes[4].legend(fontsize=9)
     fig.tight_layout()
     fig.savefig(out / "plots" / "umap_genotype.png", dpi=85)
     plt.close(fig)
 
     markers = {grp: [x for x in gs if x in a.var_names] for grp, gs in MARKERS.items()}
     markers = {grp: gs for grp, gs in markers.items() if gs}
-    sample_order = ["Diff34_D40-ctr_rep1", "Diff34_D40-ctr_rep2", "Diff34_D40-KO_rep1", "Diff34_D40-KO_rep2"]
+    # day -> genotype -> replicate; groups = day-genotype (2 replicates each)
+    groups = [f"{dd}-{gg}" for dd in days for gg in ("ctr", "KO")]
+    sample_order = sorted(a.obs["sample_id"].astype(str).unique(),
+                          key=lambda x: (groups.index(x.split("_")[1]), x.split("_")[2]))
+    n_group = a.obs["stage"].astype(str).value_counts()
     lineage = []
     for i, res in enumerate(RESOLUTIONS):
         k = key_for(res)
@@ -153,24 +166,28 @@ def main():
         dp.savefig(out / "plots" / f"dotplot_{k}.png", dpi=85, bbox_inches="tight")
         plt.close("all")
 
-        # composition: counts + share of each cluster from ctr vs KO, normalised to genotype size
+        # composition: counts per sample, then each cluster's share of every day-genotype's cells
+        # and, per day, the KO share normalised to genotype size
         comp = pd.crosstab(a.obs[k], a.obs["sample_id"]).reindex(columns=sample_order, fill_value=0)
-        comp["ctr"] = comp[sample_order[:2]].sum(1)
-        comp["KO"] = comp[sample_order[2:]].sum(1)
-        comp["n"] = comp["ctr"] + comp["KO"]
-        n_ctr, n_ko = (a.obs["genotype"] == "ctr").sum(), (a.obs["genotype"] == "KO").sum()
-        comp["pct_of_ctr_cells"] = (100 * comp["ctr"] / n_ctr).round(1)
-        comp["pct_of_KO_cells"] = (100 * comp["KO"] / n_ko).round(1)
-        comp["KO_share_norm"] = (comp["pct_of_KO_cells"] / (comp["pct_of_ctr_cells"] + comp["pct_of_KO_cells"])).round(2)
+        for grp in groups:
+            cols = [c for c in sample_order if c.split("_")[1] == grp]
+            comp[grp] = comp[cols].sum(1)
+        comp["n"] = comp[groups].sum(1)
+        for grp in groups:
+            comp[f"pct_of_{grp}_cells"] = (100 * comp[grp] / n_group[grp]).round(1)
+        for dd in days:
+            pc, pk_ = comp[f"pct_of_{dd}-ctr_cells"], comp[f"pct_of_{dd}-KO_cells"]
+            comp[f"{dd}_KO_share_norm"] = (pk_ / (pc + pk_)).round(2)
         comp.to_csv(out / f"composition_{k}.csv")
 
-        fig, ax = plt.subplots(figsize=(max(6, 0.45 * len(comp)), 3.6))
+        fig, axs = plt.subplots(len(days), 1, figsize=(max(6, 0.45 * len(comp)), 2.6 * len(days)), sharex=True)
         x = np.arange(len(comp))
-        ax.bar(x - 0.2, comp["pct_of_ctr_cells"], 0.4, color=pal["ctr"], label="% of ctr cells")
-        ax.bar(x + 0.2, comp["pct_of_KO_cells"], 0.4, color=pal["KO"], label="% of KO cells")
+        for ax, dd in zip(np.atleast_1d(axs), days):
+            ax.bar(x - 0.2, comp[f"pct_of_{dd}-ctr_cells"], 0.4, color=pal["ctr"], label=f"% of {dd} ctr cells")
+            ax.bar(x + 0.2, comp[f"pct_of_{dd}-KO_cells"], 0.4, color=pal["KO"], label=f"% of {dd} KO cells")
+            ax.set_ylabel(f"{dd}: % of cells"); ax.legend(fontsize=8)
         ax.set_xticks(x); ax.set_xticklabels(comp.index, fontsize=8)
-        ax.set_xlabel(f"cluster (resolution {res})"); ax.set_ylabel("% of genotype's cells")
-        ax.legend(fontsize=8)
+        ax.set_xlabel(f"cluster (resolution {res})")
         fig.tight_layout()
         fig.savefig(out / "plots" / f"composition_{k}.png", dpi=85)
         plt.close(fig)

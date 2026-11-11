@@ -19,6 +19,9 @@
 # 256G (same as earlier cr_migl runs) even though Cell Ranger itself needs ~64G;
 # --localmem leaves headroom under the Slurm limit.
 # Rerunning resumes an interrupted run in place (same --id, same cwd).
+# Optional arguments: run_id(s) to process (default: all of RUNS). Lets each OCM channel
+# go in its own job, e.g. 2026-11-05:
+#   for r in HZ_Diff34_D40_scRNA_combined HZ_Diff37_D15_scRNA HZ_Diff37_D22_scRNA; do sbatch scripts/01_cellranger_multi.sb $r; done
 
 set -euo pipefail
 
@@ -34,7 +37,9 @@ cd "${CELLRANGER_OUT}"
 
 LOCALMEM=$(( SLURM_MEM_PER_NODE / 1024 - 16 ))
 
-for run in "${RUNS[@]}"; do
+if [ $# -gt 0 ]; then TODO_RUNS=("$@"); else TODO_RUNS=("${RUNS[@]}"); fi
+
+for run in "${TODO_RUNS[@]}"; do
   csv="${REPO_DIR}/configs/${run}.multi.csv"
   if grep -q TODO "${csv}"; then
     echo "ERROR: ${csv} still has TODO sample names -- fill in the OCM barcode -> sample map first" >&2

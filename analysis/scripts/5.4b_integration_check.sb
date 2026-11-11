@@ -1,16 +1,17 @@
 #!/bin/bash
 #SBATCH --job-name=isl1_integration_check
-#SBATCH --partition=acpu
-#SBATCH --qos=cpu-normal
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=29G
-#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=240G
+#SBATCH --time=04:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/integration_check.%j.out
 
 # Step 5.4b: unintegrated vs Harmony (+ scVI if 5.5 has finished) -- see the .py docstring.
-# 8 cpu x 3.75G = 30G acpu ceiling; the normalized h5ad is ~2-3G in memory.
+# amem (2026-11-08: acpu queue ~1,800 jobs deep, amem nearly empty). The amem QOS enforces
+# MinMemory=240G, so 240G even though the job needs well under 60G (12 samples, ~46k cells).
 # Submit from the repo root: sbatch analysis/scripts/5.4b_integration_check.sb
 
 set -euo pipefail

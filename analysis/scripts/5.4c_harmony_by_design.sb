@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_harmony_design
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=240G
+#SBATCH --time=03:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/harmony_design.%j.out
+
+# Step 5.4c: Harmony by study design (diff_batch only / per sample) -- see the .py docstring.
+# amem (2026-11-08: acpu queue ~1,800 jobs deep, amem nearly empty). The amem QOS enforces
+# MinMemory=240G, so 240G even though the job needs well under 60G (12 samples, ~46k cells).
+# Submit from the repo root: sbatch analysis/scripts/5.4c_harmony_by_design.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/5.4c_harmony_by_design.py" \
+  --normalized-rna-h5ad "${OUT_DIR}/integration/merged_rna_normalized.h5ad" \
+  --outdir "${OUT_DIR}/integration" \
+  --theta-diff-batch "${HARMONY_THETA_DIFF_BATCH}"

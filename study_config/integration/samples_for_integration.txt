@@ -2,3 +2,11 @@ Diff34_D40-ctr_rep1
 Diff34_D40-KO_rep1
 Diff34_D40-ctr_rep2
 Diff34_D40-KO_rep2
+Diff37_D15-ctr_rep1
+Diff37_D15-KO_rep1
+Diff37_D15-ctr_rep2
+Diff37_D15-KO_rep2
+Diff37_D22-ctr_rep1
+Diff37_D22-KO_rep1
+Diff37_D22-ctr_rep2
+Diff37_D22-KO_rep2

@@ -91,11 +91,20 @@ mt_pct_max: null
 # ISL1_scRNAseq override (user-approved 2026-10-11): %MT is unimodal and low in every sample
 # (median 2.2-2.5%, p99 4.2-4.9%, no dying-cell tail), so the adaptive threshold (4.2-4.8%)
 # only trims the normal upper edge. Fixed 10% removes just the 0-3 real outliers per sample.
+# 2026-11-08: same fixed 10% for the D15/D22 samples (1.1b review: same low, unimodal %MT).
 mt_pct_strategy_by_sample:
   Diff34_D40_ctr_1: fixed
   Diff34_D40_KO_1: fixed
   Diff34_D40_ctr_2: fixed
   Diff34_D40_KO_2: fixed
+  Diff37_D15_ctr_1: fixed
+  Diff37_D15_KO_1: fixed
+  Diff37_D15_ctr_2: fixed
+  Diff37_D15_KO_2: fixed
+  Diff37_D22_ctr_1: fixed
+  Diff37_D22_KO_1: fixed
+  Diff37_D22_ctr_2: fixed
+  Diff37_D22_KO_2: fixed
 # Example:
 # mt_pct_strategy_by_sample:
 #   some_sample: fixed
@@ -104,6 +113,14 @@ mt_pct_max_by_sample:
   Diff34_D40_KO_1: 10.0
   Diff34_D40_ctr_2: 10.0
   Diff34_D40_KO_2: 10.0
+  Diff37_D15_ctr_1: 10.0
+  Diff37_D15_KO_1: 10.0
+  Diff37_D15_ctr_2: 10.0
+  Diff37_D15_KO_2: 10.0
+  Diff37_D22_ctr_1: 10.0
+  Diff37_D22_KO_1: 10.0
+  Diff37_D22_ctr_2: 10.0
+  Diff37_D22_KO_2: 10.0
 # Example:
 # mt_pct_max_by_sample:
 #   some_sample: 5.0

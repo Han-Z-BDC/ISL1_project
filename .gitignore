@@ -11,3 +11,5 @@ reports/
 
 # pipeline/logs is a symlink to scratch logs (study_config/setup_links.sh).
 /pipeline/logs
+__pycache__/
+*.pyc

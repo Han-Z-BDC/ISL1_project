@@ -13,8 +13,11 @@ mkdir -p "${LOGS}/pipeline" "${OUT_DIR}"
 ln -sfn "${LOGS}/pipeline" "$R/pipeline/logs"
 
 tail -n +2 "${SAMPLE_SHEET}" | while IFS=$'\t' read -r s _; do
-  src="${CELLRANGER_SAMPLES}/${s}/count"
-  [[ -s "${src}/sample_raw_feature_bc_matrix.h5" ]] || { echo "ERROR: ${src}/sample_raw_feature_bc_matrix.h5 missing" >&2; exit 1; }
+  src=""
+  for d in "${CELLRANGER_SAMPLE_DIRS[@]}"; do
+    [[ -s "${d}/${s}/count/sample_raw_feature_bc_matrix.h5" ]] && { src="${d}/${s}/count"; break; }
+  done
+  [[ -n "${src}" ]] || { echo "ERROR: ${s}/count/sample_raw_feature_bc_matrix.h5 not in any CELLRANGER_SAMPLE_DIRS" >&2; exit 1; }
   mkdir -p "${IN_DIR}/${s}/outs"
   ln -sfn "${src}/sample_raw_feature_bc_matrix.h5"      "${IN_DIR}/${s}/outs/raw_feature_bc_matrix.h5"
   ln -sfn "${src}/sample_filtered_feature_bc_matrix.h5" "${IN_DIR}/${s}/outs/filtered_feature_bc_matrix.h5"

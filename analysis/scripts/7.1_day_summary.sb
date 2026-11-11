@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_day_summary
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=240G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/day_summary.%j.out
+
+# Step 7.1: one day, no batch correction -- summary + genes split by genotype (see the .py docstring).
+# amem: the amem QOS enforces MinMemory=240G (the job itself needs < 40G).
+# Submit from the repo root: sbatch analysis/scripts/7.1_day_summary.sb D22   (add --cluster for the Leiden sweep)
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+export OUT_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1_day_summary.py" "$@"
