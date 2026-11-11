@@ -76,7 +76,7 @@ sort_res <- function(df) {
   df[order(is.na(df$padj), df$padj, df$pvalue, df$gene_id, method = "radix"), ]
 }
 write_tsv <- function(df, name) {
-  fwrite(df, file.path(out_dir, name), sep = "\t", na = "NA")
+  fwrite(df, file.path(out_dir, name), sep = "\t", na = "NA", quote = FALSE)
 }
 
 summary_rows <- list()
