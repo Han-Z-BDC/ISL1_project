@@ -61,7 +61,7 @@ IDR_THRESHOLD=0.05
 # ISL1 consensus peaks (scripts/06-07, nf-core/cutandrun style; agreed 2026-11-07): per-replicate
 # MACS3 (step 03) and SEACR calls, merged per group, kept if found in both replicates.
 SEACR_DIR=/projects/hzhu10@xsede.org/software/SEACR      # SEACR 1.3 (base R only)
-SEACR_R_BIN=/projects/hzhu10@xsede.org/software/anaconda/envs/cutrun_tools/bin   # Rscript, bedtools
+SEACR_R_BIN=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin   # Rscript (R 4.3.3), bedtools 2.31.1
 SEACR_NORM=norm                  # IgG scaled to target by SEACR (no spike-in here)
 SEACR_MODE=${SEACR_MODE:-stringent}   # relaxed run: sbatch --export=ALL,SEACR_MODE=relaxed
 MAX_FRAGMENT=1000                # fragments up to this length go into the SEACR bedGraphs
