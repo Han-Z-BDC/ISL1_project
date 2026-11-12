@@ -6,6 +6,7 @@
 # Every job runs on amem (12 cores, 240 GB); parameters as in the original runs:
 #   01 align, 02 IgG background (pipeline/, unchanged), 03 peaks, 04 relaxed + pseudoreps,
 #   05 reproducible sets, 13 / 14 earlier control ISL1 (D18 rep4 is a batch 3 library),
+#   07a step 07's helper files (reference.bed, genome.txt; read by 15),
 #   15 three-replicate sets (ctr_trio), 18 kept ISL1 sets, 16 / 17 / 19 / 21 histone differential
 #   (H3K27ac: full union, drop-one D18 H3CTR rep2, 500 bp windows; H3K27me3: 3 kb domains,
 #   drop-one D22 H3CTR rep2, 5 kb windows, broad DiffBind calls), 23a-c tracks, 24 comparison.
@@ -29,14 +30,16 @@ P4=$(sb --array=0-39 --time=12:00:00 $(dep "${G}") scripts/04_relaxed_pseudoreps
 P5=$(sb --array=0-19 --time=12:00:00 $(dep "${P3}" "${P4}") scripts/05_reproducible_peaks.sb)
 C13=$(sb --array=0-6 $(dep "${G}") scripts/13_ctr_matched_calls.sb)
 C14=$(sb --array=0-6 $(dep "${G}") scripts/14_ctr_relaxed.sb)
-C15=$(SUBSET="D15:1,3,4 D18:1,3,4 D22:2,4,5" OUT_NAME=ctr_trio sb --array=0-2 --export=ALL $(dep "${P3}" "${P4}" "${C13}" "${C14}") scripts/15_ctr_multirep_sets.sb)
+REF=$(sb $(dep "${A}") scripts/07a_isl1_reference_files.sb)
+C15=$(SUBSET="D15:1,3,4 D18:1,3,4 D22:2,4,5" OUT_NAME=ctr_trio sb --array=0-2 --export=ALL $(dep "${P3}" "${P4}" "${C13}" "${C14}" "${REF}") scripts/15_ctr_multirep_sets.sb)
 C18=$(sb --job-name=isl1_final --time=02:00:00 --output="${LOGS}/isl1_final.%j.out" $(dep "${C15}") --wrap "bash ${R}/scripts/18_isl1_ctr_final_peaks.sh")
 H16a=$(MARK=H3K27ac sb --export=ALL $(dep "${P5}") scripts/16_histone_diff_counts.sb)
 H16m=$(MARK=H3K27me3 MERGE_GAP=3000 sb --export=ALL $(dep "${P5}") scripts/16_histone_diff_counts.sb)
 H17a=$(MARK=H3K27ac DROP_SAMPLE=D18_H3CTR_rep2_H3K27ac sb --export=ALL $(dep "${H16a}") scripts/17_histone_deseq2.sb)
 H17m=$(MARK=H3K27me3 DROP_SAMPLE=D22_H3CTR_rep2_H3K27me3 sb --export=ALL $(dep "${H16m}") scripts/17_histone_deseq2.sb)
-H19a=$(MARK=H3K27ac WIN=500 sb --export=ALL $(dep "${H16a}") scripts/19_histone_diff_sensitive.sb)
-H19m=$(MARK=H3K27me3 WIN=5000 sb --export=ALL $(dep "${H16m}") scripts/19_histone_diff_sensitive.sb)
+# 19 reads step 17's dds_group.rds, so it waits for 17
+H19a=$(MARK=H3K27ac WIN=500 sb --export=ALL $(dep "${H17a}") scripts/19_histone_diff_sensitive.sb)
+H19m=$(MARK=H3K27me3 WIN=5000 sb --export=ALL $(dep "${H17m}") scripts/19_histone_diff_sensitive.sb)
 H21a=$(MARK=H3K27ac sb --export=ALL $(dep "${H17a}" "${H19a}") scripts/21_histone_diffbind.sb)
 H21m=$(MARK=H3K27me3 DB_PEAK_DIR=macs3_broad DB_PEAK_SUFFIX=_peaks.filtered.broadPeak DB_PEAK_FORMAT=bed DB_SUMMITS=0 \
   sb --export=ALL $(dep "${H17m}" "${H19m}") scripts/21_histone_diffbind.sb)
@@ -46,7 +49,7 @@ T3=$(sb $(dep "${T2}" "${H21a}" "${H21m}") scripts/23c_tracks_finalize.sb)
 X=$(sb $(dep "${T1}" "${H21a}" "${H21m}") scripts/24_tenx_before_after.sb)
 cat <<EOF
 01 align ${A} | 02 IgG ${G} | 03 ${P3} | 04 ${P4} | 05 ${P5}
-13 ${C13} | 14 ${C14} | 15 ${C15} | 18 ${C18}
+07a ${REF} | 13 ${C13} | 14 ${C14} | 15 ${C15} | 18 ${C18}
 16 ${H16a} ${H16m} | 17 ${H17a} ${H17m} | 19 ${H19a} ${H19m} | 21 ${H21a} ${H21m}
 23a ${T1} | 23b ${T2} | 23c ${T3} | 24 ${X}
 EOF

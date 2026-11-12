@@ -101,7 +101,7 @@ group IgG), 20, 22 and `ctr_multi`.
 | 03 peaks, 04 relaxed + pseudoreps | 35568630, 35568631 | |
 | 05 reproducible sets | 35568632 | 11 of 20 tasks finished while Slurm was down (2026-11-11 ~13:10-14:30) and were recorded as TIMEOUT; their outputs are complete |
 | 13, 14 earlier control ISL1 | 35568633, 35568634 | |
-| 15 `ctr_trio` | 35586302 | after 35586301, which rebuilt `isl1_consensus/{reference.bed,genome.txt}` (step 07's helper files) |
+| 15 `ctr_trio` | 35586302 | after 35586301, which rebuilt `isl1_consensus/{reference.bed,genome.txt}` (step 07's helper files; now `scripts/07a_isl1_reference_files.sb` in the re-run script) |
 | 18 kept ISL1 sets | 35609970 | |
 | 16, 17, 19, 21 histone | 35609971-74, 35610439-42 | 19 must wait for 17 |
 | 23a-c tracks | 35609979, 35609980, 35610443 | |
