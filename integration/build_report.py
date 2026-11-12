@@ -320,6 +320,43 @@ n_beta2 = int(((mk.cell_type == "beta") & (mk.cluster == "cluster2")).sum())
 mk_show = mk.drop(columns="cluster")
 mk_show["candidate"] = mk_show.candidate.map({True: "yes", False: ""})
 
+# ---- section 07: target genes of the differentially bound sites and their KO effect
+s07 = rd(os.path.join(RES, "07_diff_site_targets", "summary.tsv")).set_index("binding")
+t07 = rd(os.path.join(RES, "07_diff_site_targets", "tests.tsv"))
+d07 = rd(os.path.join(RES, "07_diff_site_targets", "diff_site_genes.tsv"))
+CLS = {"gained": ("Gained site", "#2a78d6"), "stable": ("Only stable sites", "#eb6834"),
+       "no site": ("No site", "#1baf7a")}   # categorical slots 1-3
+fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.06,
+                    subplot_titles=["Lower in the KO (ISL1 activates)", "Higher in the KO (ISL1 represses)"])
+for j, direction in enumerate(["down", "up"], start=1):
+    for cls, (name, col) in CLS.items():
+        y = [s07.loc[cls, f"pct_{direction}_{d}"] for d in DAYS]
+        fig.add_trace(go.Bar(x=DAYS, y=y, name=f"{name} ({int(s07.loc[cls, 'n_genes']):,} genes)", marker_color=col,
+                             marker_line_width=0, legendgroup=cls, showlegend=(j == 1), offsetgroup=cls,
+                             hovertemplate=f"{name}<br>%{{x}}: %{{y:.1f}}% of genes<extra></extra>"), row=1, col=j)
+fig.update_yaxes(title_text="% of genes with a KO effect that day (padj < 0.05)", col=1)
+fig.update_layout(barmode="group", bargap=0.3, bargroupgap=0.08,
+                  title="KO effect per day of the genes near sites that gain ISL1 binding",
+                  legend=dict(orientation="h", y=1.0, x=1, xanchor="right", yanchor="bottom"))
+fig = style(fig, 460)
+fig.update_layout(margin=dict(t=120), title=dict(y=0.97, yanchor="top"), legend=dict(y=1.16))
+parts.append(("07", fig_html(fig, False)))
+s07_show = s07.reset_index()
+# gained-site genes with a KO effect, one row per gene (most significant gained site)
+gg = d07[d07.change.str.startswith("gained") & (d07.padj_genotype < 0.05)].copy()
+gg["best_fdr"] = gg[["db_FDR_D18_vs_D15", "db_FDR_D22_vs_D15"]].min(axis=1)
+gg = gg.sort_values(["gene_id", "best_fdr"], kind="stable").groupby("gene_id", sort=False).first().reset_index()
+gg["n_gained_sites"] = gg.gene_id.map(d07[d07.change.str.startswith("gained")].groupby("gene_id").site.nunique())
+gg["group"] = gg.group.map(LABEL)
+gg = gg.sort_values(["ko_padj_D22", "gene_name"], kind="stable")
+g07 = gg[["gene_name", "group", "n_gained_sites", "site", "change", "distance_to_tss", "db_log2FC_D18_vs_D15",
+          "db_log2FC_D22_vs_D15", "ko_lfc_D15", "ko_lfc_D18", "ko_lfc_D22", "ko_padj_D22"]].copy()
+for c in ["db_log2FC_D18_vs_D15", "db_log2FC_D22_vs_D15", "ko_lfc_D15", "ko_lfc_D18", "ko_lfc_D22"]:
+    g07[c] = g07[c].round(2)
+g07.columns = ["gene", "KO-effect group", "gained sites", "best site", "change", "distance to TSS",
+               "site log2FC D18/D15", "site log2FC D22/D15", "KO log2FC D15", "KO log2FC D18", "KO log2FC D22",
+               "KO padj D22"]
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -402,6 +439,22 @@ and mean normalized expression in control islets (Ctr-H3), both as log2 change f
 <p class="note">All marker genes: KO-effect group, linked sites, ISL1 binding (sum over sites), control expression
 (mean normalized counts) and the KO effect (shrunk log2FC KO vs Ctr) per day; candidate = in the section 04 list.</p>
 {table_html(mk_show)}
+
+<h2>07 Target genes of the differentially bound sites and their KO effect</h2>
+<p class="note">Differentially bound sites: step 27 DiffBind, background normalization, FDR &lt; 0.05 (gained: up in D18 vs
+D15 or D22 vs D15; lost: down; no site changes between D18 and D22). Target genes: GREAT, bulk-tested genes only.
+Gene classes: gained site, lost site (no gained site), only stable sites, no site. KO effect per day: KO vs Ctr padj
+&lt; 0.05, lower in the KO (ISL1 activates) or higher (ISL1 represses). Tests compare genes with a gained site to
+genes with only stable sites: Fisher's exact test, and logistic regression with domain length and number of sites
+(adjusted OR, BH over the tests), since larger domains with more sites are more likely both to hold a gained site
+and to have a KO effect.</p>
+{parts[6][1]}
+{table_html(s07_show)}
+{table_html(t07)}
+<p class="note">Genes with a gained site and a KO effect on any day (LRT_genotype padj &lt; 0.05), one row per gene with
+its most significant gained site, ordered by the D22 KO padj. Every differential site and target gene:
+results/07_diff_site_targets/diff_site_genes.tsv.</p>
+{table_html(g07)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)
