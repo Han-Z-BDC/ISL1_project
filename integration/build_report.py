@@ -152,6 +152,49 @@ c_gen["group"] = c_gen.group.map(LABEL)
 for c in ["ko_lfc_D15", "ko_lfc_D18", "ko_lfc_D22"]:
     c_gen[c] = c_gen[c].round(2)
 
+# ---- step 05: binding signal per day at each cluster's sites (boxplots)
+SIG_GROUPS = ["no_KO_effect", "cluster1", "cluster2", "cluster3", "cluster4", "cluster5", "cluster6"]
+DAY_COL = {"D15": "#86b6ef", "D18": "#2a78d6", "D22": "#184f95"}   # one-hue sequential ramp, light -> dark
+gsig = rd(os.path.join(RES, "05_binding_signal", "group_signal.tsv"))
+wt = rd(os.path.join(RES, "05_binding_signal", "wilcoxon.tsv"))
+xlab = {g: LABEL[g].replace(": ", "<br>") for g in SIG_GROUPS}
+
+
+def stars(q):
+    return "***" if q < 0.001 else "**" if q < 0.01 else "*" if q < 0.05 else "ns"
+
+
+def box_stats(v):
+    v = np.asarray(v)
+    q1, med, q3 = np.percentile(v, [25, 50, 75])
+    lo, hi = q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)
+    return q1, med, q3, v[v >= lo].min(), v[v <= hi].max()   # whiskers: furthest site within 1.5 x IQR
+
+
+fig = go.Figure()
+ymax = 0
+for d, col in DAY_COL.items():
+    bs = [box_stats(gsig.loc[gsig.group == g, f"signal_{d}"]) for g in SIG_GROUPS]
+    q1, med, q3, lf, uf = (list(t) for t in zip(*bs))
+    ymax = max(ymax, max(uf))
+    fig.add_trace(go.Box(x=[xlab[g] for g in SIG_GROUPS], q1=q1, median=med, q3=q3, lowerfence=lf, upperfence=uf,
+                         name=d, marker_color=col, line=dict(width=1.5), offsetgroup=d,
+                         fillcolor="rgba({},{},{},0.45)".format(*(int(col[i:i + 2], 16) for i in (1, 3, 5))),
+                         whiskerwidth=0.4, hoverinfo="y+name"))
+for g in SIG_GROUPS:
+    w = wt[wt.group == g].set_index("comparison")
+    n = int(w.n_sites.iloc[0])
+    txt = (f"D18/D15 {stars(w.loc['D18 vs D15', 'fdr'])}<br>D22/D18 {stars(w.loc['D22 vs D18', 'fdr'])}"
+           f"<br><span style='color:#898781'>n = {n:,}</span>")
+    fig.add_annotation(x=xlab[g], y=ymax * 1.02, text=txt, showarrow=False, yanchor="bottom", font=dict(size=11))
+fig.update_layout(boxmode="group", boxgap=0.25, boxgroupgap=0.08,
+                  title="ISL1 binding signal at the sites linked to each cluster's genes",
+                  legend=dict(title="Day", orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
+fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.18])
+parts.append(("05", fig_html(style(fig, 560), False)))
+t05 = wt.copy()
+t05["group"] = t05.group.map(LABEL)
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -198,6 +241,16 @@ domain length and number of sites in the domain).</p>
 {table_html(c_enr)}
 <p class="note">Candidate genes, one row each (best matching site; full list of sites in results/04_candidates/candidates.tsv).</p>
 {table_html(c_gen)}
+
+<h2>05 ISL1 binding signal per day at each cluster's sites</h2>
+<p class="note">Sites linked (GREAT) to the genes of each cluster, and to genes without a KO effect as the reference.
+Signal: reads per site divided by the step 27 background size factors, mean of the 3 libraries per day; boxes show
+the median and quartiles, whiskers 1.5 x IQR, outliers not drawn. Stars: paired Wilcoxon signed-rank test between days
+within the group (BH; *** FDR &lt; 0.001, ** &lt; 0.01, * &lt; 0.05). Binding rises after D15 at most sites, so these
+tests show that binding changes at a group's sites, not that it changes more than at other sites; that comparison is
+the camera test in section 03 (no cluster differs, FDR &gt;= 0.23).</p>
+{parts[2][1]}
+{table_html(t05)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)

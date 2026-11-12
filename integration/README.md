@@ -55,13 +55,14 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 
 | 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
 | 04 Candidate time-dependent direct targets | `scripts/04_candidates.sb` (acpu, 2 CPUs, 7 GB) | `results/04_candidates/`: `candidate_genes.tsv`, `candidates.tsv` (every matching site), `summary.tsv`, `gained_enrichment.tsv` |
+| 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
 
 Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anaconda3/bin/python3 build_report.py`
--> `results/report_integration.html` (steps 01-03: tables, bound share per group, cumulative distributions of the
-site log2FC per group).
+-> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
+site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster).
 
 ## Results
 
@@ -148,3 +149,26 @@ and from DiffBind agree (Pearson r 0.97 in both contrasts). A site counts for ev
   near them is almost never lost (1 candidate), so the fading KO effect is not matched by lost binding.
 - Islet-related genes among the candidates include the transcription factors HHEX, MEIS2, TCF7L2 and REST
   (cluster 1), NKX6-1 (cluster 3) and ETV1 (cluster 4), and the endocrine genes PCP4 and SYT4 (cluster 4).
+
+### 05 Binding signal per day at each cluster's sites
+
+Signal: reads per site / step 27 background size factor, mean of the 3 libraries per day. Paired Wilcoxon between
+days within each group (BH).
+
+| Group | Sites | Median signal D15 / D18 / D22 | Sites up D18 vs D15 | Sites up D22 vs D18 | Median log2 ratio D22 vs D18 (FDR) |
+|---|---|---|---|---|---|
+| No KO effect | 7,631 | 24.0 / 32.3 / 32.5 | 84.7% | 50.4% | 0.00 (3.3e-6) |
+| Cluster 1 | 850 | 23.4 / 31.3 / 29.2 | 82.8% | 39.9% | -0.15 (9.0e-15) |
+| Cluster 2 | 629 | 22.3 / 31.4 / 28.7 | 84.4% | 36.1% | -0.21 (7.0e-19) |
+| Cluster 3 | 390 | 22.9 / 30.7 / 29.8 | 84.9% | 43.3% | -0.10 (1.3e-4) |
+| **Cluster 4** | 613 | 22.9 / **33.7** / 27.4 | 86.6% | **27.9%** | **-0.31** (7.2e-38) |
+| Cluster 5 | 219 | 23.4 / 31.9 / 30.9 | 85.4% | 44.3% | -0.06 (0.010) |
+| Cluster 6 | 218 | 23.0 / 31.2 / 28.3 | 86.7% | 37.2% | -0.17 (5.5e-8) |
+
+- Binding rises from D15 to D18 at 83-87% of the sites of every group (all FDR < 1e-12), the overall ISL1 increase.
+- **From D18 to D22 the sites near the KO-effect clusters lose signal while the reference stays flat** (50.4% of
+  sites up, median ratio 0.00). Cluster 4 shows both the largest rise to D18 (median 22.9 -> 33.7) and the largest
+  fall to D22 (72% of its sites down). Per site, none of these D22 vs D18 changes reaches significance in step 27.
+- The paired tests use sites as units; with hundreds of sites per group even small shifts give tiny p values
+  (the reference's D22 vs D18 FDR of 3.3e-6 comes with a median change of 0). They describe each group; whether a
+  group differs from the others is the camera test of step 03.
