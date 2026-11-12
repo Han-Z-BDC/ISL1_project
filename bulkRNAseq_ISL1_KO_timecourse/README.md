@@ -58,16 +58,6 @@ GTF) and runs `pipeline/06_deseq2_timecourse.R` in `r_env` (DESeq2 1.46, apeglm 
 - Also: `summary.tsv` (genes at padj < 0.05 per test), `normalized_counts.tsv`, `vst.tsv`, `pca_top500.tsv`,
   `pca_variance.tsv`, `sample_correlation_vst.tsv`, `size_factors.tsv`, `sessionInfo.txt`.
 
-## Cross-check: limma-voom and method comparison
-
-- `pipeline/07_limma_voom_timecourse.sb` runs `pipeline/07_limma_voom_timecourse.R` (limma, edgeR TMM, voom) on the
-  same counts, gene filter and 6-group model, with the same tests and file names, into `results/DE_limma/`. Pairwise
-  tests are moderated t-tests; `LRT_interaction` and `LRT_genotype` are their F-test counterparts (the KO effect at D18
-  and D22 differs from D15; the KO effect is zero at all three days).
-- `pipeline/08_compare_DE_methods.sb` runs `pipeline/08_compare_DE_methods.R`, which matches the two methods gene by gene
-  for each test into `results/DE_comparison/`: `summary.tsv` (significant genes per method and in both, Jaccard,
-  share confirmed by the other method, fold-change correlation, direction agreement) and `compare_<test>.tsv`.
-
 ## Report (built on the Mac)
 
 `build_report.py` (run with `~/anaconda3/bin/python3`, plotly) reads `results/DE_DESeq2/` and the MultiQC tables in
