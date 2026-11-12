@@ -16,7 +16,8 @@
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
-# Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
+# Copied from the C7S59W bulk run (bulkRNAseq/scripts, ISL1_project commit 290c3e1); comments about earlier
+# results refer to that run.
 
 TRIM_DIR="${OUT_DIR}/results/trimmed"
 mkdir -p "${TRIM_DIR}" "${OUT_DIR}/qc/fastp" "${LOGS}"

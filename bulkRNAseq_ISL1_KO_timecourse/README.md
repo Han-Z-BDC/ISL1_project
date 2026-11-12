@@ -20,8 +20,9 @@ Bulk RNA-seq of stem-cell islet differentiation, control (Ctr-H3) vs ISL1 KO, at
 
 ## Pipeline
 
-`pipeline/` started as a copy of the processing scripts in `../bulkRNAseq/scripts/` (ISL1_project commit `290c3e1`)
-and keeps their references (GRCh38 2020-A, `STARindex_2.7.5c`, `genes.gtf`) and conda env (`bulkRNAseq`, now with
+`pipeline/` started as a copy of the processing scripts of the earlier C7S59W bulk run (`bulkRNAseq/scripts/` at
+ISL1_project commit `290c3e1`) and keeps their references (GRCh38 2020-A, `STARindex_2.7.5c`, `genes.gtf`; index
+choice in `docs/star_index_notes.md`) and conda env (`bulkRNAseq`, now with
 `umi_tools`). Quantification differs, because these are 3'-end UMI libraries: STAR BAMs are UMI-deduplicated and
 genes are counted with featureCounts (one count per molecule, no length correction) instead of RSEM.
 All steps run with `sbatch` on acpu, in this order:

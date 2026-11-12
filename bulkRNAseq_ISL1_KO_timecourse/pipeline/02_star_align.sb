@@ -16,13 +16,14 @@
 # on-disk footprint is ~26G, genome load needs comfortably more than that but
 # well under the 45G ceiling; sized this way (not smaller cpus w/ same mem) so
 # it still schedules quickly per the acpu memory-scaling gotcha.
-# ENCODE-standard STAR options (see ../bulkRNAseq/docs/star_index_notes.md), plus
+# ENCODE-standard STAR options (see docs/star_index_notes.md), plus
 # GeneCounts as a free STAR-native cross-check. The read name (with its UMI
 # suffix) is kept in the BAM for 03_umi_dedup.sb.
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse/config.sh
-# Copied from bulkRNAseq/scripts (C7S59W run); comments about earlier results refer to that run.
+# Copied from the C7S59W bulk run (bulkRNAseq/scripts, ISL1_project commit 290c3e1); comments about earlier
+# results refer to that run.
 
 s="${SAMPLES[${SLURM_ARRAY_TASK_ID}]}"
 TRIM_DIR="${OUT_DIR}/results/trimmed"

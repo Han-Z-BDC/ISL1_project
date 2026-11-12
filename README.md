@@ -6,8 +6,7 @@ Data and large outputs stay on Alpine storage (scratch / `/projects`); this repo
 
 | Folder | Assay | Built on | Came from |
 |---|---|---|---|
-| `bulkRNAseq/` | ISL1 rescue bulk RNA-seq (Ctr-GFP vs ISL1-KO-GFP vs ISL1-KO-rescue, D12 / D15) | (bulk-rnaseq-pipeline, to be built) | `ISL1_bulkRNAseq` |
-| `bulkRNAseq_ISL1_KO_timecourse/` | ISL1 KO time-course bulk RNA-seq, run YJZ5LS (Ctr vs ISL1 KO, D15 / D18 / D22; D9 not used) | pipeline copied from `bulkRNAseq/` | new |
+| `bulkRNAseq_ISL1_KO_timecourse/` | ISL1 KO time-course bulk RNA-seq, run YJZ5LS (Ctr vs ISL1 KO, D15 / D18 / D22; D9 not used) | own `pipeline/` (bulk-rnaseq-pipeline to be built) | new |
 | `cutnrun_ISL1_KO_histone/` | CUT&RUN for ISL1, Flag, H3K27ac, H3K27me3 (+ IgG), D9-D22, H3 control vs ISL1 KO | `cutnrun-pipeline` | `ISL1_KO_histone_cutNrun` |
 | `cutnrun_ISL1_batch1-2/` | ISL1 CUT&RUN (+ IgG), D12 / D15 / D22, control vs ISL1 KO (earlier batches) | `cutnrun-pipeline` | `ISL1_cutNrun` |
 | `scRNAseq/` | scRNA-seq, 10x GEM-X On-Chip Multiplexing | `single-cell-pipeline` | `ISL1_scRNAseq` |
@@ -22,5 +21,5 @@ Scripts are edited in the Alpine copy (`/pl/active/ZhuLab_BDC/GitHub/ISL1_projec
 
 Until the switch-over, the assay jobs still run from the original repos under `/pl/active/ZhuLab_BDC/GitHub/`; their
 configs point at those paths. New commits made there are brought in with
-`git fetch <name> main && git merge -X subtree=<folder>/ <name>/main` (remote names: `ISL1_bulkRNAseq`,
+`git fetch <name> main && git merge -X subtree=<folder>/ <name>/main` (remote names:
 `ISL1_KO_histone_cutNrun`, `ISL1_cutNrun`, `ISL1_scRNAseq`).
