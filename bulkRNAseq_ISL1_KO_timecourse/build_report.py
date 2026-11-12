@@ -4,6 +4,7 @@
 Run on the Mac after fetching from Alpine:
   results/DE_DESeq2/*            (pipeline/06_deseq2_timecourse.R)
   results/qc/multiqc_*.txt, results/qc/multiqc_full_report.html   (pipeline/04b_multiqc_full.sb)
+  results/DE_comparison/*        (pipeline/08_compare_DE_methods.R; limma-voom cross-check)
 
 Usage:  ~/anaconda3/bin/python3 build_report.py
 Output: results/report_DESeq2_timecourse.html
@@ -408,6 +409,80 @@ for d in DAYS:
                           "padj": t["padj"].map(lambda x: f"{x:.1e}"), "mean count": t["baseMean"].map(lambda x: f"{x:,.0f}")})
         top_blocks.append(f'<div class="half"><h4>{d}: {title}</h4>{table_html(t, cls="tbl small")}</div>')
 
+# ---------------------------------------------------------------- DESeq2 vs limma-voom
+CMP = os.path.join(RES, "DE_comparison")
+CALL_C = {"both": "#6250d6", "DESeq2_only": "#1baf7a", "limma_only": "#eda100", "neither": C["ns"]}
+CALL_L = {"both": "Significant in both", "DESeq2_only": "DESeq2 only", "limma_only": "limma only",
+          "neither": "Neither"}
+cs = read("summary.tsv", CMP)
+c_tbl = pd.DataFrame({
+    "Test": cs["test"].map(lab), "Genes tested": cs["n_both_tested"].map(intfmt),
+    "DESeq2": cs["n_sig_DESeq2"].map(intfmt), "limma": cs["n_sig_limma"].map(intfmt),
+    "Both": cs["n_sig_both"].map(intfmt),
+    "DESeq2 hits in limma %": cs["pct_DESeq2_confirmed"].map(lambda v: f"{v:.1f}"),
+    "limma hits in DESeq2 %": cs["pct_limma_confirmed"].map(lambda v: f"{v:.1f}"),
+    "Jaccard": cs["jaccard"].map(lambda v: f"{v:.2f}"),
+    "log2FC r": cs["pearson_log2FC"].map(lambda v: "" if pd.isna(v) else f"{v:.3f}"),
+    "p-value rank r": cs["spearman_log10p"].map(lambda v: "" if pd.isna(v) else f"{v:.3f}"),
+})
+cmp_tbl = table_html(c_tbl)
+
+cmp = {d: read(f"compare_KO_vs_Ctr_{d}.tsv", CMP) for d in DAYS}
+fig = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.03,
+                    subplot_titles=[f"KO vs Ctr, {d}" for d in DAYS])
+lim = float(min(np.ceil(max(np.nanmax(np.abs(cmp[d][["log2FoldChange_DESeq2", "log2FoldChange_limma"]]
+                                                 .to_numpy(dtype=float))) for d in DAYS)), 14))
+for j, d in enumerate(DAYS, start=1):
+    df = cmp[d]
+    for key in ["neither", "limma_only", "DESeq2_only", "both"]:
+        sub = df[df["call"] == key]
+        fig.add_trace(go.Scattergl(
+            x=sub["log2FoldChange_DESeq2"].clip(-lim, lim), y=sub["log2FoldChange_limma"].clip(-lim, lim),
+            mode="markers", name=f"{CALL_L[key]}", legendgroup=key, showlegend=(j == 1),
+            marker=dict(color=CALL_C[key], size=5 if key == "neither" else 6,
+                        opacity=0.5 if key == "neither" else 0.8),
+            customdata=np.stack([sub["gene_name"], sub["padj_DESeq2"], sub["padj_limma"], sub["baseMean_DESeq2"]], axis=1),
+            hovertemplate="<b>%{customdata[0]}</b><br>log2FC DESeq2 %{x:.2f}, limma %{y:.2f}"
+                          "<br>padj DESeq2 %{customdata[1]:.2e}, limma %{customdata[2]:.2e}"
+                          "<br>mean count %{customdata[3]:.0f}<extra></extra>"), row=1, col=j)
+    fig.add_trace(go.Scatter(x=[-lim, lim], y=[-lim, lim], mode="lines", showlegend=False, hoverinfo="skip",
+                             line=dict(color=C["text2"], width=1, dash="dot")), row=1, col=j)
+    fig.update_xaxes(title="log2 fold change, DESeq2", range=[-lim - 0.5, lim + 0.5], row=1, col=j)
+fig.update_yaxes(title="log2 fold change, limma-voom", range=[-lim - 0.5, lim + 0.5], row=1, col=1)
+for a in fig.layout.annotations[:3]:
+    a.font = dict(size=13, color=C["text"])
+cmp_html = fig_html(layout(fig, 480, legend=dict(orientation="h", y=-0.2)))
+
+# What distinguishes the genes only one method calls: expression level and effect size.
+prof = []
+for d in DAYS:
+    df = cmp[d]
+    for key in ["both", "DESeq2_only", "limma_only"]:
+        sub = df[df["call"] == key]
+        prof.append({"Test": f"KO vs Ctr, {d}", "Call": CALL_L[key], "Genes": f"{len(sub):,}",
+                     "Median mean count": f"{sub['baseMean_DESeq2'].median():,.0f}" if len(sub) else "",
+                     "Median |log2FC| (DESeq2)": f"{sub['log2FoldChange_DESeq2'].abs().median():.2f}" if len(sub) else ""})
+    untested = int(df["padj_DESeq2"].isna().sum())
+    prof.append({"Test": f"KO vs Ctr, {d}", "Call": "Not tested by DESeq2 (independent filtering)",
+                 "Genes": f"{untested:,}", "Median mean count": "", "Median |log2FC| (DESeq2)": ""})
+prof_tbl = table_html(pd.DataFrame(prof), cls="tbl small")
+
+mk_cmp = []
+for gene in mk:
+    rr = {"Gene": gene}
+    for d in DAYS:
+        hit = cmp[d][cmp[d]["gene_name"] == gene]
+        if len(hit):
+            h = hit.iloc[0]
+            rr[f"{d} DESeq2"] = f"{h['log2FoldChange_DESeq2']:.2f}"
+            rr[f"{d} limma"] = f"{h['log2FoldChange_limma']:.2f}"
+            rr[f"{d} call"] = CALL_L[h["call"]]
+    mk_cmp.append(rr)
+mk_cmp_tbl = table_html(pd.DataFrame(mk_cmp), cls="tbl small")
+
+conf_min, conf_max = cs["pct_DESeq2_confirmed"].min(), cs["pct_DESeq2_confirmed"].max()
+r_min, r_max = cs["pearson_log2FC"].min(), cs["pearson_log2FC"].max()
+
 # ---------------------------------------------------------------- page
 n_int = int((lrt_int["padj"] < ALPHA).sum())
 n_geno = int((lrt_geno["padj"] < ALPHA).sum())
@@ -501,6 +576,25 @@ Labeled on the right: selected islet and marker genes.</p>
 not absent; the 3'-end library cannot show where the gene was edited. * adjusted p &lt; {ALPHA}.</p>
 {mark_html}
 {marker_tbl}
+
+<h2>Cross-check with limma-voom</h2>
+<p>The same counts, gene filter, 6-group model and contrasts were tested with limma-voom (TMM normalization, moderated
+t-tests; F-tests in place of the two likelihood-ratio tests). Across the 11 tests, {conf_min:.1f}-{conf_max:.1f}% of the
+DESeq2 genes are also significant in limma, and fold changes agree closely (Pearson r {r_min:.3f}-{r_max:.3f} over all
+tested genes; every gene significant in both methods changes in the same direction). limma calls more genes. Tables:
+<code>results/DE_limma/</code>, gene-by-gene comparison in <code>results/DE_comparison/</code>.</p>
+{cmp_tbl}
+<h4>Fold changes, KO vs Ctr</h4>
+<p>Each point is a gene, colored by which method calls it significant. Dotted line: equal fold change. Fold changes beyond
+&plusmn;{lim:g} are drawn at the edge.</p>
+{cmp_html}
+<h4>Genes called by one method only</h4>
+<p>Genes significant only in limma have lower counts and smaller fold changes than genes called by both. At D15, DESeq2's
+independent filtering also left low-count genes untested, which limma tests.</p>
+{prof_tbl}
+<h4>Marker genes in both methods</h4>
+<p>log2 fold change KO / Ctr.</p>
+{mk_cmp_tbl}
 </main></body></html>
 """
 with open(OUT, "w") as fh:
