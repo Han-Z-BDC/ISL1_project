@@ -252,3 +252,7 @@ Gained against only-stable genes, logistic regression with domain length and num
   38, other KO 24, cluster 3 19, clusters 5 and 6 6 each. Strongest at D22: ERO1B, PCP4, LMO2, TMOD1, EDARADD, ETV1,
   TMCC3, CLU, GLS, CHRNA3, DPP4, LOXL4 (all lower in the KO).
 - Lost sites are too few (14 genes; e.g. GATA3, NR2E3, TGFBR3) to test.
+- Binding at the 313 gained sites of the 343 genes (report boxplot): median 16.8 / 45.3 / 35.3 at D15 / D18 / D22,
+  lower at D22 than at D18 for 87% of the sites (all sites: 57%), for genes lower (202 sites) and higher in the KO
+  (118 sites) alike. The rise from D15 is how the sites were selected; part of the fall to D22 is regression to the
+  mean of sites picked for a high D18 reading.
