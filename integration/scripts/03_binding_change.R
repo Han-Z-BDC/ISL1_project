@@ -6,7 +6,7 @@
 #              scaling from step 27's background size factors (DESeq2 on 15 kb bins), times the geometric mean of
 #              the reads in sites so voom sees counts on their real scale.
 #   Model      limma voom, ~ batch + day (batch = batch 3 vs earlier libraries; day D15 / D18 / D22);
-#              contrasts D18 vs D15 and D22 vs D15.
+#              contrasts D18 vs D15, D22 vs D15 and D22 vs D18.
 #   Test       camera per group, competitive: the group's sites against all other sites. Main: limma's default
 #              inter-site correlation (0.01); check: correlation estimated from the data (inter.gene.cor = NA).
 #   Descriptive per group: median step 27 DiffBind (background) log2FC, share of gained sites (FDR < 0.05 up in
@@ -21,7 +21,6 @@ stopifnot(length(args) == 3)
 cnr <- args[1]; res <- args[2]; od <- args[3]
 dir.create(od, showWarnings = FALSE, recursive = TRUE)
 TH <- 0.05
-contrasts <- c(D18_vs_D15 = "dayD18", D22_vs_D15 = "dayD22")
 
 # ---- counts, libraries, scaling
 cs <- fread(file.path(cnr, "counts_sites.tsv"))
@@ -35,13 +34,17 @@ lib <- sf * exp(mean(log(colSums(m))))
 day <- factor(smp$day, levels = c("D15", "D18", "D22"))
 batch <- factor(smp$batch, levels = c("earlier", "batch3"))
 design <- model.matrix(~ batch + day)
+cm <- makeContrasts(D18_vs_D15 = dayD18, D22_vs_D15 = dayD22, D22_vs_D18 = dayD22 - dayD18,
+                    levels = make.names(colnames(design)))
+rownames(cm) <- colnames(design)
+contrasts <- setNames(lapply(colnames(cm), function(ct) cm[, ct]), colnames(cm))
 v <- voom(m, design, lib.size = lib)
-fit <- eBayes(lmFit(v, design))
+fit <- eBayes(contrasts.fit(lmFit(v, design), cm))
 
 # ---- per-site statistics
 st <- data.table(site = rownames(m))
 for (ct in names(contrasts)) {
-  tt <- topTable(fit, coef = contrasts[[ct]], number = Inf, sort.by = "none")
+  tt <- topTable(fit, coef = ct, number = Inf, sort.by = "none")
   st[, (paste0("voom_log2FC_", ct)) := tt$logFC]
   db <- fread(file.path(cnr, "tables", sprintf("diffbind_background_%s.tsv", ct)))
   st[db, (paste0("db_log2FC_", ct)) := i.log2FC, on = c(site = "name")]

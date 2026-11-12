@@ -31,8 +31,8 @@ LABEL = {
     "stays": "Stays: one sign at all days",
     "other_KO": "Other KO effect",
 }
-CONTRASTS = ["D18_vs_D15", "D22_vs_D15"]
-CT_LABEL = {"D18_vs_D15": "D18 vs D15", "D22_vs_D15": "D22 vs D15"}
+CONTRASTS = ["D18_vs_D15", "D22_vs_D18", "D22_vs_D15"]
+CT_LABEL = {"D18_vs_D15": "D18 vs D15", "D22_vs_D18": "D22 vs D18", "D22_vs_D15": "D22 vs D15"}
 C_GROUP = "#2a78d6"   # series slot 1
 C_OTHER = "#898781"   # muted
 GRID = "#e1e0d9"
@@ -76,6 +76,10 @@ def style(fig, height):
     return fig
 
 
+def axref(a, k):
+    return f"{a} domain" if k == 1 else f"{a}{k} domain"
+
+
 def ecdf(x, n=200):
     x = np.sort(np.asarray(x))
     # thin to <= n points for the line, keeping the ends
@@ -111,7 +115,7 @@ t02 = enr.copy()
 t02["group"] = t02.group.map(LABEL)
 
 # ---- step 03: CDF small multiples (one row per group, one column per contrast)
-fig = make_subplots(rows=len(GROUPS), cols=2, shared_xaxes=True, vertical_spacing=0.025, horizontal_spacing=0.06,
+fig = make_subplots(rows=len(GROUPS), cols=len(CONTRASTS), shared_xaxes=True, vertical_spacing=0.025, horizontal_spacing=0.05,
                     column_titles=[CT_LABEL[c] for c in CONTRASTS])
 for i, g in enumerate(GROUPS, start=1):
     inset = st.index.isin(members[g])
@@ -126,11 +130,10 @@ for i, g in enumerate(GROUPS, start=1):
                                      hovertemplate=f"{name}<br>log2FC %{{x:.2f}}<br>cumulative share %{{y:.2f}}<extra></extra>"),
                           row=i, col=j)
         fig.add_annotation(text=f"{row.camera_direction}, FDR {row.camera_fdr:.2g} (n={row.n_sites})",
-                           xref=f"x{(i - 1) * 2 + j} domain".replace("x1 domain", "x domain"),
-                           yref=f"y{(i - 1) * 2 + j} domain".replace("y1 domain", "y domain"),
+                           xref=axref("x", (i - 1) * len(CONTRASTS) + j), yref=axref("y", (i - 1) * len(CONTRASTS) + j),
                            x=0.02, y=0.95, showarrow=False, xanchor="left", font=dict(size=11, color="#555"))
     fig.update_yaxes(title_text=LABEL[g].split(":")[0], row=i, col=1, title_font=dict(size=11))
-for j in (1, 2):
+for j in range(1, len(CONTRASTS) + 1):
     fig.update_xaxes(title_text="ISL1 binding log2FC (DiffBind, background)", range=[-2, 2.5], row=len(GROUPS), col=j)
 fig.update_layout(title="Binding change at sites near each group's genes vs all other sites (cumulative distribution)",
                   legend=dict(orientation="h", y=1.03, x=0, yanchor="bottom"))
@@ -248,7 +251,8 @@ Signal: reads per site divided by the step 27 background size factors, mean of t
 the median and quartiles, whiskers 1.5 x IQR, outliers not drawn. Stars: paired Wilcoxon signed-rank test between days
 within the group (BH; *** FDR &lt; 0.001, ** &lt; 0.01, * &lt; 0.05). Binding rises after D15 at most sites, so these
 tests show that binding changes at a group's sites, not that it changes more than at other sites; that comparison is
-the camera test in section 03 (no cluster differs, FDR &gt;= 0.23).</p>
+the camera test in section 03 (cluster 4: up D18 vs D15, FDR 0.23; down D22 vs D18, FDR 0.023; both not
+significant with the estimated inter-site correlation).</p>
 {parts[2][1]}
 {table_html(t05)}
 </body></html>"""
