@@ -1,0 +1,3 @@
+# Outputs stay on Alpine storage, not in git.
+results/
+logs/

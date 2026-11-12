@@ -10,7 +10,7 @@ Data and large outputs stay on Alpine storage (scratch / `/projects`); this repo
 | `cutnrun_ISL1_KO_histone/` | CUT&RUN for ISL1, Flag, H3K27ac, H3K27me3 (+ IgG), D9-D22, H3 control vs ISL1 KO | `cutnrun-pipeline` | `ISL1_KO_histone_cutNrun` |
 | `cutnrun_ISL1_batch1-2/` | ISL1 CUT&RUN (+ IgG), D12 / D15 / D22, control vs ISL1 KO (earlier batches) | `cutnrun-pipeline` | `ISL1_cutNrun` |
 | `scRNAseq/` | scRNA-seq, 10x GEM-X On-Chip Multiplexing | `single-cell-pipeline` | `ISL1_scRNAseq` |
-| `integration/` | cross-assay analyses (to be added) | | |
+| `integration/` | ISL1 CUT&RUN x bulk RNA-seq: direct ISL1 targets and their time-dependent KO effect | | new |
 
 Each assay folder has its own README with its design, steps and outputs.
 

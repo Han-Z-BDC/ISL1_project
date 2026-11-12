@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=int01_great
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/logs/%x.%j.out
+# Step 01: GREAT domains and ISL1 site -> gene links. Submit from integration/:
+#   sbatch scripts/01_great_site_to_gene.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/config.sh
+OUT=${RESULTS}/01_great
+"${PY}" "${INT_DIR}/scripts/01_great_site_to_gene.py" "${GTF}" "${CHROM_SIZES}" "${CNR_SITES}" \
+  "${BULK_DE}/LRT_genotype.tsv" "${OUT}"
