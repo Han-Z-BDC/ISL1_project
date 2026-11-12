@@ -37,6 +37,12 @@ The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the un
   voom on the site counts (step 27 background normalization, `~ batch + day`), `camera` for each group against all
   other sites, contrasts D18 vs D15 and D22 vs D15. Figure: cumulative distribution of the site log2FC per group
   against all sites.
+- **Candidate time-dependent direct target.** A gene with a site in its domain whose binding change matches the
+  timing of its KO effect (the sign of the KO effect is not used): cluster 1 (strongest at D18) a site gained D18 vs
+  D15; clusters 3 and 4 (emerging from D18) a site gained D18 or D22 vs D15; cluster 5 (late) a site gained D22 vs
+  D15; clusters 2 and 6 (fading) a site lost. Each candidate also records whether its own KO effect is significant
+  (padj < 0.05) on the day of the matching change. Gene-level check: genes with at least one gained site per group
+  against genes without a KO effect, logistic regression with domain length and the number of sites in the domain.
 
 ## Steps
 
@@ -48,6 +54,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 02 Direct targets per KO-effect group | `scripts/02_direct_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/02_direct_targets/`: `gene_table.tsv` (group, KO log2FC per day, sites per gene), `enrichment.tsv` |
 
 | 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
+| 04 Candidate time-dependent direct targets | `scripts/04_candidates.sb` (acpu, 2 CPUs, 7 GB) | `results/04_candidates/`: `candidate_genes.tsv`, `candidates.tsv` (every matching site), `summary.tsv`, `gained_enrichment.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -116,3 +123,28 @@ and from DiffBind agree (Pearson r 0.97 in both contrasts). A site counts for ev
   near genes with a KO effect.
 - Sites move together: the inter-site correlation estimated by camera is 0.21-0.31, far above limma's default 0.01.
   With the estimated correlation every FDR is >= 0.97; the default-correlation FDRs above are the optimistic ones.
+
+### 04 Candidate time-dependent direct targets
+
+| Group | Genes | With a gained site (%) | Gained site vs no KO effect, adjusted OR (FDR) | Candidates | KO effect significant on the day of the change |
+|---|---|---|---|---|---|
+| No KO effect | 10,605 | 390 (3.7) | 1 | | |
+| Cluster 1: down, strongest at D18 | 759 | 38 (5.0) | 0.95 (0.78) | 35 | 32 |
+| Cluster 2: up early, down by D22 | 383 | 41 (10.7) | 1.39 (0.25) | 1 (lost site) | 0 |
+| Cluster 3: up, emerging from D18 | 358 | 19 (5.3) | 1.07 (0.78) | 19 | 16 |
+| **Cluster 4: down, emerging and growing** | 357 | **54 (15.1)** | **2.06 (3.5e-4)** | **54** | **43** |
+| Cluster 5: up, late (D22) | 193 | 6 (3.1) | 0.60 (0.45) | 2 | 0 |
+| Cluster 6: up early, down by D22 | 175 | 6 (3.4) | 0.47 (0.25) | 0 | 0 |
+| Stays | 3,147 | 155 (4.9) | 1.12 (0.45) | | |
+| Other KO | 569 | 24 (4.2) | 0.86 (0.66) | | |
+
+- **111 candidate genes**, 91 of them with their own KO effect significant on the day of the matching binding change.
+- **Cluster 4 is the one group linked to gained binding at the gene level**: 15.1% of its genes have a gained site,
+  against 3.7% of genes without a KO effect (adjusted OR 2.06, FDR 3.5e-4, after domain length and number of sites).
+  Its genes lose expression in the KO from D18 on, so ISL1 binding gained after D15 goes with genes ISL1 comes to
+  activate. All 54 of its genes with a gained site are candidates; for 53 the best site is gained in D18 vs D15
+  (17 of them also in D22 vs D15).
+- Cluster 2 genes have gained sites more often (10.7%) but not after adjusting for their many sites, and binding
+  near them is almost never lost (1 candidate), so the fading KO effect is not matched by lost binding.
+- Islet-related genes among the candidates include the transcription factors HHEX, MEIS2, TCF7L2 and REST
+  (cluster 1), NKX6-1 (cluster 3) and ETV1 (cluster 4), and the endocrine genes PCP4 and SYT4 (cluster 4).

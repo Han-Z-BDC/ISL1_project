@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=int04_candidates
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/logs/%x.%j.out
+# Step 04: candidate time-dependent direct ISL1 targets. Needs steps 01-03. Submit from integration/:
+#   sbatch scripts/04_candidates.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/config.sh
+"${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/04_candidates.R" "${RESULTS}" "${RESULTS}/04_candidates"

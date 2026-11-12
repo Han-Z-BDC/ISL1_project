@@ -142,6 +142,16 @@ t03 = cam[["contrast", "group", "n_sites", "median_log2FC", "median_log2FC_other
            "camera_direction", "camera_p", "camera_fdr", "est_correlation", "est_fdr", "wilcoxon_p"]].copy()
 t03["group"] = t03.group.map(LABEL)
 
+# ---- step 04: candidates
+c_sum = rd(os.path.join(RES, "04_candidates", "summary.tsv"))
+c_sum["group"] = c_sum.group.map(LABEL)
+c_enr = rd(os.path.join(RES, "04_candidates", "gained_enrichment.tsv"))
+c_enr["group"] = c_enr.group.map(LABEL)
+c_gen = rd(os.path.join(RES, "04_candidates", "candidate_genes.tsv"))
+c_gen["group"] = c_gen.group.map(LABEL)
+for c in ["ko_lfc_D15", "ko_lfc_D18", "ko_lfc_D22"]:
+    c_gen[c] = c_gen[c].round(2)
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -175,6 +185,19 @@ inter-site correlation 0.01, est_fdr with the correlation estimated from the dat
 independent and is descriptive only. Gained = FDR &lt; 0.05 up in D18 vs D15 or D22 vs D15.</p>
 {parts[1][1]}
 {table_html(t03)}
+
+<h2>04 Candidate time-dependent direct targets</h2>
+<p class="note">A candidate has a site in its GREAT domain whose binding change matches the timing of its KO effect:
+cluster 1 (KO effect strongest at D18) a site gained D18 vs D15; clusters 3 and 4 (KO effect emerging from D18) a site
+gained D18 or D22 vs D15; cluster 5 (late) a site gained D22 vs D15; clusters 2 and 6 (KO effect fading) a site lost.
+Gained / lost: step 27 DiffBind, background normalization, FDR &lt; 0.05. ko_sig_on_change_day: the gene's own KO
+effect is significant (padj &lt; 0.05) on the day of the matching change.</p>
+{table_html(c_sum)}
+<p class="note">Genes with at least one gained site per group against genes without a KO effect (logistic regression with
+domain length and number of sites in the domain).</p>
+{table_html(c_enr)}
+<p class="note">Candidate genes, one row each (best matching site; full list of sites in results/04_candidates/candidates.tsv).</p>
+{table_html(c_gen)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)
