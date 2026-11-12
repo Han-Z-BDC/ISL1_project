@@ -1,0 +1,67 @@
+#!/bin/bash
+#SBATCH --job-name=tc_consensus
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/consensus.%j.out
+
+# Step 05: ISL1 consensus peaks per day (nf-core/cutandrun replicate threshold). Each replicate's
+# step 04 calls (chr1-22/X/Y) collapsed to regions (score = max -log10 p); the three replicates'
+# regions merged (overlapping or book-ended); a region is kept when it holds peaks from >= k
+# replicates. k = 2 is the primary set (macs3_ge2); k = 3 is a high-confidence subset.
+# Chance: each replicate's regions shuffled independently (same chromosome, blacklist excluded, no
+# overlaps, seed 100 + replicate) and counted the same way.
+# Columns (BED, no header): chr start end name n_reps reps score n_batch3 n_earlier
+# Output: consensus/<day>_Ctr_ISL1.macs3_ge2.bed, consensus/<day>_Ctr_ISL1.macs3_3of3.bed,
+#         consensus/summary.tsv, genome.txt (chromosome lengths from a BAM header)
+#   sbatch --dependency=afterok:<04 job> scripts/05_consensus.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+BT=${TOOLS}/bedtools
+C=${OUT_DIR}/consensus; W=${C}/work
+mkdir -p "${W}"
+canon () { awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "$@"; }
+first=$(awk -F'\t' 'NR>1 && $5=="ISL1" {print $1; exit}' "${METADATA}")
+"${TOOLS}/samtools" view -H "${OUT_DIR}/bam/${first}.filtered.bam" \
+  | awk -F'\t' '$1=="@SQ" {sub("SN:","",$2); sub("LN:","",$3); print $2"\t"$3}' | sort -k1,1 > "${OUT_DIR}/genome.txt"
+G=${W}/genome.canonical.txt
+canon "${OUT_DIR}/genome.txt" > "${G}"
+
+merge_support () { sort -k1,1 -k2,2n | "${BT}" merge -i - -c 4,4,5 -o count_distinct,distinct,max; }
+S=${C}/summary.tsv
+echo -e "day\tset\tk\tregions\tchance\tover_chance\tMb\tmedian_bp\tbatch3_and_earlier\tearlier_only" > "${S}"
+for day in D15 D18 D22; do
+  mapfile -t ROWS < <(awk -F'\t' -v d="${day}" 'NR>1 && $3==d && $5=="ISL1" {print $1"\t"$4"\t"$6}' "${METADATA}" | sort -t$'\t' -k2,2n)
+  (( ${#ROWS[@]} == 3 )) || { echo "ERROR: ${day}: ${#ROWS[@]} ISL1 libraries, expected 3" >&2; exit 1; }
+  : > "${W}/${day}.rows.bed"; : > "${W}/${day}.chance_rows.bed"; BMAP=""
+  for r in "${ROWS[@]}"; do
+    IFS=$'\t' read -r s rep batch <<< "${r}"
+    BMAP="${BMAP}${rep}=${batch};"
+    canon "${OUT_DIR}/macs3/${s}_peaks.filtered.narrowPeak" | awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $8}' \
+      | sort -k1,1 -k2,2n | "${BT}" merge -i - -c 4 -o max > "${W}/${s}.regions.bed"
+    awk -v r="${rep}" 'BEGIN{OFS="\t"} {print $1, $2, $3, r, $4}' "${W}/${s}.regions.bed" >> "${W}/${day}.rows.bed"
+    cut -f1-3 "${W}/${s}.regions.bed" | "${BT}" shuffle -i - -g "${G}" -chrom -excl "${BLACKLIST}" -noOverlapping \
+      -seed $((100 + rep)) | awk -v r="${rep}" 'BEGIN{OFS="\t"} {print $1, $2, $3, r, 0}' >> "${W}/${day}.chance_rows.bed"
+    echo "${day} rep${rep} (${batch}): $(wc -l < "${W}/${s}.regions.bed") regions"
+  done
+  merge_support < "${W}/${day}.rows.bed" > "${W}/${day}.support.bed"
+  merge_support < "${W}/${day}.chance_rows.bed" > "${W}/${day}.chance_support.bed"
+  for k in 2 3; do
+    set_name=$([[ ${k} == 2 ]] && echo macs3_ge2 || echo macs3_3of3)
+    out=${C}/${day}_Ctr_ISL1.${set_name}.bed
+    awk -v k="${k}" -v m="${BMAP}" -v p="${day}_Ctr_ISL1_${set_name}_" 'BEGIN{FS=OFS="\t"; n=split(m, a, ";"); for (i=1; i<=n; i++) if (a[i] != "") { split(a[i], q, "="); B[q[1]]=q[2] } }
+      $4 >= k { b3=0; e=0; c=split($5, r, ","); for (i=1; i<=c; i++) { if (B[r[i]]=="batch3") b3++; else e++ }
+                print $1, $2, $3, "", $4, $5, $6, b3, e }' "${W}/${day}.support.bed" \
+      | sort -k1,1V -k2,2n | awk -v p="${day}_Ctr_ISL1_${set_name}_" 'BEGIN{FS=OFS="\t"} {$4 = sprintf("%s%05d", p, NR); print}' > "${out}"
+    chance=$(awk -v k="${k}" '$4 >= k' "${W}/${day}.chance_support.bed" | wc -l | tr -d ' ')
+    awk -F'\t' -v d="${day}" -v s="${set_name}" -v k="${k}" -v ch="${chance}" '
+      { w[NR] = $3 - $2; t += $3 - $2; if ($8 > 0 && $9 > 0) x++; else if ($8 == 0) e++ }
+      END { n = asort(w); printf "%s\t%s\t%d\t%d\t%d\t%s\t%.2f\t%d\t%d\t%d\n", d, s, k, NR, ch, (ch > 0 ? sprintf("%.1f", NR/ch) : "NA"), t/1e6, w[int((n+1)/2)], x, e }' "${out}" >> "${S}"
+  done
+done
+column -t "${S}"

@@ -7,6 +7,7 @@ Data and large outputs stay on Alpine storage (scratch / `/projects`); this repo
 | Folder | Assay | Built on | Came from |
 |---|---|---|---|
 | `bulkRNAseq_ISL1_KO_timecourse/` | ISL1 KO time-course bulk RNA-seq, run YJZ5LS (Ctr vs ISL1 KO, D15 / D18 / D22; D9 not used) | own `pipeline/` (bulk-rnaseq-pipeline to be built) | new |
+| `cutnrun_ISL1_timecourse/` | ISL1 CUT&RUN time course for the paper: control, D15 / D18 / D22, 3 libraries per day (from batches 1-3), peaks, consensus, differential binding, tracks | `cutnrun-pipeline` | new (2026-11-12) |
 | `cutnrun_ISL1_KO_histone/` | CUT&RUN for ISL1, Flag, H3K27ac, H3K27me3 (+ IgG), D9-D22, H3 control vs ISL1 KO | `cutnrun-pipeline` | `ISL1_KO_histone_cutNrun` |
 | `cutnrun_ISL1_batch1-2/` | ISL1 CUT&RUN (+ IgG), D12 / D15 / D22, control vs ISL1 KO (earlier batches) | `cutnrun-pipeline` | `ISL1_cutNrun` |
 | `scRNAseq/` | scRNA-seq, 10x GEM-X On-Chip Multiplexing | `single-cell-pipeline` | `ISL1_scRNAseq` |

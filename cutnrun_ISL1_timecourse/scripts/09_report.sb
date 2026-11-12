@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --job-name=tc_report
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=00:30:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/report.%j.out
+
+# Step 09: HTML report (scripts/report.py) and copy of the keepers to the folder's results/ on
+# /pl/active (untracked; not purged): report.html, consensus/, diff/ (tables, beds, summaries;
+# not the DiffBind object or the bin counts), qc/ (peak stats, alignment logs), tenx_filter/*.tsv.
+#   sbatch --dependency=afterok:<07 job>:<08c job> scripts/09_report.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/report.py" "${OUT_DIR}" "${METADATA}" "${OUT_DIR}/report.html"
+KEEP=${STUDY_DIR}/results
+mkdir -p "${KEEP}/tenx_filter"
+rsync -a "${OUT_DIR}/report.html" "${KEEP}/"
+rsync -a --exclude work "${OUT_DIR}/consensus" "${KEEP}/"
+rsync -a --exclude '*.rds' --exclude 'featurecounts/bins15k*' "${OUT_DIR}/diff" "${KEEP}/"
+rsync -a "${OUT_DIR}/qc" "${KEEP}/"
+rsync -a "${SCRATCH}"/tenx_filter/*.tsv "${KEEP}/tenx_filter/"
+echo "copied to ${KEEP} ($(du -sh "${KEEP}" | cut -f1))"

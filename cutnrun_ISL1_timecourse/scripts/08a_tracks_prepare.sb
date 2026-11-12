@@ -1,0 +1,43 @@
+#!/bin/bash
+#SBATCH --job-name=tc_tracks_prep
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/tracks_prep.%j.out
+
+# Step 08a (browser tracks, part 1): library table and scale factors.
+#   ISL1: scale = 1e6 / (G x size factor), size factor = DiffBind background normalization (step 07,
+#         DESeq2 on 15 kb genome bins), G = geometric mean of the 9 libraries' fragments: CPM at the
+#         mean library size, scaled as in the differential test.
+#   IgG (deduplicated, the peak-calling background): plain CPM, 1e6 / fragments.
+#   fragments = mapped reads / 2 (samtools idxstats; BAMs hold properly paired reads only)
+# Output: tracks/scale_factors.tsv (name kind bam day fragments size_factor scale)
+#   sbatch --dependency=afterok:<07 job> scripts/08a_tracks_prepare.sb   (then 08b array, 08c)
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+T=${OUT_DIR}/tracks; mkdir -p "${T}"
+NF=${OUT_DIR}/diff/norm_factors.tsv
+[[ -s "${NF}" ]] || { echo "ERROR: missing ${NF} (step 07)" >&2; exit 1; }
+tmp=${T}/fragments.tmp; : > "${tmp}"
+while IFS=$'\t' read -r s day _r _b _o bam igg; do
+  for x in "ISL1|${s}|${bam}" "IgG|${s%_ISL1}_IgG|${igg}"; do
+    IFS='|' read -r kind name b <<< "${x}"
+    echo -e "${name}\t${kind}\t${b}\t${day}\t$("${TOOLS}/samtools" idxstats "${b}" | awk '{m+=$3} END{printf "%d", m/2}')" >> "${tmp}"
+  done
+done < "${OUT_DIR}/diff/libraries.tsv"
+awk -F'\t' 'BEGIN{OFS="\t"}
+  FNR==NR { if ($1=="diffbind" && $2=="background") sf[$3]=$5; next }
+  { n[NR]=$1; k[NR]=$2; b[NR]=$3; d[NR]=$4; f[NR]=$5; if ($2=="ISL1") { lg+=log($5); ni++ } }
+  END { G=exp(lg/ni); print "name","kind","bam","day","fragments","size_factor","scale"
+        for (i=1; i<=NR; i++) if (i in n) {
+          if (k[i]=="ISL1") { if (!(n[i] in sf)) { print "ERROR: no size factor for " n[i] > "/dev/stderr"; exit 1 }
+                              print n[i], k[i], b[i], d[i], f[i], sf[n[i]], sprintf("%.6g", 1e6/(G*sf[n[i]])) }
+          else print n[i], k[i], b[i], d[i], f[i], "NA", sprintf("%.6g", 1e6/f[i]) } }' "${NF}" "${tmp}" > "${T}/scale_factors.tsv"
+rm -f "${tmp}"
+column -t "${T}/scale_factors.tsv"
+[[ $(($(wc -l < "${T}/scale_factors.tsv") - 1)) -eq 18 ]] || { echo "ERROR: expected 18 libraries" >&2; exit 1; }

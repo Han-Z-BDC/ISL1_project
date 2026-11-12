@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=24G
+#SBATCH --time=12:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=cutnrun_tracks
+#SBATCH --output=logs/tracks.%j.out
+
+# CPM-normalized bigwigs for every sample (TF and IgG alike) for visualization
+# in a genome browser -- from the duplicate-retained filtered BAMs, same as
+# what MACS3 sees.
+
+set -euo pipefail
+# Slurm runs a copy of this script from its spool dir, so BASH_SOURCE cannot locate the repo;
+# use the directory sbatch was called from, which must be the repo root.
+P="${SLURM_SUBMIT_DIR:?ERROR: SLURM_SUBMIT_DIR not set -- submit via sbatch from the repo root, not run directly}"
+[[ -f "${P}/config.sh" ]] || { echo "ERROR: no config.sh in ${P} -- submit from the repo root" >&2; exit 1; }
+source "${P}/config.sh"
+bash "${P}/scripts/validate_samples.sh"
+
+T=${SLURM_CPUS_PER_TASK:-8}
+BAM=${OUT_DIR}/bam
+BW=${OUT_DIR}/tracks/bigwig
+mkdir -p "${BW}" "${P}/logs"
+
+while IFS=$'\t' read -r library sample role control replicate; do
+  [[ "${library}" == library_id ]] && continue
+  b="${BAM}/${sample}.filtered.bam"
+  [[ -s "${b}" ]] || { echo "ERROR: missing ${b}" >&2; exit 1; }
+  echo "generating CPM bigwig: ${sample}"
+  "${TOOLS}/bamCoverage" -b "${b}" -o "${BW}/${sample}.CPM.bw" \
+    --normalizeUsing CPM --binSize 5 --blackListFileName "${BLACKLIST}" -p "${T}"
+done < "${SAMPLE_SHEET}"
+
+echo "CPM bigwig generation complete."

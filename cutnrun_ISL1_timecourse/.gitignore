@@ -1,0 +1,9 @@
+# Outputs live on Alpine scratch (and keepers under results/ on /pl/active); never in git.
+results/
+logs/
+# HTML reports fetched to the Mac review copy.
+reports/
+# pipeline/config.sh and pipeline/logs are symlinks made by study_config/setup_links.sh.
+/pipeline/config.sh
+/pipeline/logs
+.DS_Store
