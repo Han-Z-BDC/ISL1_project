@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy.stats import wilcoxon
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "results")
@@ -357,6 +358,51 @@ g07.columns = ["gene", "KO-effect group", "gained sites", "best site", "change",
                "site log2FC D18/D15", "site log2FC D22/D15", "KO log2FC D15", "KO log2FC D18", "KO log2FC D22",
                "KO padj D22"]
 
+# boxplot: binding signal per day at the gained sites of the 343 genes (gained site + KO effect), split by the
+# direction of the KO effect (on the latest day with a significant effect), with all sites as the reference
+def ko_direction(r):
+    for d in ("D22", "D18", "D15"):
+        if r[f"ko_padj_{d}"] < 0.05:
+            return "lower" if r[f"ko_lfc_{d}"] < 0 else "higher"
+    return "no single day"
+
+
+gdir = gg.set_index("gene_id").apply(ko_direction, axis=1)
+gs = d07[d07.change.str.startswith("gained") & d07.gene_id.isin(gg.gene_id)].copy()
+gs["direction"] = gs.gene_id.map(gdir)
+sets07 = {"All sites": site_sig.index.to_numpy(),
+          f"Gained sites, all {len(gg)} genes": gs.site.unique(),
+          f"Genes lower in KO ({int((gdir == 'lower').sum())})": gs.loc[gs.direction == "lower", "site"].unique(),
+          f"Genes higher in KO ({int((gdir == 'higher').sum())})": gs.loc[gs.direction == "higher", "site"].unique()}
+fig = go.Figure()
+ymax = 0
+for d, col in DAY_COL.items():
+    bs = [box_stats(site_sig.loc[v, f"signal_{d}"]) for v in sets07.values()]
+    q1, med, q3, lf, uf = (list(t) for t in zip(*bs))
+    ymax = max(ymax, max(uf))
+    fig.add_trace(go.Box(x=list(sets07), q1=q1, median=med, q3=q3, lowerfence=lf, upperfence=uf, name=d,
+                         marker_color=col, line=dict(width=1.5), offsetgroup=d, whiskerwidth=0.4, hoverinfo="y+name",
+                         fillcolor="rgba({},{},{},0.45)".format(*(int(col[i:i + 2], 16) for i in (1, 3, 5)))))
+w07 = []
+for name, v in sets07.items():
+    x = site_sig.loc[v]
+    for a, b in [("D18", "D15"), ("D22", "D18"), ("D22", "D15")]:
+        w07.append({"set": name, "comparison": f"{a} vs {b}", "n_sites": len(v),
+                    "median_a": round(x[f"signal_{a}"].median(), 1), "median_b": round(x[f"signal_{b}"].median(), 1),
+                    "pct_sites_up": round(100 * (x[f"signal_{a}"] > x[f"signal_{b}"]).mean(), 1),
+                    "p": float(f"{wilcoxon(x[f'signal_{a}'], x[f'signal_{b}']).pvalue:.3g}")})
+w07 = pd.DataFrame(w07)
+for name, v in sets07.items():
+    w = w07[w07.set == name].set_index("comparison")
+    fig.add_annotation(x=name, y=ymax * 1.02, showarrow=False, yanchor="bottom", font=dict(size=11),
+                       text=f"D18/D15 {stars(w.loc['D18 vs D15', 'p'])}<br>D22/D18 {stars(w.loc['D22 vs D18', 'p'])}"
+                            f"<br><span style='color:#898781'>n = {len(v):,}</span>")
+fig.update_layout(boxmode="group", boxgap=0.3, boxgroupgap=0.08,
+                  title="ISL1 binding signal at the gained sites of the genes with a KO effect",
+                  legend=dict(title="Day", orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
+fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
+parts.append(("07b", fig_html(style(fig, 520), False)))
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -455,6 +501,16 @@ and to have a KO effect.</p>
 its most significant gained site, ordered by the D22 KO padj. Every differential site and target gene:
 results/07_diff_site_targets/diff_site_genes.tsv.</p>
 {table_html(g07)}
+<p class="note">Binding signal (normalized reads per site, mean of the 3 libraries per day) at the gained sites of these
+genes, all together and split by the direction of the gene's KO effect on the latest day it is significant, with all
+14,431 sites as the reference. Boxes and whiskers as in section 05. The sites were selected for gaining binding
+against D15, so their rise from D15 is expected. D22 vs D18 is not part of the selection, but sites picked for a
+high D18 reading also tend to read lower at the next measurement (regression to the mean), so part of their fall
+to D22 is expected as well. 11 genes have a KO effect only in the LRT, on no single day, and are in the first box
+only. Stars: paired Wilcoxon
+between days within the set (sites as units, uncorrected; descriptive).</p>
+{parts[7][1]}
+{table_html(w07)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)
