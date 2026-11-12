@@ -7,8 +7,17 @@ the general lab pipeline
 [cutnrun-pipeline](https://github.com/ZhuLab-CUAnschutz/cutnrun-pipeline), vendored unchanged
 in `pipeline/` (copied from commit `1afe307`).
 
-Repo (Alpine): `/pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone` -- part of `Han-Z-BDC/ISL1_project` (GitHub, private)
-to GitHub yet.
+Repo (Alpine): `/pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone` -- part of
+`Han-Z-BDC/ISL1_project` (GitHub, private).
+
+**Current focus (2026-11-12): ISL1 CUT&RUN only.** The histone marks are set aside: the H3K27ac
+tracks are poor, and H3K27me3 is of limited use without H3K27ac. Histone steps ran in the
+10x-filtered re-run, but their outputs stay on scratch unreviewed. The histone sections below
+(H3K27ac / H3K27me3 differential analysis, DiffBind / csaw) describe the run before the 10x filter.
+
+**Primary ISL1 peak set (2026-11-12): `macs3_ge2`**, MACS3 consensus of three control replicates
+per day (one batch 3 library plus two earlier libraries), regions with peaks in >= 2 of 3. See
+"Control ISL1 from three chosen replicates per day".
 
 ## Data
 
@@ -57,8 +66,8 @@ bash study_config/setup_links.sh
 ## Pipeline
 
 Submitted from `pipeline/` (the scripts find `config.sh` and `logs/` through `SLURM_SUBMIT_DIR`).
-All analysis jobs run on `acpu`. `acompile` is kept for data downloads only (8 cores per user).
-The first FastQC run (job 35274348) went to `acompile` before that rule was set.
+Analysis jobs run on `amem` (`--qos=mem-normal`, 12 CPUs, 240 G). `acompile` is kept for data
+downloads only. The first FastQC run (job 35274348) went to `acompile` before that rule was set.
 
 ```
 cd pipeline
@@ -66,7 +75,42 @@ sbatch scripts/00_fastqc.sb
 sbatch --array=0-61 --cpus-per-task=8 --mem=30G --time=06:00:00 scripts/01_align.sb
 ```
 
-### Alignment QC (2026-11-06)
+### 10x read filter and re-run (2026-11-10 to 2026-11-12)
+
+Some read pairs carry 10x single-cell library structure (a poly-T run in R1 after the barcode
+and UMI). Step 00f (`scripts/00f_filter_10x.sb`) drops a pair when R1 has >= 10 T at bases 29-38
+or >= 24 T in bases 29-58, and writes the kept pairs to `clean_fastq/`.
+
+- **All 62 libraries:** 2,542,696,439 pairs in, 3,380,087 removed (0.133%), 794,594 of them with
+  a 10x cell barcode. Per library 0.088-0.379%; the ~0.09% floor is the expected loss of genuine
+  pairs.
+- **Most affected:** the batch 3 rep1 H3CTR libraries (D9 rep1 ISL1 0.38%, D18 rep1 H3K27ac
+  0.37%, D9 rep1 H3K27me3 0.33%).
+- Per-library table: `${SCRATCH}/tenx_filter/<sample>.tsv` (pairs_in, removed,
+  removed_with_10x_barcode, pairs_out, pct_removed).
+
+The settled analysis was re-run on the filtered reads (`scripts/rerun_after_10x_filter.sh`);
+results are in `${SCRATCH}/results/`. Unless a section says otherwise, results below are from
+this re-run. Exploratory steps were not re-run; their outputs from before the filter are in
+`${SCRATCH}/results_with10x/`: 06-12 (SEACR, step 07 pair consensus, replicate correlation,
+group IgG), 20, 22 and `ctr_multi`.
+
+| Step | Job(s) | Note |
+|---|---|---|
+| 01 align, 02 IgG background | 35568628, 35568629 | |
+| 03 peaks, 04 relaxed + pseudoreps | 35568630, 35568631 | |
+| 05 reproducible sets | 35568632 | 11 of 20 tasks finished while Slurm was down (2026-11-11 ~13:10-14:30) and were recorded as TIMEOUT; their outputs are complete |
+| 13, 14 earlier control ISL1 | 35568633, 35568634 | |
+| 15 `ctr_trio` | 35586302 | after 35586301, which rebuilt `isl1_consensus/{reference.bed,genome.txt}` (step 07's helper files) |
+| 18 kept ISL1 sets | 35609970 | |
+| 16, 17, 19, 21 histone | 35609971-74, 35610439-42 | 19 must wait for 17 |
+| 23a-c tracks | 35609979, 35609980, 35610443 | |
+| 24 before/after comparison | 35610444 | |
+| 25 ISL1 peak-methods report | 35611761 | |
+
+Steps 18, 23c and 24 copy their keepers under this folder on /pl/active (`results/`, not tracked).
+
+### Alignment QC (2026-11-06, before the 10x filter)
 
 FastQC/MultiQC (job 35274348) and alignment (array 35274349, 62 tasks) all completed. Peak
 memory was 17.4 GB and the longest task took 3 h 29 min, against 30 GB / 6 h requested. Stats
@@ -103,17 +147,17 @@ sbatch --array=0-43 --dependency=afterok:<02 job> scripts/03_call_peaks.sb
   single-replicate D15 CtrGFP and D15 KOISL1 groups also get two pseudoreplicates.
 - **Per-sample stats:** `results/qc/peaks/<sample>.peak_stats.tsv` (peaks and FRiP).
 
-Results (2026-11-06; jobs 35295284 and 35295285, all completed; at most 9.1 GB and 1 h 15 min
-per task). Regions are distinct blacklist-filtered peaks, and FRiP counts all filtered fragments:
+Results (10x-filtered re-run, job 35568630, all 44 tasks completed). Regions are distinct
+blacklist-filtered peaks, and FRiP counts all filtered fragments:
 
 | Antibody | Mode | Regions per library | FRiP |
 |---|---|---|---|
-| H3K27me3 | broad | 54.8k-119.2k | 33-49% |
-| H3K27ac | narrow | D15/D22: 32.7k-80.9k; D9/D18: 7.2k-42.2k | D15/D22: 2.1-8.3%; D9/D18: 0.3-3.0% |
-| ISL1 | narrow | 18.4k-37.8k | 1.2-4.6% |
+| H3K27me3 | broad | 54.8k-119.1k | 33-49% |
+| H3K27ac | narrow | D15/D22: 32.6k-80.9k; D9/D18: 7.2k-41.9k | D15/D22: 2.1-8.3%; D9/D18: 0.3-3.0% |
+| ISL1 | narrow | 18.4k-38.0k | 1.2-4.6% |
 | Flag | narrow | 12.1k, 12.4k | 1.3% |
 
-ISL1 checks (top 1000 peaks by p value):
+ISL1 checks (top 1000 peaks by p value; before the 10x filter):
 - **Replicate pairs agree poorly.** 20-40% of rep1's top 500 peaks fall in any rep2 peak (D15,
   D22).
 - **Match to the earlier batches' D15 Ctr conservative ISL1 set (9,329 peaks):**
@@ -154,10 +198,10 @@ sbatch --array=0-19 --dependency=afterok:<04 job> scripts/05_reproducible_peaks.
 - **Output:** `results/reproducibility/{overlap,idr}/<group>.{Nt,Np}.narrowPeak` and
   `results/reproducibility/qc/<group>.repro_qc.tsv`.
 
-Results (2026-11-06; jobs 35309994 and 35309995, all 60 tasks completed). Step 04 used at most
-7.6 GB and 1 h 44 min per task, and step 05 at most 14.3 GB and 1 h 33 min.
+Results (10x-filtered re-run; jobs 35568631 and 35568632, all 60 tasks produced their outputs;
+see the re-run table for the 11 step 05 tasks recorded as TIMEOUT).
 
-- **Relaxed lists:** ISL1 215k-281k peaks per library, H3K27ac 183k-269k, H3K27me3 90k-182k. No
+- **Relaxed lists:** ISL1 214k-281k peaks per library, H3K27ac 183k-269k, H3K27me3 91k-182k. No
   list reached its cap (300k / 500k), so the caps never applied.
 
 Reproducible sets. Self = N1 / N2 ratio and rescue = Np / Nt ratio. FRiP is for rep1 / rep2 in
@@ -165,43 +209,43 @@ Nt:
 
 | Group | Method | N1 / N2 | Nt | Np | Self | Rescue | Flag | Nt Mb | Nt FRiP |
 |---|---|---|---|---|---|---|---|---|---|
-| D9_H3CTR_ISL1 | overlap | 23,676 / 21,282 | 18,792 | 28,684 | 1.11 | 1.53 | pass | 12.4 | 1.7 / 1.4% |
-| D9_H3CTR_ISL1 | IDR | 0 / 7 | 11 | 33 | inf | 3.00 | fail | 0.0 | 0.7 / 0.4% |
-| D15_H3CTR_ISL1 | overlap | 20,540 / 34,334 | 24,273 | 40,649 | 1.67 | 1.67 | pass | 17.0 | 2.8 / 2.7% |
-| D15_H3CTR_ISL1 | IDR | 44 / 17 | 85 | 159 | 2.59 | 1.87 | borderline | 0.1 | 1.3 / 1.2% |
-| D18_H3CTR_ISL1 | overlap | 27,900 / 22,759 | 22,144 | 22,094 | 1.23 | 1.00 | pass | 15.5 | 3.2 / 2.4% |
-| D18_H3CTR_ISL1 | IDR | 855 / 92 | 485 | 965 | 9.29 | 1.99 | borderline | 0.6 | 1.7 / 1.1% |
-| D22_H3CTR_ISL1 | overlap | 25,826 / 31,838 | 23,509 | 33,081 | 1.23 | 1.41 | pass | 17.4 | 3.2 / 3.2% |
-| D22_H3CTR_ISL1 | IDR | 123 / 474 | 597 | 938 | 3.85 | 1.57 | borderline | 0.7 | 1.0 / 1.6% |
-| D9_H3CTR_H3K27ac | overlap | 21,517 / 17,760 | 20,427 | 25,806 | 1.21 | 1.26 | pass | 14.4 | 1.3 / 1.3% |
-| D9_ISL1KO_H3K27ac | overlap | 19,537 / 17,865 | 13,773 | 22,796 | 1.09 | 1.66 | pass | 8.7 | 0.7 / 0.7% |
-| D15_H3CTR_H3K27ac | overlap | 53,230 / 56,334 | 71,628 | 78,798 | 1.06 | 1.10 | pass | 97.2 | 10.8 / 11.4% |
-| D15_ISL1KO_H3K27ac | overlap | 50,577 / 29,545 | 50,164 | 81,025 | 1.71 | 1.62 | pass | 59.2 | 6.5 / 5.4% |
-| D18_H3CTR_H3K27ac | overlap | 42,960 / 22,450 | 38,764 | 63,940 | 1.91 | 1.65 | pass | 37.4 | 4.0 / 3.1% |
-| D18_ISL1KO_H3K27ac | overlap | 16,587 / 22,111 | 27,103 | 34,376 | 1.33 | 1.27 | pass | 20.7 | 2.2 / 2.0% |
-| D22_H3CTR_H3K27ac | overlap | 55,046 / 42,029 | 58,227 | 67,493 | 1.31 | 1.16 | pass | 74.3 | 10.5 / 7.6% |
-| D22_ISL1KO_H3K27ac | overlap | 45,092 / 58,363 | 69,599 | 84,060 | 1.29 | 1.21 | pass | 94.6 | 11.8 / 10.8% |
-| D9_H3CTR_H3K27me3 | overlap | 32,089 / 27,258 | 27,476 | 34,004 | 1.18 | 1.24 | pass | 99.6 | 29.5 / 42.6% |
-| D9_ISL1KO_H3K27me3 | overlap | 27,313 / 25,412 | 26,450 | 27,169 | 1.07 | 1.03 | pass | 88.9 | 31.1 / 42.2% |
-| D15_H3CTR_H3K27me3 | overlap | 65,551 / 47,095 | 56,610 | 56,812 | 1.39 | 1.00 | pass | 169.3 | 34.0 / 45.0% |
-| D15_ISL1KO_H3K27me3 | overlap | 51,879 / 51,785 | 56,069 | 62,487 | 1.00 | 1.11 | pass | 166.2 | 39.2 / 42.5% |
-| D18_H3CTR_H3K27me3 | overlap | 55,698 / 49,899 | 53,900 | 55,914 | 1.12 | 1.04 | pass | 167.8 | 38.5 / 45.3% |
-| D18_ISL1KO_H3K27me3 | overlap | 55,128 / 59,776 | 60,960 | 62,742 | 1.08 | 1.03 | pass | 170.6 | 35.4 / 36.1% |
-| D22_H3CTR_H3K27me3 | overlap | 67,488 / 53,890 | 63,028 | 65,196 | 1.25 | 1.03 | pass | 181.8 | 39.2 / 34.2% |
-| D22_ISL1KO_H3K27me3 | overlap | 60,239 / 65,139 | 64,708 | 79,556 | 1.08 | 1.23 | pass | 208.8 | 39.5 / 39.3% |
+| D9_H3CTR_ISL1 | overlap | 23,756 / 21,251 | 18,694 | 28,581 | 1.12 | 1.53 | pass | 12.4 | 1.7 / 1.4% |
+| D9_H3CTR_ISL1 | IDR | 0 / 7 | 11 | 18 | inf | 1.64 | borderline | 0.0 | 0.7 / 0.4% |
+| D15_H3CTR_ISL1 | overlap | 23,594 / 34,325 | 24,223 | 40,409 | 1.45 | 1.67 | pass | 16.9 | 2.7 / 2.6% |
+| D15_H3CTR_ISL1 | IDR | 36 / 16 | 86 | 146 | 2.25 | 1.70 | borderline | 0.1 | 1.3 / 1.2% |
+| D18_H3CTR_ISL1 | overlap | 27,954 / 22,732 | 22,215 | 22,073 | 1.23 | 1.01 | pass | 15.5 | 3.2 / 2.4% |
+| D18_H3CTR_ISL1 | IDR | 853 / 92 | 488 | 956 | 9.27 | 1.96 | borderline | 0.6 | 1.7 / 1.1% |
+| D22_H3CTR_ISL1 | overlap | 25,717 / 32,027 | 23,460 | 33,129 | 1.25 | 1.41 | pass | 17.4 | 3.2 / 3.2% |
+| D22_H3CTR_ISL1 | IDR | 121 / 477 | 598 | 940 | 3.94 | 1.57 | borderline | 0.8 | 1.0 / 1.6% |
+| D9_H3CTR_H3K27ac | overlap | 21,554 / 17,757 | 20,408 | 25,838 | 1.21 | 1.27 | pass | 14.4 | 1.3 / 1.2% |
+| D9_ISL1KO_H3K27ac | overlap | 19,531 / 17,875 | 13,756 | 22,747 | 1.09 | 1.65 | pass | 8.7 | 0.7 / 0.7% |
+| D15_H3CTR_H3K27ac | overlap | 53,340 / 56,235 | 71,628 | 78,811 | 1.05 | 1.10 | pass | 97.2 | 10.8 / 11.4% |
+| D15_ISL1KO_H3K27ac | overlap | 50,571 / 29,474 | 50,082 | 81,091 | 1.72 | 1.62 | pass | 59.0 | 6.5 / 5.4% |
+| D18_H3CTR_H3K27ac | overlap | 42,785 / 22,312 | 37,795 | 63,799 | 1.92 | 1.69 | pass | 36.6 | 3.9 / 3.1% |
+| D18_ISL1KO_H3K27ac | overlap | 16,561 / 22,097 | 27,109 | 34,302 | 1.33 | 1.27 | pass | 20.7 | 2.2 / 2.0% |
+| D22_H3CTR_H3K27ac | overlap | 55,328 / 42,010 | 58,295 | 67,445 | 1.32 | 1.16 | pass | 74.4 | 10.5 / 7.6% |
+| D22_ISL1KO_H3K27ac | overlap | 45,030 / 58,462 | 69,596 | 84,064 | 1.30 | 1.21 | pass | 94.5 | 11.8 / 10.8% |
+| D9_H3CTR_H3K27me3 | overlap | 32,317 / 27,289 | 27,455 | 33,999 | 1.18 | 1.24 | pass | 99.5 | 29.6 / 42.6% |
+| D9_ISL1KO_H3K27me3 | overlap | 27,321 / 25,412 | 26,446 | 27,185 | 1.08 | 1.03 | pass | 88.9 | 31.1 / 42.2% |
+| D15_H3CTR_H3K27me3 | overlap | 65,635 / 47,147 | 56,649 | 56,854 | 1.39 | 1.00 | pass | 169.2 | 34.1 / 45.0% |
+| D15_ISL1KO_H3K27me3 | overlap | 51,892 / 51,814 | 56,116 | 62,520 | 1.00 | 1.11 | pass | 166.1 | 39.2 / 42.5% |
+| D18_H3CTR_H3K27me3 | overlap | 55,690 / 49,918 | 53,955 | 55,942 | 1.12 | 1.04 | pass | 167.7 | 38.5 / 45.3% |
+| D18_ISL1KO_H3K27me3 | overlap | 55,117 / 59,779 | 60,980 | 62,745 | 1.08 | 1.03 | pass | 170.5 | 35.4 / 36.1% |
+| D22_H3CTR_H3K27me3 | overlap | 67,526 / 53,994 | 63,098 | 65,262 | 1.25 | 1.03 | pass | 181.6 | 39.2 / 34.2% |
+| D22_ISL1KO_H3K27me3 | overlap | 60,266 / 65,191 | 64,735 | 79,610 | 1.08 | 1.23 | pass | 208.6 | 39.5 / 39.3% |
 
 - **Histone marks:** all 16 groups pass by overlap, and Nt and Np are close. H3K27ac is strong at
   D15 and D22 and weak at D9 and D18, as in the per-sample calls.
-- **ISL1, overlap:** all four groups pass, with 18.8k-24.3k Nt peaks.
-- **ISL1, IDR:** few peaks pass, from 11 Nt peaks (D9) to 597 (D22). For D18 Nt, IDR matched
-  27,835 pooled peaks in both replicates; the fit puts about 6% of them in the reproducible
-  component, and 485 pass IDR < 0.05. The replicates rank peaks differently, which fits the poor
-  top-peak agreement in the per-sample checks.
-- **chrM:** 0-6 chrM peaks are in each set; the blacklist has no chrM entries. They are not
-  removed yet.
+- **ISL1, overlap:** all four groups pass, with 18.7k-24.2k Nt peaks.
+- **ISL1, IDR:** few peaks pass, from 11 Nt peaks (D9) to 598 (D22). The two batch 3 replicates
+  rank peaks differently, which fits the poor top-peak agreement in the per-sample checks.
+- **chrM:** a few chrM peaks are in each set; the blacklist has no chrM entries. Later ISL1 sets
+  (steps 15, 18) keep chr1-22/X/Y only.
 - **Histone marks: Nt chosen (2026-11-07).**
 
 ### ISL1 consensus peaks (nf-core/cutandrun style, 2026-11-07)
+
+*Before the 10x filter; not re-run (outputs in `${SCRATCH}/results_with10x/`).*
 
 Standard CUT&RUN practice is to call each replicate, merge, and keep peaks found in both. That is
 nf-core/cutandrun with `--replicate_threshold 2`.
@@ -272,6 +316,8 @@ below:
 
 ### ISL1 replicate correlation and PCA (2026-11-08)
 
+*Before the 10x filter; not re-run (outputs in `${SCRATCH}/results_with10x/`).*
+
 `sbatch scripts/09_isl1_replicate_correlation.sb` (job 35434729, completed in 29 min, 0.7 GB).
 
 - **Peaks:** step 03 MACS3 calls, chr1-22/X/Y. Two kinds of union: rep1 + rep2 per day
@@ -302,6 +348,8 @@ below:
 - **Replicates pair by day only at D9,** where both look like background.
 
 ### Group IgG test (2026-11-08)
+
+*Before the 10x filter; not re-run (outputs in `${SCRATCH}/results_with10x/`).*
 
 Question: does a deeper, shared IgG per day x line raise the number of reproducible peaks?
 
@@ -368,19 +416,21 @@ rep1/rep2 count as Ctr rep1/rep2, and the earlier libraries become rep3 onward, 
 collection day. The mapping is in `study_config/ctr_matched_samples.tsv`, which also keeps the GFP
 electroporation day and the prep/sequencing batch. KO libraries are not included.
 
-`sbatch --array=0-6 scripts/13_ctr_matched_calls.sb` (job 35478797, amem; 6-37 min, 8.9 GB):
+`sbatch --array=0-6 scripts/13_ctr_matched_calls.sb` (first run job 35478797; 10x-filtered re-run
+job 35568633; 6-37 min, 8.9 GB):
 - **Inputs:** BAMs are read in place from ISL1_cutNrun and batch 3.
 - **Command:** the same MACS3 call as step 03: q 0.01, summits, duplicates kept, own block IgG,
   blacklist filtered.
 - **Output:** `results/ctr_matched/`.
-- **Check:** all 7 are identical to the October calls of the same libraries under their old names.
+- **Check:** the six batch 1/2 libraries are identical to the October calls under their old names.
+  D18 rep4 is a batch 3 run, so its re-run uses the 10x-filtered reads.
 
 | Sample | Was | Electroporated | Batch (prep / seq) | Fragments | IgG | Peak rows | Regions | FRiP |
 |---|---|---|---|---|---|---|---|---|
 | D15_Ctr_rep3 | D12 Ctr+GFP rep1 | D12 | 1 / 1 | 22.5 M | 13.5 M | 14,019 | 12,117 | 1.7% |
 | D15_Ctr_rep4 | D12 Ctr+GFP rep2 | D12 | 2 / 2 | 34.6 M | 29.2 M | 7,809 | 6,308 | 4.4% |
 | D18_Ctr_rep3 | D15 Ctr+GFP rep1 | D15 | 1 / 1 | 26.3 M | 13.9 M | 32,748 | 25,869 | 5.0% |
-| D18_Ctr_rep4 | D15_CtrGFP_rep2 (batch 3 run) | D15 | 2 / 3 | 38.3 M | 37.8 M | 41,834 | 36,669 | 4.6% |
+| D18_Ctr_rep4 | D15_CtrGFP_rep2 (batch 3 run) | D15 | 2 / 3 | 38.3 M | 37.8 M | 41,779 | 36,624 | 4.6% |
 | D22_Ctr_rep3 | D22 Ctr rep1 | - | 1 / 1 | 19.7 M | 10.1 M | 8,878 | 8,133 | 1.8% |
 | D22_Ctr_rep4 | D22 Ctr rep2 | - | 2 / 2 | 36.6 M | 28.5 M | 31,146 | 21,226 | 6.0% |
 | D22_Ctr_rep5 | D22 Ctr rep3 | - | 2 / 2 | 33.6 M | 32.7 M | 18,286 | 13,699 | 3.2% |
@@ -388,6 +438,8 @@ electroporation day and the prep/sequencing batch. KO libraries are not included
 Control ISL1 replicates per collection day: D9 2, D15 4, D18 4 and D22 5, for 15 in total.
 
 ### Control ISL1 sets from all replicates per day (2026-11-09)
+
+*Before the 10x filter; not re-run (outputs in `${SCRATCH}/results_with10x/`).*
 
 **Inputs**
 - `sbatch --array=0-6 scripts/14_ctr_relaxed.sb` (job 35482355): relaxed calls for Ctr rep3
@@ -446,31 +498,70 @@ IDR pairs, peaks passing:
 **Which three:** the better batch 3 library plus the earlier libraries.
 - D15 and D18: rep1 + rep3 + rep4.
 - D22: rep2 + rep4 + rep5.
-- Basis: agreement with the earlier libraries. For D22, rep2 + rep4 + rep5 shares 91-94% of its
-  >=2 regions with rep3 + rep4 + rep5.
+- Basis: agreement with the earlier libraries (chosen on the data before the 10x filter). For
+  D22, rep2 + rep4 + rep5 shared 91-94% of its >=2 regions with rep3 + rep4 + rep5.
 
 **Run:** `SUBSET="D15:1,3,4 D18:1,3,4 D22:2,4,5" OUT_NAME=ctr_trio sbatch --array=0-2 --export=ALL
-scripts/15_ctr_multirep_sets.sb` (job 35494855, 23-29 min).
+scripts/15_ctr_multirep_sets.sb` (10x-filtered re-run: job 35586302).
 - The pooled peak list for IDR and B is built from the three chosen libraries only.
-- Output: `results/ctr_trio/<day>/`.
+- Output: `results/ctr_trio/<day>/`, chr1-22/X/Y only.
 
-| Day | MACS3 >=2 of 3 (chance) | MACS3 3 of 3 | IDR, any pair | IDR, all 3 | IDR pairs: batch 3 x earlier, earlier x earlier |
-|---|---|---|---|---|---|
-| D15 | 3,299 (127) | 642 | 3,365 | 405 | 279 / 386, 3,349 |
-| D18 | 10,945 (748) | 3,812 | 7,873 | 2,988 | 2,651 / 2,811, 7,501 |
-| D22 | 9,804 (539) | 2,779 | 9,577 | 1,927 | 1,850 / 1,595, 9,483 |
+Regions per set. Chance: every replicate's regions shuffled independently and counted alike (A
+only). Reference: share of the top 1000 / all regions in the earlier batches' D15 Ctr conservative
+set (QC only; built from what is now D18 rep3).
 
-- **IDR "any pair" is mostly the earlier x earlier pair.** The batch 3 library adds 16-372 peaks.
-- **B is too permissive:** 33k-54k regions at >=2, of which only 15-19% fall in the reference set.
+| Day | Method | k | Regions | Chance | Mb | Median bp | Batch 3 + earlier | Earlier only | Reference |
+|---|---|---|---|---|---|---|---|---|---|
+| D15 | A: MACS3 | >= 2 | 3,299 | 126 | 2.22 | 611 | 904 | 2,395 | 85 / 74% |
+| D15 | A: MACS3 | 3 | 639 | 0 | 0.59 | 857 | 639 | 0 | 82 / 82% |
+| D15 | B: overlap | >= 2 | 33,546 | | 21.08 | 542 | 22,163 | 11,383 | 85 / 19% |
+| D15 | B: overlap | 3 | 5,846 | | 5.92 | 920 | 5,846 | 0 | 85 / 49% |
+| D15 | IDR | >= 2 (any pair) | 3,368 | | 3.59 | 974 | 424 | 2,944 | 85 / 77% |
+| D15 | IDR | 3 | 408 | | 0.58 | 1,349 | 408 | 0 | 84 / 84% |
+| D18 | A: MACS3 | >= 2 | 10,947 | 723 | 8.12 | 675 | 5,136 | 5,811 | 89 / 60% |
+| D18 | A: MACS3 | 3 | 3,813 | 3 | 3.66 | 899 | 3,813 | 0 | 89 / 76% |
+| D18 | B: overlap | >= 2 | 50,058 | | 33.68 | 565 | 35,273 | 14,785 | 89 / 17% |
+| D18 | B: overlap | 3 | 15,496 | | 15.77 | 924 | 15,496 | 0 | 89 / 43% |
+| D18 | IDR | >= 2 (any pair) | 7,870 | | 9.16 | 1,076 | 3,358 | 4,512 | 89 / 76% |
+| D18 | IDR | 3 | 2,995 | | 4.13 | 1,301 | 2,995 | 0 | 89 / 84% |
+| D22 | A: MACS3 | >= 2 | 9,803 | 526 | 8.69 | 811 | 3,713 | 6,090 | 86 / 58% |
+| D22 | A: MACS3 | 3 | 2,779 | 4 | 3.26 | 1,083 | 2,779 | 0 | 86 / 76% |
+| D22 | B: overlap | >= 2 | 54,302 | | 48.65 | 751 | 35,972 | 18,330 | 87 / 15% |
+| D22 | B: overlap | 3 | 13,768 | | 19.51 | 1,296 | 13,768 | 0 | 87 / 40% |
+| D22 | IDR | >= 2 (any pair) | 9,577 | | 14.32 | 1,380 | 2,016 | 7,561 | 87 / 59% |
+| D22 | IDR | 3 | 1,925 | | 3.60 | 1,721 | 1,925 | 0 | 86 / 81% |
 
-**Kept sets (2026-11-09): MACS3 >=2 of 3 and IDR any pair.** `bash scripts/18_isl1_ctr_final_peaks.sh`
-writes them to `results/isl1_ctr_final/{macs3_ge2,idr_any_pair}/<day>_Ctr_ISL1.bed`, on scratch
-and copied under the repo on /pl/active (not tracked by git).
+IDR peaks passing per pair: D15 rep1-rep3 283, rep1-rep4 385, rep3-rep4 3,352; D18 rep1-rep3
+2,661, rep1-rep4 2,822, rep3-rep4 7,500; D22 rep2-rep4 1,848, rep2-rep5 1,598, rep4-rep5 9,482.
+
+- **No region is supported by the batch 3 library alone** in any set.
+- **IDR "any pair" rests mostly on the earlier x earlier pair:** 87% (D15), 57% (D18) and 79%
+  (D22) of its peaks come from that pair only.
+- **B is too permissive:** 33k-54k regions at >= 2, of which only 15-19% fall in the reference set.
+- **A 3 of 3 is near chance-free** (0-4 shuffled regions).
+
+**Kept sets:** `bash scripts/18_isl1_ctr_final_peaks.sh` (job 35609970) writes MACS3 >= 2 of 3 and
+IDR any pair to `results/isl1_ctr_final/{macs3_ge2,idr_any_pair}/<day>_Ctr_ISL1.bed`, on scratch
+and copied under this folder on /pl/active (not tracked by git).
 - **Columns:** chr, start, end, name, n_reps, reps, max -log10 p, n_batch3, n_earlier.
-- **Counts:** macs3_ge2 has 3,299 / 10,945 / 9,804 peaks (D15 / D18 / D22; median 612-811 bp).
-  idr_any_pair has 3,365 / 7,873 / 9,577 (median 975-1,380 bp).
+
+| Day | macs3_ge2 | Median bp | idr_any_pair | Median bp | macs3_ge2 inside IDR | IDR inside macs3_ge2 |
+|---|---|---|---|---|---|---|
+| D15 | 3,299 | 611 | 3,368 | 974 | 76% | 73% |
+| D18 | 10,947 | 675 | 7,870 | 1,076 | 67% | 91% |
+| D22 | 9,803 | 811 | 9,577 | 1,380 | 82% | 82% |
+
+**Primary ISL1 set (2026-11-12): `macs3_ge2`.** The nf-core/cutandrun replicate-threshold rule;
+it uses the batch 3 library more (27-47% of regions are batch 3 + earlier, against 13-43% for
+IDR), has a measured chance rate (3.8-6.6%) and narrower regions. `idr_any_pair` stays on disk.
+For a high-confidence subset, MACS3 3 of 3 (`results/ctr_trio/<day>/A/k3.bed`).
+
+**Report:** `scripts/25_isl1_peak_methods_report.sb` (job 35611761) writes all of the above, with
+per-library calls and the batch 3 rep1/rep2 sets, to `results/qc/isl1_peak_methods/report.html`.
 
 ### H3K27ac differential analysis, D15/D18/D22 (2026-11-09)
+
+*Histone marks set aside (2026-11-12). Results below are from before the 10x filter; the re-run outputs (steps 16, 17, 19, 21) are in `${SCRATCH}/results/diff/`, not reviewed.*
 
 **Inputs** (steps 16-17)
 - **Regions:** union of the 6 groups' matched-IgG overlap Nt sets, giving 179,438 regions
@@ -569,6 +660,8 @@ Regions at padj < 0.05, up / down in KO:
 
 ### H3K27me3 differential analysis, D15/D18/D22 (2026-11-09)
 
+*Histone marks set aside (2026-11-12). Results below are from before the 10x filter; the re-run outputs (steps 16, 17, 19, 21) are in `${SCRATCH}/results/diff/`, not reviewed.*
+
 **Inputs**
 - **Domains:** union of the 6 groups' matched-IgG Nt sets, merged with a 3 kb gap (step 16,
   `MERGE_GAP=3000`). This gives 51,412 domains (369 Mb); 51,352 pass the pre-filter.
@@ -618,6 +711,8 @@ Regions at padj < 0.05, up / down in KO:
   remain.
 
 ### Cross-checks with DiffBind and csaw (2026-11-09)
+
+*Histone marks set aside (2026-11-12). Results below are from before the 10x filter; the re-run outputs (steps 16, 17, 19, 21) are in `${SCRATCH}/results/diff/`, not reviewed.*
 
 **Setup**
 - Env: `scripts/00e_build_diffbind_env.sb` (job 35499514) builds DiffBind 3.12.0, csaw 1.36.0,
@@ -688,5 +783,6 @@ other method, the KO effect on H3K27me3 starts at D18 and is mostly loss in KO.
 
 ## Local review copy (Mac)
 
-`~/Documents/Claude/ISL1_KO_histone_cutNrun` is a clone (remote `alpine`) holding code plus
-HTML reports only. Refresh with `bash scripts/fetch_reports.sh`.
+`~/Documents/git_repository/ISL1_project/cutnrun_ISL1_KO_histone` (clone of `Han-Z-BDC/ISL1_project`)
+holds code plus HTML reports in `reports/` and downloaded tracks in `results/tracks/` (both
+gitignored).

@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_methods
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=00:30:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/isl1_methods.%j.out
+
+# Step 25: ISL1 peak-calling methods report (control ISL1 only; agreed 2026-11-12). Summarises
+# per-library calls (03/13), batch 3 rep1/rep2 sets (05), ctr_trio sets (15) and the kept sets (18),
+# with overlaps by bedtools. Output: results/qc/isl1_peak_methods/report.html
+#   sbatch --dependency=afterok:<18 job> scripts/25_isl1_peak_methods_report.sb
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
+"${TOOLS}/python" "${STUDY_DIR}/scripts/isl1_peak_methods_report.py" "${OUT_DIR}" "${STUDY_DIR}" \
+  "${TOOLS}/bedtools" "${OUT_DIR}/qc/isl1_peak_methods/report.html"
