@@ -56,15 +56,15 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
 | 04 Candidate time-dependent direct targets | `scripts/04_candidates.sb` (acpu, 2 CPUs, 7 GB) | `results/04_candidates/`: `candidate_genes.tsv`, `candidates.tsv` (every matching site), `summary.tsv`, `gained_enrichment.tsv` |
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
-| 06 Cluster 4 vs cluster 2 binding, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_totals.tsv`, `contrast_tests.tsv` |
+| 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
 
 Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anaconda3/bin/python3 build_report.py`
 -> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
-site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: cluster 4 vs
-cluster 2 test, and binding and expression of their marker genes, using the bulk normalized counts).
+site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: alpha-leaning vs
+beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts).
 
 ## Results
 
@@ -183,30 +183,34 @@ days within each group (BH).
   (the reference's D22 vs D18 FDR of 3.3e-6 comes with a median change of 0). They describe each group; whether a
   group differs from the others is the camera test of step 03.
 
-### 06 Cluster 4 (alpha-leaning) against cluster 2 (beta-leaning)
+### 06 Alpha-leaning against beta-leaning sites, per day and over time
 
-Marker genes (human islet cell-type markers, in `build_report.py`): 28 alpha, 34 beta. Cluster 4 holds 12 alpha
-(GCG, ARX, IRX2, TTR, LOXL4, DPP4, GLS, RGS4, PEMT, PLCE1, TMEM236, SLC7A2) and 5 beta markers, with SST, PYY and
-GAST; cluster 2 holds 7 beta (INS, MAFA, PCSK1, ABCC8, PFKFB2, TSPAN1, ASCL2) and 6 alpha markers (MAFB, IRX1,
-CRYBA2, PCSK2, CD36, KCNJ6), with ISL1 itself and PAX6. So cluster 4 leans alpha and cluster 2 leans beta; neither is
-one cell type.
+Marker genes (human islet cell-type markers): `markers.tsv`, 28 alpha and 34 beta. Cluster 4 holds 12 alpha (GCG,
+ARX, IRX2, TTR, LOXL4, DPP4, GLS, RGS4, PEMT, PLCE1, TMEM236, SLC7A2) and 5 beta markers, with SST, PYY and GAST;
+cluster 2 holds 7 beta (INS, MAFA, PCSK1, ABCC8, PFKFB2, TSPAN1, ASCL2) and 6 alpha markers (MAFB, IRX1, CRYBA2,
+PCSK2, CD36, KCNJ6), with ISL1 itself and PAX6. So cluster 4 leans alpha and cluster 2 leans beta; neither is one
+cell type.
 
-Test (step 06): per library, total signal at the 613 cluster 4 sites over the 629 cluster 2 sites (18 shared),
-log2, fitted on ~ batch + day with the 9 libraries as replicates.
+Test (step 06): for each library, the signal of two site sets (total, or median per site, which does not depend on
+how many sites a set has), log2 ratio, fitted on ~ batch + day with the 9 libraries as replicates. Levels compare the
+two sets on one day (between different site sets they also reflect site number and intrinsic strength); changes
+compare days. p values uncorrected.
 
-| Outcome | D18 vs D15 | D22 vs D18 | D22 vs D15 |
-|---|---|---|---|
-| Cluster 4 / cluster 2 | +0.077 (p 0.23) | -0.075 (p 0.24) | +0.003 (p 0.97) |
-| Cluster 4 / all sites | +0.109 (p 0.40) | -0.157 (p 0.24) | -0.048 (p 0.70) |
-| Cluster 2 / all sites | +0.032 (p 0.63) | -0.082 (p 0.25) | -0.050 (p 0.46) |
+| log2 alpha-leaning / beta-leaning | Sites | D15 | D18 | D22 | Change D22 vs D15 |
+|---|---|---|---|---|---|
+| Cluster 4 / cluster 2, total | 613 / 629 | -0.01 (p 0.89) | +0.07 (p 0.13) | -0.00 (p 0.94) | +0.00 (p 0.97) |
+| Cluster 4 / cluster 2, median per site | 613 / 629 | +0.03 (p 0.63) | +0.09 (p 0.18) | -0.03 (p 0.64) | -0.06 (p 0.51) |
+| **Alpha / beta markers, median per site** | 45 / 52 | **-0.01 (p 0.92)** | **-0.13 (p 0.27)** | **-0.26 (p 0.048)** | -0.25 (p 0.14) |
+| Alpha markers in cluster 4 / beta markers in cluster 2, median per site | 25 / 10 | +0.10 (p 0.54) | -0.24 (p 0.18) | -0.29 (p 0.11) | -0.39 (p 0.13) |
 
-- Binding at the alpha-leaning sites rises about 5% more than at the beta-leaning sites by D18 and loses it again by
-  D22. The direction fits binding strongest around D18 at alpha-program genes, but with 3 libraries per day it is
-  not significant: the library-to-library spread (log2 ratio -0.05 to +0.14) is as large as the effect.
-- Both clusters fall relative to all sites from D18 to D22 by similar amounts (-0.16 and -0.08, both p 0.24).
-- Gene by gene the pattern is shared: binding near alpha markers of cluster 4 (LOXL4, DPP4, TTR, RGS4) and near beta
-  markers of cluster 2 (MAFA, PCSK1, ABCC8) peaks at D18 while their control expression keeps rising to D22. GCG
-  binding keeps rising (48 / 77 / 84) and ARX is level after D18 (32 / 42 / 41). INS has no linked site.
+- **Binding at alpha and beta marker sites is the same at D15; beta sites then pull ahead, and at D22 they bind
+  more than alpha sites** (median per site 25.9 vs 31.8; log2 -0.26, p 0.048, uncorrected). Binding is not stronger
+  at alpha genes at D15 or D18. The relative shift over time (-0.25 from D15 to D22) is not significant (p 0.14).
+- The whole clusters show no crossover: cluster 4 is about 5% above cluster 2 at D18 (p 0.13) and equal at D15 and
+  D22.
+- Gene by gene, binding near alpha markers of cluster 4 (LOXL4, DPP4, TTR, RGS4) and near beta markers of cluster 2
+  (MAFA, PCSK1, ABCC8) peaks at D18 while their control expression keeps rising to D22. GCG binding keeps rising
+  (48 / 77 / 84) and ARX is level after D18 (32 / 42 / 41). INS has no linked site.
 - In control islets the alpha genes and ISL1 keep rising from D18 to D22 (GCG 35,545 -> 203,556; ARX 485 -> 1,020;
-  ISL1 373 / 1,990 / 4,425 at D15 / D18 / D22), so the fall in binding is not from less ISL1 or fewer alpha-lineage
-  cells.
+  ISL1 373 / 1,990 / 4,425 at D15 / D18 / D22), so the fall in binding at alpha sites is not from less ISL1 or fewer
+  alpha-lineage cells.

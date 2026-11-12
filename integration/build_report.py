@@ -18,15 +18,10 @@ from plotly.subplots import make_subplots
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "results")
 BULK_COUNTS = os.path.join(HERE, "..", "bulkRNAseq_ISL1_KO_timecourse", "results", "DE_DESeq2", "normalized_counts.tsv")
-# Section 06 marker genes (human islet cell-type markers; PPP1R1A, in both lists, left out)
-MARKERS = {
-    "alpha": ["GCG", "ARX", "IRX1", "IRX2", "TTR", "GC", "LOXL4", "DPP4", "FAP", "TM4SF4", "CRYBA2", "PTPRT", "KCTD12",
-              "MAFB", "POU3F4", "PLCE1", "TMEM236", "SMIM24", "SLC7A2", "PCSK2", "F10", "GLS", "FEV", "KCNJ6", "CD36",
-              "PEMT", "RGS4", "SLC38A5"],
-    "beta": ["INS", "IAPP", "MAFA", "NPTX2", "DLK1", "ADCYAP1", "PCSK1", "G6PC2", "HADH", "SORL1", "ERO1B", "PFKFB2",
-             "NKX6-1", "PDX1", "SLC30A8", "GJD2", "BMP5", "ENTPD3", "PIR", "SYT13", "FFAR4", "TSPAN1", "SCGB2A1",
-             "CDKN1C", "ASCL2", "GLRA1", "ABCC8", "MEG3", "RBP4", "HHATL", "SLC2A2", "PLCXD3", "CASR", "TGFBR3"],
-}
+# Section 06 marker genes: markers.tsv (cell_type, gene), shared with step 06
+_mk = pd.read_csv(os.path.join(HERE, "markers.tsv"), sep="\t", comment="#")
+MARKERS = {ct: list(g.gene) for ct, g in _mk.groupby("cell_type", sort=False)}
+
 OUT = os.path.join(RES, "report_integration.html")
 
 GROUPS = ["no_KO_effect", "cluster1", "cluster2", "cluster3", "cluster4", "cluster5", "cluster6", "stays", "other_KO"]
@@ -224,8 +219,9 @@ expr = pd.DataFrame({k: bulk[v].mean(axis=1) for k, v in expr_cols.items()})
 expr.index = bulk.gene_name
 expr = expr[~expr.index.duplicated()]
 cand_names = set(c_gen.gene_name)
-lib = rd(os.path.join(RES, "06_cluster_contrast", "library_totals.tsv"))
-ctest = rd(os.path.join(RES, "06_cluster_contrast", "contrast_tests.tsv"))
+lib = rd(os.path.join(RES, "06_cluster_contrast", "library_values.tsv"))
+ctest = rd(os.path.join(RES, "06_cluster_contrast", "tests.tsv"))
+set_n = rd(os.path.join(RES, "06_cluster_contrast", "set_sizes.tsv")).set_index("set").n_sites
 
 # marker table: every marker gene with its group, sites, binding, control expression and KO effect
 rows = []
@@ -246,35 +242,45 @@ for ctype, genes in MARKERS.items():
 mk = pd.DataFrame(rows)
 mk["cluster"] = mk.gene.map(gtab.group)
 
-# panel A: per-library log2(cluster 4 / cluster 2) by day, with the day means
-fig = go.Figure()
-for d, col in DAY_COL.items():
-    x = lib[lib.day == d]
-    fig.add_trace(go.Scatter(x=[d] * len(x), y=x.log2_c4_vs_c2, mode="markers", name=d, showlegend=False,
-                             marker=dict(color=col, size=11, line=dict(color="#fcfcfb", width=2),
-                                         symbol=["diamond" if b == "batch3" else "circle" for b in x.batch]),
-                             customdata=np.stack([x["sample"], x.batch], axis=1),
-                             hovertemplate="%{customdata[0]} (%{customdata[1]})<br>log2 cluster 4 / cluster 2: "
-                                           "%{y:.3f}<extra></extra>"))
-means = lib.groupby("day").log2_c4_vs_c2.mean().reindex(DAYS)
-fig.add_trace(go.Scatter(x=DAYS, y=means, mode="lines", line=dict(color=C_OTHER, width=2), name="day mean",
-                         hovertemplate="%{x} mean %{y:.3f}<extra></extra>"))
+# panel A: per-library log2 ratio of alpha-leaning to beta-leaning sites by day (left: the two clusters, total
+# signal; right: all alpha vs all beta marker sites, median signal per site), with the day means
+CMP = {"cluster4_vs_cluster2": "Cluster 4 / cluster 2 sites (total signal)",
+       "alpha_vs_beta": "Alpha / beta marker sites (median signal per site)",
+       "alpha_in_c4_vs_beta_in_c2": "Alpha markers in cluster 4 / beta markers in cluster 2",
+       "cluster4_vs_all": "Cluster 4 / all sites", "cluster2_vs_all": "Cluster 2 / all sites"}
+panels = [("cluster4_vs_cluster2", "total"), ("alpha_vs_beta", "median")]
+tt = ctest.set_index(["comparison", "metric", "term"])
+fig = make_subplots(rows=1, cols=2, horizontal_spacing=0.1, subplot_titles=[
+    f"{CMP[c]}<br><span style='font-size:11px;color:#555'>D15 {tt.loc[(c, m, 'level_D15'), 'estimate']:+.2f} "
+    f"(p {tt.loc[(c, m, 'level_D15'), 'p']:.2g}) · D18 {tt.loc[(c, m, 'level_D18'), 'estimate']:+.2f} "
+    f"(p {tt.loc[(c, m, 'level_D18'), 'p']:.2g}) · D22 {tt.loc[(c, m, 'level_D22'), 'estimate']:+.2f} "
+    f"(p {tt.loc[(c, m, 'level_D22'), 'p']:.2g})</span>" for c, m in panels])
+for j, (c, m) in enumerate(panels, start=1):
+    x = lib[(lib.comparison == c) & (lib.metric == m)]
+    for d, col in DAY_COL.items():
+        xd = x[x.day == d]
+        fig.add_trace(go.Scatter(x=[d] * len(xd), y=xd.log2_ratio, mode="markers", showlegend=False,
+                                 marker=dict(color=col, size=11, line=dict(color="#fcfcfb", width=2),
+                                             symbol=["diamond" if b == "batch3" else "circle" for b in xd.batch]),
+                                 customdata=np.stack([xd["sample"], xd.batch], axis=1),
+                                 hovertemplate="%{customdata[0]} (%{customdata[1]})<br>log2 ratio %{y:.3f}<extra></extra>"),
+                      row=1, col=j)
+    mean = x.groupby("day").log2_ratio.mean().reindex(DAYS)
+    fig.add_trace(go.Scatter(x=DAYS, y=mean, mode="lines", line=dict(color=C_OTHER, width=2), name="day mean",
+                             showlegend=(j == 1), hovertemplate="%{x} mean %{y:.3f}<extra></extra>"), row=1, col=j)
+    fig.add_hline(y=0, line=dict(color=AXIS, width=1), row=1, col=j)
 for nm, sym in [("batch 3 library", "diamond"), ("earlier library", "circle")]:
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=nm,
-                             marker=dict(color=C_OTHER, size=10, symbol=sym)))
-tc = ctest[ctest.outcome == "log2_c4_vs_c2"].set_index("contrast")
-fig.update_layout(title=f"ISL1 binding at cluster 4 sites relative to cluster 2 sites, per library "
-                        f"(D18 vs D15 {tc.loc['D18_vs_D15', 'estimate']:+.3f}, p {tc.loc['D18_vs_D15', 'p']:.2g}; "
-                        f"D22 vs D18 {tc.loc['D22_vs_D18', 'estimate']:+.3f}, p {tc.loc['D22_vs_D18', 'p']:.2g})",
-                  legend=dict(orientation="h", y=1.02, x=1, xanchor="right", yanchor="bottom"))
-fig.update_yaxes(title="log2 (total signal at cluster 4 sites / cluster 2 sites)")
-fig.add_hline(y=0, line=dict(color=AXIS, width=1))
-parts.append(("06a", fig_html(style(fig, 420), False)))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=nm, marker=dict(color=C_OTHER, size=10, symbol=sym)),
+                  row=1, col=1)
+fig.update_yaxes(title_text="log2 (alpha-leaning / beta-leaning)", col=1)
+fig.update_layout(title="ISL1 binding at alpha-leaning relative to beta-leaning sites, per library and day "
+                        "(> 0: stronger at the alpha-leaning sites)",
+                  legend=dict(orientation="h", y=1.0, x=1, xanchor="right", yanchor="bottom"))
+fig = style(fig, 470)
+fig.update_layout(margin=dict(t=130), title=dict(y=0.98, yanchor="top"), legend=dict(y=1.22))
+parts.append(("06a", fig_html(fig, False)))
 ct_show = ctest.copy()
-ct_show["outcome"] = ct_show.outcome.map({"log2_c4_vs_c2": "cluster 4 / cluster 2",
-                                          "log2_c4_vs_all": "cluster 4 / all sites",
-                                          "log2_c2_vs_all": "cluster 2 / all sites"})
-
+ct_show["comparison"] = ct_show.comparison.map(CMP)
 # panel B: marker genes of each cluster with >= 1 site: binding (sum of its sites) and control expression,
 # log2 change from D15; alpha markers of cluster 4 first, then beta markers of cluster 2
 panel = pd.concat([mk[(mk.cell_type == "alpha") & (mk.cluster == "cluster4") & (mk.n_sites > 0)],
@@ -368,13 +374,18 @@ significant with the estimated inter-site correlation).</p>
 {parts[2][1]}
 {table_html(t05)}
 
-<h2>06 Cluster 4 (alpha-leaning) against cluster 2 (beta-leaning)</h2>
+<h2>06 Alpha-leaning against beta-leaning sites, per day and over time</h2>
 <p class="note">Marker genes (human islet cell-type markers): alpha {", ".join(MARKERS["alpha"])}; beta
 {", ".join(MARKERS["beta"])}. Cluster 4 holds {n_alpha4} alpha and {n_beta4} beta markers (with SST, PYY and GAST);
-cluster 2 holds {n_beta2} beta and {n_alpha2} alpha markers. Test: for each of the 9 libraries, the total normalized
-signal (reads / step 27 background size factor) at the sites linked to cluster 4 genes divided by that at cluster 2
-sites; log2 ratio fitted on ~ batch + day with the libraries as replicates (5 residual df). Each cluster against all
-sites is fitted the same way.</p>
+cluster 2 holds {n_beta2} beta and {n_alpha2} alpha markers. Site sets (sites linked by GREAT): cluster 4
+({set_n["cluster4"]:,}) and cluster 2 ({set_n["cluster2"]:,}); all alpha ({set_n["alpha"]}) and all beta
+({set_n["beta"]}) marker sites; alpha markers in cluster 4 ({set_n["alpha_in_c4"]}) and beta markers in cluster 2
+({set_n["beta_in_c2"]}). For each of the 9 libraries: signal per site = reads / step 27 background size factor,
+summarized per set as the total (depends on the number of sites) or the median per site (does not). log2 ratio
+of the two sets fitted on ~ batch + day with the libraries as replicates (5 residual df): level_&lt;day&gt; tests whether
+one set binds more on that day (between different site sets this also reflects site number and intrinsic site
+strength), change_&lt;a&gt;_vs_&lt;b&gt; whether one set gains or loses relative to the other between days. p values are not
+corrected for the number of tests.</p>
 {parts[3][1]}
 {table_html(ct_show)}
 <p class="note">Marker genes with at least one linked site: ISL1 binding (sum of the normalized signal of its sites)

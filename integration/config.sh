@@ -21,6 +21,9 @@ CHROM_SIZES=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/results/isl
 BULK_DE=${PROJECT}/bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2
 GTF=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0/genes/genes.gtf
 
+# ---- Islet cell-type marker genes (step 06, report section 06)
+MARKERS=${INT_DIR}/markers.tsv
+
 # ---- Environments -------------------------------------------------------------------------------
 PY=/projects/hzhu10@xsede.org/software/anaconda/envs/bulkRNAseq/bin/python
 R_ENV=/projects/hzhu10@xsede.org/software/anaconda/envs/r_env
