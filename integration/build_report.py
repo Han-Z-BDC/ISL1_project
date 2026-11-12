@@ -248,29 +248,41 @@ CMP = {"cluster4_vs_cluster2": "Cluster 4 / cluster 2 sites",
        "alpha_vs_beta": "Alpha / beta marker sites",
        "alpha_in_c4_vs_beta_in_c2": "Alpha markers in cluster 4 / beta markers in cluster 2",
        "cluster4_vs_all": "Cluster 4 / all sites", "cluster2_vs_all": "Cluster 2 / all sites"}
-C_TYPE = {"alpha": "#2a78d6", "beta": "#eb6834"}   # categorical slots 1 and 2
+C_PAIR = ["#2a78d6", "#eb6834"]   # categorical slots 1 and 2: alpha-leaning, beta-leaning
 tt = ctest.set_index(["comparison", "metric", "term"])
-type_sites = {ct: sgl.loc[sgl.gene_name.isin(MARKERS[ct]), "site"].unique() for ct in ("alpha", "beta")}
-fig = go.Figure()
-ymax = 0
-for ct, col in C_TYPE.items():
-    bs = [box_stats(site_sig.loc[type_sites[ct], f"signal_{d}"]) for d in DAYS]
-    q1, med, q3, lf, uf = (list(t) for t in zip(*bs))
-    ymax = max(ymax, max(uf))
-    fig.add_trace(go.Box(x=DAYS, q1=q1, median=med, q3=q3, lowerfence=lf, upperfence=uf,
-                         name=f"{ct.capitalize()} marker genes ({len(type_sites[ct])} sites)", marker_color=col,
-                         line=dict(width=1.5), offsetgroup=ct, whiskerwidth=0.4, hoverinfo="y+name",
-                         fillcolor="rgba({},{},{},0.45)".format(*(int(col[i:i + 2], 16) for i in (1, 3, 5)))))
-for d in DAYS:
-    r = tt.loc[("alpha_vs_beta", "median", f"level_{d}")]
-    fig.add_annotation(x=d, y=ymax * 1.02, showarrow=False, yanchor="bottom", font=dict(size=11),
-                       text=f"{stars(r.p)}<br><span style='color:#898781'>log2 alpha/beta {r.estimate:+.2f}, "
-                            f"p {r.p:.2g}</span>")
-fig.update_layout(boxmode="group", boxgap=0.35, boxgroupgap=0.1,
-                  title="ISL1 binding signal at alpha and beta marker gene sites, per day",
-                  legend=dict(orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
-fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
-parts.append(("06a", fig_html(style(fig, 500), False)))
+
+
+def pair_boxplot(site_sets, comparison, title):
+    """Signal per site at two site sets, per day; stars from the step 06 library-level test of the median per site."""
+    fig = go.Figure()
+    ymax = 0
+    for (name, sites), col in zip(site_sets.items(), C_PAIR):
+        bs = [box_stats(site_sig.loc[sites, f"signal_{d}"]) for d in DAYS]
+        q1, med, q3, lf, uf = (list(t) for t in zip(*bs))
+        ymax = max(ymax, max(uf))
+        fig.add_trace(go.Box(x=DAYS, q1=q1, median=med, q3=q3, lowerfence=lf, upperfence=uf,
+                             name=f"{name} ({len(sites):,} sites)", marker_color=col, line=dict(width=1.5),
+                             offsetgroup=name, whiskerwidth=0.4, hoverinfo="y+name",
+                             fillcolor="rgba({},{},{},0.45)".format(*(int(col[i:i + 2], 16) for i in (1, 3, 5)))))
+    for d in DAYS:
+        r = tt.loc[(comparison, "median", f"level_{d}")]
+        fig.add_annotation(x=d, y=ymax * 1.02, showarrow=False, yanchor="bottom", font=dict(size=11),
+                           text=f"{stars(r.p)}<br><span style='color:#898781'>log2 ratio {r.estimate:+.2f}, "
+                                f"p {r.p:.2g}</span>")
+    fig.update_layout(boxmode="group", boxgap=0.35, boxgroupgap=0.1, title=title,
+                      legend=dict(orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
+    fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
+    return fig_html(style(fig, 500), False)
+
+
+marker_sites = {f"{ct.capitalize()} marker genes": sgl.loc[sgl.gene_name.isin(MARKERS[ct]), "site"].unique()
+                for ct in ("alpha", "beta")}
+parts.append(("06a", pair_boxplot(marker_sites, "alpha_vs_beta",
+                                  "ISL1 binding signal at alpha and beta marker gene sites, per day")))
+cluster_sites = {"Cluster 4, alpha-leaning": sg.loc[sg.group == "cluster4", "site"].unique(),
+                 "Cluster 2, beta-leaning": sg.loc[sg.group == "cluster2", "site"].unique()}
+parts.append(("06a2", pair_boxplot(cluster_sites, "cluster4_vs_cluster2",
+                                   "ISL1 binding signal at cluster 4 and cluster 2 sites, per day")))
 ct_show = ctest.copy()
 ct_show["comparison"] = ct_show.comparison.map(CMP)
 # panel B: marker genes of each cluster with >= 1 site: binding (sum of its sites) and control expression,
@@ -378,13 +390,15 @@ of the two sets fitted on ~ batch + day with the libraries as replicates (5 resi
 one set binds more on that day (between different site sets this also reflects site number and intrinsic site
 strength), change_&lt;a&gt;_vs_&lt;b&gt; whether one set gains or loses relative to the other between days. p values are not
 corrected for the number of tests. Figure: signal per site (mean of the 3 libraries per day) at the alpha and the
-beta marker sites, boxes and whiskers as in section 05; stars and p from the library-level test of the median per
-site (level_&lt;day&gt;, alpha / beta markers; *** &lt; 0.001, ** &lt; 0.01, * &lt; 0.05, ns otherwise).</p>
+beta marker sites, and at the cluster 4 and the cluster 2 sites; boxes and whiskers as in section 05; stars and p
+from the library-level test of the median per site of the same two sets (level_&lt;day&gt;; *** &lt; 0.001,
+** &lt; 0.01, * &lt; 0.05, ns otherwise).</p>
 {parts[3][1]}
+{parts[4][1]}
 {table_html(ct_show)}
 <p class="note">Marker genes with at least one linked site: ISL1 binding (sum of the normalized signal of its sites)
 and mean normalized expression in control islets (Ctr-H3), both as log2 change from D15.</p>
-{parts[4][1]}
+{parts[5][1]}
 <p class="note">All marker genes: KO-effect group, linked sites, ISL1 binding (sum over sites), control expression
 (mean normalized counts) and the KO effect (shrunk log2FC KO vs Ctr) per day; candidate = in the section 04 list.</p>
 {table_html(mk_show)}
