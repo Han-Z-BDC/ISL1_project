@@ -3,8 +3,8 @@
 
 Run on the Mac from integration/ after `bash scripts/fetch_results.sh`:
   ~/anaconda3/bin/python3 build_report.py
-Reads results/01_great/summary.tsv, results/02_direct_targets/enrichment.tsv,
-results/03_binding_change/{camera,site_stats,site_groups}.tsv.
+Reads the step 01-05 tables in results/ and, for section 06, the bulk normalized counts
+(../bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/normalized_counts.tsv).
 Output: results/report_integration.html
 """
 import html
@@ -14,9 +14,18 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy.stats import wilcoxon
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "results")
+BULK_COUNTS = os.path.join(HERE, "..", "bulkRNAseq_ISL1_KO_timecourse", "results", "DE_DESeq2", "normalized_counts.tsv")
+# Section 06 marker genes (human islet cell-type markers; pan-endocrine genes left out)
+MARKERS = {
+    "alpha": ["GCG", "ARX", "IRX1", "IRX2", "TTR", "GC", "LOXL4", "DPP4", "FAP", "TM4SF4", "CRYBA2", "PTPRT", "KCTD12",
+              "MAFB", "POU3F4", "PLCE1", "TMEM236", "SMIM24", "SLC7A2"],
+    "beta": ["INS", "IAPP", "MAFA", "NKX6-1", "PDX1", "SLC30A8", "G6PC2", "HADH", "PCSK1"],
+    "delta": ["SST", "HHEX", "LEPR", "RBP4"],
+}
 OUT = os.path.join(RES, "report_integration.html")
 
 GROUPS = ["no_KO_effect", "cluster1", "cluster2", "cluster3", "cluster4", "cluster5", "cluster6", "stays", "other_KO"]
@@ -198,6 +207,103 @@ parts.append(("05", fig_html(style(fig, 560), False)))
 t05 = wt.copy()
 t05["group"] = t05.group.map(LABEL)
 
+# ---- section 06: alpha, beta and delta programs (binding vs expression over time)
+DAYS = ["D15", "D18", "D22"]
+C_EXPR = "#eb6834"   # categorical slot 2
+site_sig = rd(os.path.join(RES, "05_binding_signal", "site_signal.tsv")).set_index("site")
+sgl = rd(os.path.join(RES, "01_great", "site_gene.tsv"))
+gtab = rd(os.path.join(RES, "02_direct_targets", "gene_table.tsv")).set_index("gene_name")
+bulk = rd(BULK_COUNTS)
+LINE = {"Ctr": "_Ctr-H3_", "KO": "_ISL1-KO_"}
+expr_cols = {f"{g}_{d}": [c for c in bulk.columns if f"{LINE[g]}{d}_" in c] for g in LINE for d in DAYS}
+assert all(len(v) == 2 for v in expr_cols.values()), expr_cols
+expr = pd.DataFrame({k: bulk[v].mean(axis=1) for k, v in expr_cols.items()})
+expr.index = bulk.gene_name
+expr = expr[~expr.index.duplicated()]
+cand_names = set(c_gen.gene_name)
+
+rows = []
+for ctype, genes in MARKERS.items():
+    for g in genes:
+        sites = sgl.loc[sgl.gene_name == g, "site"].unique()
+        b = site_sig.loc[sites, [f"signal_{d}" for d in DAYS]].sum() if len(sites) else pd.Series([np.nan] * 3)
+        r = {"cell_type": ctype, "gene": g, "group": LABEL.get(gtab.group.get(g, ""), "not tested"), "n_sites": len(sites)}
+        for d, v in zip(DAYS, b.to_numpy()):
+            r[f"binding_{d}"] = round(float(v), 1) if len(sites) else np.nan
+        for d in DAYS:
+            r[f"ctr_expr_{d}"] = round(float(expr.loc[g, f"Ctr_{d}"])) if g in expr.index else np.nan
+        for d in DAYS:
+            r[f"ko_log2FC_{d}"] = round(float(gtab.loc[g, f"ko_lfc_{d}"]), 2) if g in gtab.index else np.nan
+        r["candidate"] = g in cand_names
+        rows.append(r)
+mk = pd.DataFrame(rows)
+
+# panel A: binding signal per day at the sites of each marker set, all sites as reference
+sets = {"All sites": site_sig.index.to_numpy()}
+for ctype, genes in MARKERS.items():
+    sets[f"{ctype.capitalize()} genes"] = sgl.loc[sgl.gene_name.isin(genes), "site"].unique()
+fig = go.Figure()
+ymax = 0
+for d, col in DAY_COL.items():
+    bs = [box_stats(site_sig.loc[s, f"signal_{d}"]) for s in sets.values()]
+    q1, med, q3, lf, uf = (list(t) for t in zip(*bs))
+    ymax = max(ymax, max(uf))
+    fig.add_trace(go.Box(x=list(sets), q1=q1, median=med, q3=q3, lowerfence=lf, upperfence=uf, name=d,
+                         marker_color=col, line=dict(width=1.5), offsetgroup=d, whiskerwidth=0.4, hoverinfo="y+name",
+                         fillcolor="rgba({},{},{},0.45)".format(*(int(col[i:i + 2], 16) for i in (1, 3, 5)))))
+wrows = []
+for name, s in sets.items():
+    x = site_sig.loc[s]
+    for a, b in [("D18", "D15"), ("D22", "D18"), ("D22", "D15")]:
+        wrows.append({"set": name, "comparison": f"{a} vs {b}", "n_sites": len(s),
+                      "median_a": round(x[f"signal_{a}"].median(), 1), "median_b": round(x[f"signal_{b}"].median(), 1),
+                      "pct_sites_up": round(100 * (x[f"signal_{a}"] > x[f"signal_{b}"]).mean(), 1),
+                      "p": wilcoxon(x[f"signal_{a}"], x[f"signal_{b}"]).pvalue})
+w06 = pd.DataFrame(wrows)
+order = np.argsort(w06.p.to_numpy())
+q = np.empty(len(order))
+q[order] = np.minimum.accumulate((w06.p.to_numpy()[order] * len(order) / np.arange(1, len(order) + 1))[::-1])[::-1]
+w06["fdr"] = np.minimum(q, 1)
+for name, s in sets.items():
+    w = w06[w06.set == name].set_index("comparison")
+    txt = (f"D18/D15 {stars(w.loc['D18 vs D15', 'fdr'])}<br>D22/D18 {stars(w.loc['D22 vs D18', 'fdr'])}"
+           f"<br><span style='color:#898781'>n = {len(s):,}</span>")
+    fig.add_annotation(x=name, y=ymax * 1.02, text=txt, showarrow=False, yanchor="bottom", font=dict(size=11))
+fig.update_layout(boxmode="group", boxgap=0.3, boxgroupgap=0.08,
+                  title="ISL1 binding signal at the sites linked to islet cell-type marker genes",
+                  legend=dict(title="Day", orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
+fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
+parts.append(("06a", fig_html(style(fig, 480), False)))
+w06["p"] = w06.p.map(lambda v: float(f"{v:.3g}"))
+w06["fdr"] = w06.fdr.map(lambda v: float(f"{v:.3g}"))
+
+# panel B: per bound alpha gene, binding (sum over its sites) and control expression, log2 change from D15
+bound_alpha = mk[(mk.cell_type == "alpha") & (mk.n_sites > 0)].reset_index(drop=True)
+ncol = 4
+nrow = int(np.ceil(len(bound_alpha) / ncol))
+fig = make_subplots(rows=nrow, cols=ncol, subplot_titles=[f"{g} ({n} site{'s' if n > 1 else ''})"
+                                                          for g, n in zip(bound_alpha.gene, bound_alpha.n_sites)],
+                    shared_yaxes=True, vertical_spacing=0.12, horizontal_spacing=0.04)
+for k, r in bound_alpha.iterrows():
+    i, j = k // ncol + 1, k % ncol + 1
+    bind = np.log2(np.array([r[f"binding_{d}"] for d in DAYS]) + 1)
+    ex = np.log2(np.array([r[f"ctr_expr_{d}"] for d in DAYS]) + 1)
+    for y, name, col in [(bind - bind[0], "ISL1 binding (sum of its sites)", C_GROUP),
+                         (ex - ex[0], "Expression in control (RNA-seq)", C_EXPR)]:
+        fig.add_trace(go.Scatter(x=DAYS, y=y, mode="lines+markers", name=name, legendgroup=name,
+                                 showlegend=(k == 0), line=dict(color=col, width=2), marker=dict(size=8),
+                                 hovertemplate=f"{r.gene} {name}<br>%{{x}}: log2 change %{{y:.2f}}<extra></extra>"),
+                      row=i, col=j)
+fig.update_yaxes(title_text="log2 change from D15", col=1)
+fig.update_layout(title="Alpha genes: ISL1 binding near the gene vs its expression in control islets",
+                  legend=dict(orientation="h", y=1.0, x=0, yanchor="bottom"))
+fig = style(fig, 230 * nrow + 170)
+fig.update_layout(margin=dict(t=150), title=dict(y=0.995, yanchor="top"))
+fig.update_layout(legend=dict(y=1.0 + 75 / (230 * nrow + 170 - 150 - 50)))
+parts.append(("06b", fig_html(fig, False)))
+mk_show = mk.copy()
+mk_show["candidate"] = mk_show.candidate.map({True: "yes", False: ""})
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -255,6 +361,19 @@ the camera test in section 03 (cluster 4: up D18 vs D15, FDR 0.23; down D22 vs D
 significant with the estimated inter-site correlation).</p>
 {parts[2][1]}
 {table_html(t05)}
+
+<h2>06 Alpha, beta and delta programs: ISL1 binding and expression over time</h2>
+<p class="note">Marker genes (human islet cell-type markers, pan-endocrine genes left out): alpha {", ".join(MARKERS["alpha"])};
+beta {", ".join(MARKERS["beta"])}; delta {", ".join(MARKERS["delta"])}. Sites linked to them by GREAT; signal as in
+section 05. Stars: paired Wilcoxon between days within the set (BH over this panel), descriptive as in section 05.</p>
+{parts[3][1]}
+{table_html(w06)}
+<p class="note">Each alpha gene with at least one linked site: ISL1 binding (sum of the normalized signal of its sites)
+and its mean normalized expression in control islets (Ctr-H3), both as log2 change from D15.</p>
+{parts[4][1]}
+<p class="note">All marker genes: KO-effect group, linked sites, ISL1 binding (sum over sites), control expression
+(mean normalized counts) and the KO effect (shrunk log2FC KO vs Ctr) per day; candidate = in the section 04 list.</p>
+{table_html(mk_show)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)

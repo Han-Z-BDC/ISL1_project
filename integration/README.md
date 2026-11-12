@@ -62,7 +62,9 @@ copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
 
 Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anaconda3/bin/python3 build_report.py`
 -> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
-site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster).
+site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06, built in the
+report from the step 01 and 05 tables and the bulk normalized counts: binding and expression of islet cell-type
+marker genes).
 
 ## Results
 
@@ -180,3 +182,29 @@ days within each group (BH).
 - The paired tests use sites as units; with hundreds of sites per group even small shifts give tiny p values
   (the reference's D22 vs D18 FDR of 3.3e-6 comes with a median change of 0). They describe each group; whether a
   group differs from the others is the camera test of step 03.
+
+### 06 Islet cell-type programs (report section)
+
+Marker genes: alpha GCG, ARX, IRX1, IRX2, TTR, GC, LOXL4, DPP4, FAP, TM4SF4, CRYBA2, PTPRT, KCTD12, MAFB, POU3F4,
+PLCE1, TMEM236, SMIM24, SLC7A2; beta INS, IAPP, MAFA, NKX6-1, PDX1, SLC30A8, G6PC2, HADH, PCSK1; delta SST, HHEX,
+LEPR, RBP4. Binding: signal of the sites linked to them (step 05 signal); expression: mean normalized counts in
+control islets.
+
+| Sites near | Sites | Median signal D15 / D18 / D22 | Sites up D18 vs D15 | Sites up D22 vs D18 (FDR) |
+|---|---|---|---|---|
+| All sites | 14,431 | 23.1 / 31.7 / 29.9 | 84.9% | 43.5% (1e-126) |
+| Alpha genes | 26 | 17.7 / 29.6 / 24.9 | 96.2% | 38.5% (0.039) |
+| Beta genes | 16 | 19.1 / 39.7 / 35.0 | 100% | 18.8% (0.035) |
+| Delta genes | 9 | 23.0 / 33.2 / 26.5 | 88.9% | 0% (0.006) |
+
+- Cluster 4 holds 9 of the 19 alpha genes (GCG, ARX, IRX2, TTR, DPP4, LOXL4, TMEM236, PLCE1, SLC7A2), all lost in
+  the KO with a growing effect (GCG -6.2 / -8.9 / -11.2, ARX -1.4 / -3.4 / -5.3), together with SST and the beta
+  genes PDX1 and HADH.
+- In control islets these genes keep rising from D18 to D22 (GCG 35,545 -> 203,556; ARX 485 -> 1,020), and so does
+  ISL1 (373 / 1,990 / 4,425 at D15 / D18 / D22).
+- Binding near the marker genes of all three cell types peaks at D18 and falls by D22, more than at all sites,
+  while their expression keeps rising. The rise-then-fall is shared by the alpha, beta and delta programs, not
+  specific to alpha. Among alpha genes it is carried by LOXL4, DPP4, TTR, GC and MAFB; binding near GCG keeps rising
+  (48 / 77 / 84) and near ARX stays level after D18 (32 / 42 / 41).
+- Bound alpha genes without a significant site (GCG, ARX, TTR) are not step 04 candidates.
+- The marker sets are small (9-26 sites) and the paired tests treat sites as independent, so these are descriptive.
