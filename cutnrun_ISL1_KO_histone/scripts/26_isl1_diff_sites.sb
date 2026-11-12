@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_sites
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/logs/isl1_sites.%j.out
+
+# Step 26: fixed-width ISL1 site set for differential binding over time (agreed 2026-11-12):
+# macs3_ge2 regions of D15 / D18 / D22 (step 18), each centred on its strongest trio-library
+# summit, 401 bp, overlaps across days resolved by the stronger summit (scripts/isl1_diff_sites.py).
+# Output: results/isl1_diff/sites/{sites_401bp.bed,qc.tsv}
+#   sbatch --dependency=afterok:<18 job> scripts/26_isl1_diff_sites.sb
+
+set -euo pipefail
+IGG_METHOD=matched
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_KO_histone/study_config/config.sh
+"${TOOLS}/python" "${STUDY_DIR}/scripts/isl1_diff_sites.py" "${OUT_DIR}" "${STUDY_DIR}/study_config/ctr_replicates.tsv" \
+  "${TOOLS}/bedtools" "${BLACKLIST}" "${OUT_DIR}/isl1_consensus/genome.txt" "${OUT_DIR}/isl1_diff/sites"
