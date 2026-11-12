@@ -242,43 +242,35 @@ for ctype, genes in MARKERS.items():
 mk = pd.DataFrame(rows)
 mk["cluster"] = mk.gene.map(gtab.group)
 
-# panel A: per-library log2 ratio of alpha-leaning to beta-leaning sites by day (left: the two clusters, total
-# signal; right: all alpha vs all beta marker sites, median signal per site), with the day means
-CMP = {"cluster4_vs_cluster2": "Cluster 4 / cluster 2 sites (total signal)",
-       "alpha_vs_beta": "Alpha / beta marker sites (median signal per site)",
+# panel A: binding signal per site at alpha vs beta marker sites, per day (boxplots as in section 05);
+# annotation: the library-level test of the median per site (step 06, alpha_vs_beta, level_<day>)
+CMP = {"cluster4_vs_cluster2": "Cluster 4 / cluster 2 sites",
+       "alpha_vs_beta": "Alpha / beta marker sites",
        "alpha_in_c4_vs_beta_in_c2": "Alpha markers in cluster 4 / beta markers in cluster 2",
        "cluster4_vs_all": "Cluster 4 / all sites", "cluster2_vs_all": "Cluster 2 / all sites"}
-panels = [("cluster4_vs_cluster2", "total"), ("alpha_vs_beta", "median")]
+C_TYPE = {"alpha": "#2a78d6", "beta": "#eb6834"}   # categorical slots 1 and 2
 tt = ctest.set_index(["comparison", "metric", "term"])
-fig = make_subplots(rows=1, cols=2, horizontal_spacing=0.1, subplot_titles=[
-    f"{CMP[c]}<br><span style='font-size:11px;color:#555'>D15 {tt.loc[(c, m, 'level_D15'), 'estimate']:+.2f} "
-    f"(p {tt.loc[(c, m, 'level_D15'), 'p']:.2g}) · D18 {tt.loc[(c, m, 'level_D18'), 'estimate']:+.2f} "
-    f"(p {tt.loc[(c, m, 'level_D18'), 'p']:.2g}) · D22 {tt.loc[(c, m, 'level_D22'), 'estimate']:+.2f} "
-    f"(p {tt.loc[(c, m, 'level_D22'), 'p']:.2g})</span>" for c, m in panels])
-for j, (c, m) in enumerate(panels, start=1):
-    x = lib[(lib.comparison == c) & (lib.metric == m)]
-    for d, col in DAY_COL.items():
-        xd = x[x.day == d]
-        fig.add_trace(go.Scatter(x=[d] * len(xd), y=xd.log2_ratio, mode="markers", showlegend=False,
-                                 marker=dict(color=col, size=11, line=dict(color="#fcfcfb", width=2),
-                                             symbol=["diamond" if b == "batch3" else "circle" for b in xd.batch]),
-                                 customdata=np.stack([xd["sample"], xd.batch], axis=1),
-                                 hovertemplate="%{customdata[0]} (%{customdata[1]})<br>log2 ratio %{y:.3f}<extra></extra>"),
-                      row=1, col=j)
-    mean = x.groupby("day").log2_ratio.mean().reindex(DAYS)
-    fig.add_trace(go.Scatter(x=DAYS, y=mean, mode="lines", line=dict(color=C_OTHER, width=2), name="day mean",
-                             showlegend=(j == 1), hovertemplate="%{x} mean %{y:.3f}<extra></extra>"), row=1, col=j)
-    fig.add_hline(y=0, line=dict(color=AXIS, width=1), row=1, col=j)
-for nm, sym in [("batch 3 library", "diamond"), ("earlier library", "circle")]:
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=nm, marker=dict(color=C_OTHER, size=10, symbol=sym)),
-                  row=1, col=1)
-fig.update_yaxes(title_text="log2 (alpha-leaning / beta-leaning)", col=1)
-fig.update_layout(title="ISL1 binding at alpha-leaning relative to beta-leaning sites, per library and day "
-                        "(> 0: stronger at the alpha-leaning sites)",
-                  legend=dict(orientation="h", y=1.0, x=1, xanchor="right", yanchor="bottom"))
-fig = style(fig, 470)
-fig.update_layout(margin=dict(t=130), title=dict(y=0.98, yanchor="top"), legend=dict(y=1.22))
-parts.append(("06a", fig_html(fig, False)))
+type_sites = {ct: sgl.loc[sgl.gene_name.isin(MARKERS[ct]), "site"].unique() for ct in ("alpha", "beta")}
+fig = go.Figure()
+ymax = 0
+for ct, col in C_TYPE.items():
+    bs = [box_stats(site_sig.loc[type_sites[ct], f"signal_{d}"]) for d in DAYS]
+    q1, med, q3, lf, uf = (list(t) for t in zip(*bs))
+    ymax = max(ymax, max(uf))
+    fig.add_trace(go.Box(x=DAYS, q1=q1, median=med, q3=q3, lowerfence=lf, upperfence=uf,
+                         name=f"{ct.capitalize()} marker genes ({len(type_sites[ct])} sites)", marker_color=col,
+                         line=dict(width=1.5), offsetgroup=ct, whiskerwidth=0.4, hoverinfo="y+name",
+                         fillcolor="rgba({},{},{},0.45)".format(*(int(col[i:i + 2], 16) for i in (1, 3, 5)))))
+for d in DAYS:
+    r = tt.loc[("alpha_vs_beta", "median", f"level_{d}")]
+    fig.add_annotation(x=d, y=ymax * 1.02, showarrow=False, yanchor="bottom", font=dict(size=11),
+                       text=f"{stars(r.p)}<br><span style='color:#898781'>log2 alpha/beta {r.estimate:+.2f}, "
+                            f"p {r.p:.2g}</span>")
+fig.update_layout(boxmode="group", boxgap=0.35, boxgroupgap=0.1,
+                  title="ISL1 binding signal at alpha and beta marker gene sites, per day",
+                  legend=dict(orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
+fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
+parts.append(("06a", fig_html(style(fig, 500), False)))
 ct_show = ctest.copy()
 ct_show["comparison"] = ct_show.comparison.map(CMP)
 # panel B: marker genes of each cluster with >= 1 site: binding (sum of its sites) and control expression,
@@ -385,7 +377,9 @@ summarized per set as the total (depends on the number of sites) or the median p
 of the two sets fitted on ~ batch + day with the libraries as replicates (5 residual df): level_&lt;day&gt; tests whether
 one set binds more on that day (between different site sets this also reflects site number and intrinsic site
 strength), change_&lt;a&gt;_vs_&lt;b&gt; whether one set gains or loses relative to the other between days. p values are not
-corrected for the number of tests.</p>
+corrected for the number of tests. Figure: signal per site (mean of the 3 libraries per day) at the alpha and the
+beta marker sites, boxes and whiskers as in section 05; stars and p from the library-level test of the median per
+site (level_&lt;day&gt;, alpha / beta markers; *** &lt; 0.001, ** &lt; 0.01, * &lt; 0.05, ns otherwise).</p>
 {parts[3][1]}
 {table_html(ct_show)}
 <p class="note">Marker genes with at least one linked site: ISL1 binding (sum of the normalized signal of its sites)
