@@ -56,15 +56,15 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
 | 04 Candidate time-dependent direct targets | `scripts/04_candidates.sb` (acpu, 2 CPUs, 7 GB) | `results/04_candidates/`: `candidate_genes.tsv`, `candidates.tsv` (every matching site), `summary.tsv`, `gained_enrichment.tsv` |
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
+| 06 Cluster 4 vs cluster 2 binding, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_totals.tsv`, `contrast_tests.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
 
 Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anaconda3/bin/python3 build_report.py`
 -> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
-site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06, built in the
-report from the step 01 and 05 tables and the bulk normalized counts: binding and expression of islet cell-type
-marker genes).
+site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: cluster 4 vs
+cluster 2 test, and binding and expression of their marker genes, using the bulk normalized counts).
 
 ## Results
 
@@ -183,28 +183,30 @@ days within each group (BH).
   (the reference's D22 vs D18 FDR of 3.3e-6 comes with a median change of 0). They describe each group; whether a
   group differs from the others is the camera test of step 03.
 
-### 06 Islet cell-type programs (report section)
+### 06 Cluster 4 (alpha-leaning) against cluster 2 (beta-leaning)
 
-Marker genes: alpha GCG, ARX, IRX1, IRX2, TTR, GC, LOXL4, DPP4, FAP, TM4SF4, CRYBA2, PTPRT, KCTD12, MAFB, POU3F4,
-PLCE1, TMEM236, SMIM24, SLC7A2; beta INS, IAPP, MAFA, NKX6-1, PDX1, SLC30A8, G6PC2, HADH, PCSK1; delta SST, HHEX,
-LEPR, RBP4. Binding: signal of the sites linked to them (step 05 signal); expression: mean normalized counts in
-control islets.
+Marker genes (human islet cell-type markers, in `build_report.py`): 28 alpha, 34 beta. Cluster 4 holds 12 alpha
+(GCG, ARX, IRX2, TTR, LOXL4, DPP4, GLS, RGS4, PEMT, PLCE1, TMEM236, SLC7A2) and 5 beta markers, with SST, PYY and
+GAST; cluster 2 holds 7 beta (INS, MAFA, PCSK1, ABCC8, PFKFB2, TSPAN1, ASCL2) and 6 alpha markers (MAFB, IRX1,
+CRYBA2, PCSK2, CD36, KCNJ6), with ISL1 itself and PAX6. So cluster 4 leans alpha and cluster 2 leans beta; neither is
+one cell type.
 
-| Sites near | Sites | Median signal D15 / D18 / D22 | Sites up D18 vs D15 | Sites up D22 vs D18 (FDR) |
-|---|---|---|---|---|
-| All sites | 14,431 | 23.1 / 31.7 / 29.9 | 84.9% | 43.5% (1e-126) |
-| Alpha genes | 26 | 17.7 / 29.6 / 24.9 | 96.2% | 38.5% (0.039) |
-| Beta genes | 16 | 19.1 / 39.7 / 35.0 | 100% | 18.8% (0.035) |
-| Delta genes | 9 | 23.0 / 33.2 / 26.5 | 88.9% | 0% (0.006) |
+Test (step 06): per library, total signal at the 613 cluster 4 sites over the 629 cluster 2 sites (18 shared),
+log2, fitted on ~ batch + day with the 9 libraries as replicates.
 
-- Cluster 4 holds 9 of the 19 alpha genes (GCG, ARX, IRX2, TTR, DPP4, LOXL4, TMEM236, PLCE1, SLC7A2), all lost in
-  the KO with a growing effect (GCG -6.2 / -8.9 / -11.2, ARX -1.4 / -3.4 / -5.3), together with SST and the beta
-  genes PDX1 and HADH.
-- In control islets these genes keep rising from D18 to D22 (GCG 35,545 -> 203,556; ARX 485 -> 1,020), and so does
-  ISL1 (373 / 1,990 / 4,425 at D15 / D18 / D22).
-- Binding near the marker genes of all three cell types peaks at D18 and falls by D22, more than at all sites,
-  while their expression keeps rising. The rise-then-fall is shared by the alpha, beta and delta programs, not
-  specific to alpha. Among alpha genes it is carried by LOXL4, DPP4, TTR, GC and MAFB; binding near GCG keeps rising
-  (48 / 77 / 84) and near ARX stays level after D18 (32 / 42 / 41).
-- Bound alpha genes without a significant site (GCG, ARX, TTR) are not step 04 candidates.
-- The marker sets are small (9-26 sites) and the paired tests treat sites as independent, so these are descriptive.
+| Outcome | D18 vs D15 | D22 vs D18 | D22 vs D15 |
+|---|---|---|---|
+| Cluster 4 / cluster 2 | +0.077 (p 0.23) | -0.075 (p 0.24) | +0.003 (p 0.97) |
+| Cluster 4 / all sites | +0.109 (p 0.40) | -0.157 (p 0.24) | -0.048 (p 0.70) |
+| Cluster 2 / all sites | +0.032 (p 0.63) | -0.082 (p 0.25) | -0.050 (p 0.46) |
+
+- Binding at the alpha-leaning sites rises about 5% more than at the beta-leaning sites by D18 and loses it again by
+  D22. The direction fits binding strongest around D18 at alpha-program genes, but with 3 libraries per day it is
+  not significant: the library-to-library spread (log2 ratio -0.05 to +0.14) is as large as the effect.
+- Both clusters fall relative to all sites from D18 to D22 by similar amounts (-0.16 and -0.08, both p 0.24).
+- Gene by gene the pattern is shared: binding near alpha markers of cluster 4 (LOXL4, DPP4, TTR, RGS4) and near beta
+  markers of cluster 2 (MAFA, PCSK1, ABCC8) peaks at D18 while their control expression keeps rising to D22. GCG
+  binding keeps rising (48 / 77 / 84) and ARX is level after D18 (32 / 42 / 41). INS has no linked site.
+- In control islets the alpha genes and ISL1 keep rising from D18 to D22 (GCG 35,545 -> 203,556; ARX 485 -> 1,020;
+  ISL1 373 / 1,990 / 4,425 at D15 / D18 / D22), so the fall in binding is not from less ISL1 or fewer alpha-lineage
+  cells.
