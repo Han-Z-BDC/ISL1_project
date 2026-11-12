@@ -57,6 +57,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 04 Candidate time-dependent direct targets | `scripts/04_candidates.sb` (acpu, 2 CPUs, 7 GB) | `results/04_candidates/`: `candidate_genes.tsv`, `candidates.tsv` (every matching site), `summary.tsv`, `gained_enrichment.tsv` |
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
 | 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
+| 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -64,7 +65,8 @@ copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
 Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anaconda3/bin/python3 build_report.py`
 -> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
 site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: alpha-leaning vs
-beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts).
+beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts;
+section 07: KO effect of the target genes of the differentially bound sites).
 
 ## Results
 
@@ -214,3 +216,39 @@ compare days. p values uncorrected.
 - In control islets the alpha genes and ISL1 keep rising from D18 to D22 (GCG 35,545 -> 203,556; ARX 485 -> 1,020;
   ISL1 373 / 1,990 / 4,425 at D15 / D18 / D22), so the fall in binding at alpha sites is not from less ISL1 or fewer
   alpha-lineage cells.
+
+### 07 Target genes of the differentially bound sites and their KO effect
+
+The 758 gained sites link to 733 bulk-tested genes and the 12 lost sites to 14 (805 site-gene pairs). Genes are
+classed by their sites: gained (>= 1 gained site), lost, only stable sites, no site. KO effect per day: KO vs Ctr
+padj < 0.05, lower in the KO (ISL1 activates) or higher (ISL1 represses).
+
+| Genes | n | KO effect any day | Lower / higher in KO, D15 | D18 | D22 | KO effect changes over time |
+|---|---|---|---|---|---|---|
+| With a gained site | 733 | 46.8% | 7.0 / 7.9% | 21.0 / 13.5% | 22.4 / 11.1% | 22.4% |
+| Only stable sites | 9,309 | 36.4% | 5.2 / 6.4% | 14.1 / 12.1% | 11.4 / 9.8% | 14.0% |
+| No site | 6,490 | 34.0% | 5.0 / 5.3% | 13.9 / 11.0% | 9.8 / 9.0% | 11.6% |
+| With a lost site | 14 | 50.0% | 7.1 / 7.1% | 21.4 / 7.1% | 7.1 / 14.3% | 14.3% |
+
+Gained against only-stable genes, logistic regression with domain length and number of sites (BH):
+
+| Outcome | Gained / stable | Unadjusted OR | Adjusted OR (FDR) |
+|---|---|---|---|
+| KO effect on D15 | 14.9 / 11.7% | 1.32 | 0.99 (0.96) |
+| KO effect on D18 | 34.5 / 26.2% | 1.49 | 1.20 (0.08) |
+| **KO effect on D22** | 33.4 / 21.2% | 1.86 | **1.34 (0.007)** |
+| KO effect on any day | 46.8 / 36.4% | 1.54 | 1.17 (0.09) |
+| KO effect changes over time | 22.4 / 14.0% | 1.77 | 1.24 (0.08) |
+| Lower in KO, among genes significant on D22 | 66.9 / 53.7% | 1.74 | 1.35 (0.09) |
+
+- **Genes that gain ISL1 binding from D15 to D18 become ISL1-dependent later:** no excess KO effect at D15, a small
+  one at D18 and a clear one at D22 (adjusted OR 1.34, FDR 0.007). Binding is gained before the KO effect is
+  strongest.
+- Much of the unadjusted difference comes from domain size and number of sites (unadjusted OR 1.86 vs adjusted 1.34
+  at D22).
+- At D22 the gained-site genes with a KO effect are mostly lower in the KO (67% vs 54% for stable genes; adjusted
+  OR 1.35, FDR 0.09): gained binding goes with ISL1 activating its targets.
+- 343 genes have a gained site and a KO effect; by KO-effect group: stays 155, cluster 4 54, cluster 2 41, cluster 1
+  38, other KO 24, cluster 3 19, clusters 5 and 6 6 each. Strongest at D22: ERO1B, PCP4, LMO2, TMOD1, EDARADD, ETV1,
+  TMCC3, CLU, GLS, CHRNA3, DPP4, LOXL4 (all lower in the KO).
+- Lost sites are too few (14 genes; e.g. GATA3, NR2E3, TGFBR3) to test.
