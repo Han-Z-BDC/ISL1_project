@@ -9,7 +9,7 @@ RAW_DIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_bulk_RNA
 OUT_DIR=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/bulkRNAseq_ISL1_KO_timecourse
 LOGS="${OUT_DIR}/logs"
 
-# Same references as bulkRNAseq/ (see ../bulkRNAseq/docs/star_index_notes.md).
+# References: GRCh38 2020-A, STARindex_2.7.5c (index choice: docs/star_index_notes.md).
 GENOME_DIR=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0
 STAR_INDEX="${GENOME_DIR}/STARindex_2.7.5c"
 GTF="${GENOME_DIR}/genes/genes.gtf"
