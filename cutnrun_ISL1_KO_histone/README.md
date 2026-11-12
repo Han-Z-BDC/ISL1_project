@@ -110,6 +110,29 @@ group IgG), 20, 22 and `ctr_multi`.
 
 Steps 18, 23c and 24 copy their keepers under this folder on /pl/active (`results/`, not tracked).
 
+**Effect on ISL1 (step 24, `results/tenx_check/`).** "Old" is the analysis on the raw fastqs.
+- **Libraries:** the batch 3 H3CTR rep1 ISL1 libraries carry the 10x reads: 0.25-0.38% of pairs
+  removed (D9 0.38%, D22 0.31%, D15 0.29%, D18 0.25%), 18k-108k of them with a 10x barcode; their
+  IgGs lost 0.17-0.26%. Every other ISL1 library is at the ~0.1% floor. 10x fragments made up
+  0.10-0.27% of the old filtered BAMs, and step 03 peaks per library changed by at most 0.4%.
+  The earlier-batch libraries (rep3 onward, ISL1_cutNrun) were not filtered.
+- **Peak sets** (lost = old region with no new overlap; gained = the reverse):
+
+| Set | Day | Old | New | Lost | Gained | Lost on a 10x fragment | Old regions on a 10x fragment |
+|---|---|---|---|---|---|---|---|
+| macs3_ge2 | D15 | 3,299 | 3,299 | 1 | 1 | 1 | 728 (22%) |
+| macs3_ge2 | D18 | 10,945 | 10,947 | 19 | 21 | 19 | 2,631 (24%) |
+| macs3_ge2 | D22 | 9,804 | 9,803 | 1 | 0 | 1 | 2,761 (28%) |
+| idr_any_pair | D15 | 3,365 | 3,368 | 1 | 4 | 1 | 1,087 (32%) |
+| idr_any_pair | D18 | 7,873 | 7,870 | 25 | 23 | 17 | 2,661 (34%) |
+| idr_any_pair | D22 | 9,577 | 9,577 | 1 | 2 | 0 | 3,965 (41%) |
+| D9 rep1 + rep2 (MACS3 2 of 2) | D9 | 157 | 158 | 1 | 2 | 1 | 25 (16%) |
+
+- **All 21 lost macs3_ge2 regions overlap a 10x fragment** (against 22-28% of all old regions),
+  so the filter removed the regions the 10x reads had created. D18 changes most because its
+  trio includes D18 rep1, one of the contaminated libraries; still 0.2% of the set. The
+  replicate choice and the primary set are unaffected. Lost regions: `results/tenx_check/lost/`.
+
 ### Alignment QC (2026-11-06, before the 10x filter)
 
 FastQC/MultiQC (job 35274348) and alignment (array 35274349, 62 tasks) all completed. Peak
