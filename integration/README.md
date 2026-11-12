@@ -35,7 +35,7 @@ The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the un
   Stable-bound: every other site. The sites lost over time (about 10) are listed, not tested.
 - **Binding change per KO-effect group.** Sites are members of a set and the 9 libraries are the replicates: limma
   voom on the site counts (step 27 background normalization, `~ batch + day`), `camera` for each group against all
-  other sites, contrasts D18 vs D15 and D22 vs D15. Figure: cumulative distribution of the site log2FC per group
+  other sites, contrasts D18 vs D15, D22 vs D18 and D22 vs D15. Figure: cumulative distribution of the site log2FC per group
   against all sites.
 - **Candidate time-dependent direct target.** A gene with a site in its domain whose binding change matches the
   timing of its KO effect (the sign of the KO effect is not used): cluster 1 (strongest at D18) a site gained D18 vs
@@ -102,28 +102,33 @@ length; all groups compared with no KO effect.
 ### 03 Binding change per KO-effect group
 
 758 of the 14,431 sites are gained (FDR < 0.05 up in D18 vs D15 or D22 vs D15) and 12 lost. Site log2FC from voom
-and from DiffBind agree (Pearson r 0.97 in both contrasts). A site counts for every group with a linked gene.
+and from DiffBind agree (Pearson r 0.97 for D18 vs D15 and D22 vs D15, 0.96 for D22 vs D18). A site counts for every
+group with a linked gene. Cells: median DiffBind log2FC of the group's sites (other sites), camera direction and FDR
+(limma's default inter-site correlation).
 
-| Group | Sites | Median log2FC D18 vs D15 (other sites) | camera D18 vs D15 | Median log2FC D22 vs D15 (other sites) | camera D22 vs D15 | % gained (other sites) |
-|---|---|---|---|---|---|---|
-| No KO effect | 7,631 | 0.317 (0.345) | down, FDR 0.88 | 0.289 (0.229) | up, FDR 0.39 | 4.1 (6.6) |
-| Cluster 1 | 850 | 0.330 (0.330) | down, 0.89 | 0.235 (0.265) | down, 0.74 | 4.7 (5.3) |
-| Cluster 2 | 629 | 0.343 (0.329) | up, 0.89 | 0.241 (0.264) | down, 0.94 | 7.2 (5.2) |
-| Cluster 3 | 390 | 0.307 (0.330) | down, 0.89 | 0.253 (0.263) | up, 0.95 | 5.1 (5.3) |
-| **Cluster 4** | 613 | **0.388** (0.328) | up, **0.23** | 0.224 (0.264) | down, 0.74 | **9.8** (5.1) |
-| Cluster 5 | 219 | 0.301 (0.330) | down, 0.88 | 0.241 (0.263) | down, 0.74 | 2.7 (5.3) |
-| Cluster 6 | 218 | 0.324 (0.330) | up, 0.89 | 0.213 (0.264) | down, 0.39 | 3.7 (5.3) |
-| Stays | 3,077 | 0.324 (0.331) | down, 0.89 | 0.258 (0.264) | down, 0.95 | 4.9 (5.3) |
-| Other KO | 625 | 0.332 (0.329) | down, 0.89 | 0.268 (0.263) | up, 0.95 | 4.6 (5.3) |
+| Group | Sites | D18 vs D15 | D22 vs D18 | D22 vs D15 | % gained (other sites) |
+|---|---|---|---|---|---|
+| No KO effect | 7,631 | 0.317 (0.345), down 0.88 | -0.006 (-0.060), **up 0.023** | 0.289 (0.229), up 0.39 | 4.1 (6.6) |
+| Cluster 1 | 850 | 0.330 (0.330), down 0.89 | -0.043 (-0.032), down 0.89 | 0.235 (0.265), down 0.74 | 4.7 (5.3) |
+| Cluster 2 | 629 | 0.343 (0.329), up 0.89 | -0.060 (-0.032), down 0.82 | 0.241 (0.264), down 0.94 | 7.2 (5.2) |
+| Cluster 3 | 390 | 0.307 (0.330), down 0.89 | -0.038 (-0.033), up 0.94 | 0.253 (0.263), up 0.95 | 5.1 (5.3) |
+| **Cluster 4** | 613 | **0.388** (0.328), up 0.23 | **-0.084** (-0.030), **down 0.023** | 0.224 (0.264), down 0.74 | **9.8** (5.1) |
+| Cluster 5 | 219 | 0.301 (0.330), down 0.88 | -0.021 (-0.033), up 1.00 | 0.241 (0.263), down 0.74 | 2.7 (5.3) |
+| Cluster 6 | 218 | 0.324 (0.330), up 0.89 | -0.054 (-0.032), down 0.25 | 0.213 (0.264), down 0.39 | 3.7 (5.3) |
+| Stays | 3,077 | 0.324 (0.331), down 0.89 | -0.027 (-0.034), up 1.00 | 0.258 (0.264), down 0.95 | 4.9 (5.3) |
+| Other KO | 625 | 0.332 (0.329), down 0.89 | -0.020 (-0.033), up 0.89 | 0.268 (0.263), up 0.95 | 4.6 (5.3) |
 
-- **No group's binding changes differently from all sites** (camera FDR >= 0.23). The whole site set rises from D15
-  (median log2FC about 0.33 at D18, 0.26 at D22), and the groups follow that rise.
-- **Cluster 4** (KO effect down, emerging and growing) leans the expected way: the highest median rise D18 vs D15
-  and twice the share of gained sites (9.8% vs 5.1%), not significant (FDR 0.23).
+- The whole site set rises from D15 to D18 (median log2FC about 0.33) and stays there (D22 vs D18 about -0.03); the
+  groups follow that rise.
+- **Cluster 4** (KO effect down, emerging and growing) rises most from D15 to D18 (FDR 0.23) and is the one cluster
+  whose sites then **fall from D18 to D22 relative to all other sites** (median -0.084 vs -0.030, FDR 0.023). Its
+  binding peaks at D18, when its KO effect first appears. The genes without a KO effect move the opposite way
+  (FDR 0.023), as the complement of the KO-effect clusters.
+- Sites move together: the inter-site correlation estimated by camera is 0.21-0.31, far above limma's default 0.01.
+  With the estimated correlation every FDR is >= 0.97 (D22 vs D18: 0.999), so the cluster 4 results are leads, not
+  firm differences.
 - Sites near genes without a KO effect are gained less often (4.1%) than the other sites (6.6%), which lie mostly
   near genes with a KO effect.
-- Sites move together: the inter-site correlation estimated by camera is 0.21-0.31, far above limma's default 0.01.
-  With the estimated correlation every FDR is >= 0.97; the default-correlation FDRs above are the optimistic ones.
 
 ### 04 Candidate time-dependent direct targets
 
@@ -169,6 +174,9 @@ days within each group (BH).
 - **From D18 to D22 the sites near the KO-effect clusters lose signal while the reference stays flat** (50.4% of
   sites up, median ratio 0.00). Cluster 4 shows both the largest rise to D18 (median 22.9 -> 33.7) and the largest
   fall to D22 (72% of its sites down). Per site, none of these D22 vs D18 changes reaches significance in step 27.
+  Against all other sites, cluster 4's fall is the one that stands out (step 03 camera D22 vs D18, FDR 0.023, not
+  significant with the estimated inter-site correlation). The batch-aware model gives a smaller shift than these
+  day means (median DiffBind log2FC -0.084 vs -0.030 for the other sites).
 - The paired tests use sites as units; with hundreds of sites per group even small shifts give tiny p values
   (the reference's D22 vs D18 FDR of 3.3e-6 comes with a median change of 0). They describe each group; whether a
   group differs from the others is the camera test of step 03.
