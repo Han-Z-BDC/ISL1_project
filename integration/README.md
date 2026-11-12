@@ -47,8 +47,14 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 01 GREAT domains, site -> gene | `scripts/01_great_site_to_gene.sb` (acpu, 2 CPUs, 7 GB) | `results/01_great/`: `gene_regions.bed`, `site_gene.tsv`, `summary.tsv` |
 | 02 Direct targets per KO-effect group | `scripts/02_direct_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/02_direct_targets/`: `gene_table.tsv` (group, KO log2FC per day, sites per gene), `enrichment.tsv` |
 
+| 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
+
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
+
+Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anaconda3/bin/python3 build_report.py`
+-> `results/report_integration.html` (steps 01-03: tables, bound share per group, cumulative distributions of the
+site log2FC per group).
 
 ## Results
 
@@ -84,3 +90,29 @@ length; all groups compared with no KO effect.
   (median 200 kb); with domain length in the model the excess is not significant.
 - The other clusters and the genes with a lasting KO effect are bound no more often than genes without a KO effect.
   With 60% of genes bound, presence of a site alone separates the groups little.
+
+### 03 Binding change per KO-effect group
+
+758 of the 14,431 sites are gained (FDR < 0.05 up in D18 vs D15 or D22 vs D15) and 12 lost. Site log2FC from voom
+and from DiffBind agree (Pearson r 0.97 in both contrasts). A site counts for every group with a linked gene.
+
+| Group | Sites | Median log2FC D18 vs D15 (other sites) | camera D18 vs D15 | Median log2FC D22 vs D15 (other sites) | camera D22 vs D15 | % gained (other sites) |
+|---|---|---|---|---|---|---|
+| No KO effect | 7,631 | 0.317 (0.345) | down, FDR 0.88 | 0.289 (0.229) | up, FDR 0.39 | 4.1 (6.6) |
+| Cluster 1 | 850 | 0.330 (0.330) | down, 0.89 | 0.235 (0.265) | down, 0.74 | 4.7 (5.3) |
+| Cluster 2 | 629 | 0.343 (0.329) | up, 0.89 | 0.241 (0.264) | down, 0.94 | 7.2 (5.2) |
+| Cluster 3 | 390 | 0.307 (0.330) | down, 0.89 | 0.253 (0.263) | up, 0.95 | 5.1 (5.3) |
+| **Cluster 4** | 613 | **0.388** (0.328) | up, **0.23** | 0.224 (0.264) | down, 0.74 | **9.8** (5.1) |
+| Cluster 5 | 219 | 0.301 (0.330) | down, 0.88 | 0.241 (0.263) | down, 0.74 | 2.7 (5.3) |
+| Cluster 6 | 218 | 0.324 (0.330) | up, 0.89 | 0.213 (0.264) | down, 0.39 | 3.7 (5.3) |
+| Stays | 3,077 | 0.324 (0.331) | down, 0.89 | 0.258 (0.264) | down, 0.95 | 4.9 (5.3) |
+| Other KO | 625 | 0.332 (0.329) | down, 0.89 | 0.268 (0.263) | up, 0.95 | 4.6 (5.3) |
+
+- **No group's binding changes differently from all sites** (camera FDR >= 0.23). The whole site set rises from D15
+  (median log2FC about 0.33 at D18, 0.26 at D22), and the groups follow that rise.
+- **Cluster 4** (KO effect down, emerging and growing) leans the expected way: the highest median rise D18 vs D15
+  and twice the share of gained sites (9.8% vs 5.1%), not significant (FDR 0.23).
+- Sites near genes without a KO effect are gained less often (4.1%) than the other sites (6.6%), which lie mostly
+  near genes with a KO effect.
+- Sites move together: the inter-site correlation estimated by camera is 0.21-0.31, far above limma's default 0.01.
+  With the estimated correlation every FDR is >= 0.97; the default-correlation FDRs above are the optimistic ones.
