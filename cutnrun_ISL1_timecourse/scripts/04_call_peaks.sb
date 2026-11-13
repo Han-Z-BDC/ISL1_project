@@ -1,0 +1,46 @@
+#!/bin/bash
+#SBATCH --job-name=tc_peaks
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/peaks.%A_%a.out
+
+# Step 04: MACS3 peaks for each ISL1 library against its own deduplicated IgG (pipeline step 02,
+# IGG_METHOD=matched): narrow, q 0.01, --call-summits, BAMPE, duplicates kept on the target,
+# blacklist filtered -- the command of pipeline/scripts/03_call_macs3.sb.
+# QC: qc/peaks/<sample>.peak_stats.tsv (summit rows, distinct regions, fragments, FRiP = read-1
+# mates of the filtered, duplicate-retained fragments overlapping a peak / all read-1 mates).
+# Output: macs3/<sample>_peaks.filtered.narrowPeak, macs3/<sample>_summits.filtered.bed
+#   sbatch --array=0-8 scripts/04_call_peaks.sb   (index = ISL1 row of samples.tsv)
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array}"
+mapfile -t TF < <(awk -F'\t' 'NR>1 && $3=="TF" {print $2"\t"$4}' "${SAMPLE_SHEET}")
+row=${TF[${SLURM_ARRAY_TASK_ID}]:-}
+[[ -n "${row}" ]] || { echo "ERROR: no TF row ${SLURM_ARRAY_TASK_ID} (have ${#TF[@]})" >&2; exit 1; }
+sample=${row%%$'\t'*}; control=${row##*$'\t'}
+target=${OUT_DIR}/bam/${sample}.filtered.bam
+control_bam=${OUT_DIR}/igg_background/${control}.dedup.bam
+for f in "${target}" "${control_bam}"; do [[ -s "${f}" ]] || { echo "ERROR: missing ${f}" >&2; exit 1; }; done
+OUT=${OUT_DIR}/macs3; QC=${OUT_DIR}/qc/peaks
+mkdir -p "${OUT}" "${QC}"
+
+echo "calling peaks: ${sample} vs $(basename "${control_bam}")"
+"${TOOLS}/macs3" callpeak -t "${target}" -c "${control_bam}" -f BAMPE -g hs \
+  -n "${sample}" -q "${MACS_QVALUE}" --call-summits --keep-dup all --outdir "${OUT}"
+peaks=${OUT}/${sample}_peaks.filtered.narrowPeak
+"${TOOLS}/bedtools" intersect -v -a "${OUT}/${sample}_peaks.narrowPeak" -b "${BLACKLIST}" > "${peaks}"
+"${TOOLS}/bedtools" intersect -v -a "${OUT}/${sample}_summits.bed" -b "${BLACKLIST}" > "${OUT}/${sample}_summits.filtered.bed"
+
+total=$("${TOOLS}/samtools" view -@ 12 -c -f 64 "${target}")
+in_peaks=$("${TOOLS}/samtools" view -@ 12 -c -f 64 -L <(cut -f1-3 "${peaks}") "${target}")
+n_rows=$(wc -l < "${peaks}"); n_regions=$(cut -f1-3 "${peaks}" | sort -u | wc -l)
+frip=$(awk -v a="${in_peaks}" -v b="${total}" 'BEGIN{printf "%.4f", a/b}')
+echo -e "sample\tcontrol\tsummit_rows\tregions\tfragments\tfrip" > "${QC}/${sample}.peak_stats.tsv"
+echo -e "${sample}\t${control}\t${n_rows}\t${n_regions}\t${total}\t${frip}" >> "${QC}/${sample}.peak_stats.tsv"
+cat "${QC}/${sample}.peak_stats.tsv"

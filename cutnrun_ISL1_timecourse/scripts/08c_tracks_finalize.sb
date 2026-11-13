@@ -1,0 +1,56 @@
+#!/bin/bash
+#SBATCH --job-name=tc_tracks_fin
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=04:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/tracks_fin.%j.out
+
+# Step 08c (browser tracks, part 3): one track per time point, bed tracks, IGV session, copy.
+#   groups/{ISL1,IgG}/<day>_Ctr_<kind>.mean.bw  deepTools bigwigAverage of the day's 3 replicate
+#       bigWigs (each replicate weighted equally; TRACK_BIN bp)
+#   beds/<day>_Ctr_ISL1.macs3_ge2.bed  consensus peaks (chr start end name score=max -log10 p)
+#   beds/sites.bed                     the tested 401 bp sites (step 07 sites_used.bed)
+#   beds/diff_<contrast>.bed           DiffBind, background normalization, FDR < 0.05; BED9,
+#                                      orange = up (later day), blue = down; name = log2FC
+#   igv_session.xml                    scripts/tracks_session.py
+# Everything is copied to the folder's results/tracks on /pl/active (untracked; not purged).
+#   sbatch --dependency=afterok:<08b> scripts/08c_tracks_finalize.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+T=${OUT_DIR}/tracks
+for kind in ISL1 IgG; do
+  mkdir -p "${T}/groups/${kind}"
+  for day in D15 D18 D22; do
+    mapfile -t F < <(awk -F'\t' -v k="${kind}" -v d="${day}" -v t="${T}" 'NR>1 && $2==k && $4==d {print t"/replicates/"k"/"$1".bw"}' "${T}/scale_factors.tsv")
+    (( ${#F[@]} == 3 )) || { echo "ERROR: ${day} ${kind}: ${#F[@]} bigWigs" >&2; exit 1; }
+    for f in "${F[@]}"; do [[ -s "${f}" ]] || { echo "ERROR: missing ${f}" >&2; exit 1; }; done
+    "${TOOLS}/bigwigAverage" -b "${F[@]}" -o "${T}/groups/${kind}/${day}_Ctr_${kind}.mean.bw" -bs "${TRACK_BIN}" -p 12
+    echo "mean ${day} ${kind}"
+  done
+done
+
+mkdir -p "${T}/beds"
+for day in D15 D18 D22; do
+  cut -f1-4,7 "${OUT_DIR}/consensus/${day}_Ctr_ISL1.macs3_ge2.bed" > "${T}/beds/${day}_Ctr_ISL1.macs3_ge2.bed"
+done
+cut -f1-4 "${OUT_DIR}/diff/sites_used.bed" > "${T}/beds/sites.bed"
+for c in D18_vs_D15 D22_vs_D18 D22_vs_D15; do
+  # table: name seqnames start(1-based) end Conc Conc_* log2FC pvalue FDR
+  awk -F'\t' 'BEGIN{OFS="\t"} NR==1{for(i=1;i<=NF;i++) h[$i]=i; next}
+    $h["FDR"] < 0.05 { f=$h["log2FC"]; col=(f > 0 ? "232,113,10" : "26,115,232")
+      print $h["seqnames"], $h["start"] - 1, $h["end"], sprintf("%.2f", f), 0, ".", $h["start"] - 1, $h["end"], col }' \
+    "${OUT_DIR}/diff/tables/diffbind_background_${c}.tsv" | sort -k1,1 -k2,2n > "${T}/beds/diff_${c}.bed"
+  echo "diff ${c}: $(wc -l < "${T}/beds/diff_${c}.bed") sites"
+done
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/tracks_session.py" "${T}"
+du -sh "${T}/replicates" "${T}/groups" "${T}/beds"
+
+KEEP=${STUDY_DIR}/results/tracks
+mkdir -p "${KEEP}"
+rsync -a "${T}/" "${KEEP}/"
+echo "copied to ${KEEP} ($(du -sh "${KEEP}" | cut -f1))"

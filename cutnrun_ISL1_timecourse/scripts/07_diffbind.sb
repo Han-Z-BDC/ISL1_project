@@ -1,0 +1,44 @@
+#!/bin/bash
+#SBATCH --job-name=tc_diffbind
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=12:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/diffbind.%j.out
+
+# Step 07: ISL1 differential binding over time. 9 libraries, design ~ batch + day (batch 3 vs
+# earlier), contrasts D18 vs D15, D22 vs D18, D22 vs D15, FDR < 0.05 (also with |log2FC| >= 1).
+#   main   DiffBind (DESeq2): background (15 kb bins) and rle normalization, side by side
+#   check  DESeq2 on featureCounts counts (counted here, independently of DiffBind), same design
+# Sites: step 06 minus an IgG greylist. scripts/diffbind.R does the analysis.
+# Output: diff/ (see diffbind.R)
+#   sbatch --dependency=afterok:<06 job> scripts/07_diffbind.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+D=${OUT_DIR}/diff; FC=${D}/featurecounts
+mkdir -p "${FC}"
+SITES=${D}/sites/sites.bed
+[[ -s "${SITES}" ]] || { echo "ERROR: missing ${SITES} (step 06)" >&2; exit 1; }
+
+# libraries in a fixed order (day, replicate): sample day replicate batch original isl1_bam igg_bam
+awk -F'\t' -v o="${OUT_DIR}" 'BEGIN{OFS="\t"} NR>1 && $5=="ISL1" {
+    igg = $1; sub(/_ISL1$/, "_IgG", igg)
+    print $1, $3, $4, $6, $8, o"/bam/"$1".filtered.bam", o"/igg_background/"igg".dedup.bam" }' "${METADATA}" \
+  | sort -t$'\t' -k2,2V -k3,3n > "${D}/libraries.tsv"
+[[ $(wc -l < "${D}/libraries.tsv") -eq 9 ]] || { echo "ERROR: expected 9 ISL1 libraries" >&2; exit 1; }
+mapfile -t BAMS < <(cut -f6 "${D}/libraries.tsv")
+
+# featureCounts (fragments, duplicates kept) on the sites and on 15 kb bins of chr1-22/X/Y
+awk 'BEGIN{OFS="\t"; print "GeneID","Chr","Start","End","Strand"} {print $4, $1, $2 + 1, $3, "+"}' "${SITES}" > "${FC}/sites.saf"
+awk 'BEGIN{OFS="\t"; print "GeneID","Chr","Start","End","Strand"} $1 ~ /^chr([0-9]+|X|Y)$/ {
+       for (s = 0; s < $2; s += 15000) { e = s + 15000; if (e > $2) e = $2; print $1"_"s, $1, s + 1, e, "+" } }' \
+  "${OUT_DIR}/genome.txt" > "${FC}/bins15k.saf"
+for set in sites bins15k; do
+  "${FEATURECOUNTS}" -T 12 -p --countReadPairs -F SAF -a "${FC}/${set}.saf" -o "${FC}/${set}.counts.txt" "${BAMS[@]}"
+done
+
+DB_CORES=4 "${DIFFBIND_TOOLS}/Rscript" "${STUDY_DIR}/scripts/diffbind.R" "${D}"

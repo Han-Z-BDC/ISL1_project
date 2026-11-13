@@ -1,0 +1,31 @@
+#!/bin/bash
+#SBATCH --job-name=tc_tracks_bw
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/tracks_bw.%A_%a.out
+
+# Step 08b (browser tracks, part 2): one bigWig per library of tracks/scale_factors.tsv.
+# deepTools bamCoverage: fragments (read 1 extended to its mate: --samFlagInclude 64 --extendReads),
+# TRACK_BIN bp bins, scaled by the 08a scale (--normalizeUsing None), blacklist excluded,
+# duplicates as in the BAM (kept for ISL1, removed for IgG).
+# Output: tracks/replicates/<kind>/<name>.bw
+#   sbatch --array=0-17 --dependency=afterok:<08a> scripts/08b_tracks_bigwig.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array}"
+T=${OUT_DIR}/tracks
+row=$(awk -v i="${SLURM_ARRAY_TASK_ID}" 'NR == i + 2' "${T}/scale_factors.tsv")
+[[ -n "${row}" ]] || { echo "ERROR: no row ${SLURM_ARRAY_TASK_ID}" >&2; exit 1; }
+IFS=$'\t' read -r name kind bam _day fragments sf scale <<< "${row}"
+mkdir -p "${T}/replicates/${kind}"
+echo "${name} (${kind}): scale ${scale} (fragments ${fragments}, size factor ${sf})"
+"${TOOLS}/bamCoverage" -b "${bam}" -o "${T}/replicates/${kind}/${name}.bw" --binSize "${TRACK_BIN}" \
+  --scaleFactor "${scale}" --normalizeUsing None --extendReads --samFlagInclude 64 \
+  --blackListFileName "${BLACKLIST}" --numberOfProcessors 12
+ls -la "${T}/replicates/${kind}/${name}.bw"

@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name=tc_sites
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/sites.%j.out
+
+# Step 06: fixed-width ISL1 sites for differential binding (scripts/diff_sites.py): macs3_ge2
+# regions of D15 / D18 / D22, each centred on its strongest summit among that day's libraries,
+# summit +/- SITE_HALF_WIDTH (401 bp), overlaps across days resolved by the stronger summit
+# (iteratively), blacklist excluded. Output: diff/sites/{sites.bed,qc.tsv}
+#   sbatch --dependency=afterok:<05 job> scripts/06_diff_sites.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/diff_sites.py" "${OUT_DIR}" "${METADATA}" "${TOOLS}/bedtools" "${BLACKLIST}" \
+  "${OUT_DIR}/genome.txt" "${SITE_HALF_WIDTH}" "${OUT_DIR}/diff/sites"
