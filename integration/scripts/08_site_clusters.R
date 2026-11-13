@@ -17,16 +17,24 @@
 #   Links      per cluster: sites gained / lost in step 27 (step 03 site_stats), sites linked (GREAT, step 01) to
 #              each bulk KO-effect group (step 02) and to the alpha / beta markers; Fisher test of each cluster
 #              against the stable sites for each group.
+#   Genes      gene level, for the report's k (K_GENE = 4): linked genes tested in the bulk RNA-seq (step 02); a gene is
+#              in a site group if at least one of its GREAT-linked sites is (a gene can be in several groups); the
+#              reference is the genes whose sites are all stable. Per site group and KO-effect group: Fisher test,
+#              and logistic regression in_site_group ~ in_KO_group + log2(1 + n_sites) + log10(domain_kb) (genes
+#              with more sites more often have a varying site, as in step 02), BH over all tests. Done twice: genes
+#              linked by GREAT (main), and every bulk-tested gene with its TSS within 50 kb of the site summit (check;
+#              covariate log2(1 + n_sites) only).
 # usage: Rscript 08_site_clusters.R <step 27 isl1_diff dir> <integration results dir> <markers.tsv> <out_dir>
 # Output in <out_dir>: site_clusters.tsv, elbow.tsv, centers.tsv, heldout.tsv (per site), heldout_clusters.tsv
-#   (mean batch 3 profile per 6-library cluster), links.tsv, vst_libraries.tsv
+#   (mean batch 3 profile per 6-library cluster), links.tsv, vst_libraries.tsv, gene_site_groups.tsv (per link and
+#   gene: KO group, marker, sites per site group), gene_links.tsv (per link, site group and KO group)
 
 suppressPackageStartupMessages({ library(DESeq2); library(limma); library(data.table) })
 args <- commandArgs(trailingOnly = TRUE)
 stopifnot(length(args) == 4)
 cnr <- args[1]; res <- args[2]; mfile <- args[3]; od <- args[4]
 dir.create(od, showWarnings = FALSE, recursive = TRUE)
-days <- c("D15", "D18", "D22"); P_VAR <- 0.05; KS <- 2:10
+days <- c("D15", "D18", "D22"); P_VAR <- 0.05; KS <- 2:10; K_GENE <- 4
 
 cs <- fread(file.path(res, "00_diffbind_counts", "counts_raw.tsv"))
 m <- as.matrix(cs[, -1]); rownames(m) <- cs$name
@@ -157,5 +165,64 @@ links <- rbindlist(lapply(KS, function(k) {
 }))
 links[!is.na(p_vs_stable), fdr_vs_stable := signif(p.adjust(p_vs_stable, "BH"), 3), by = k]
 fwrite(links, file.path(od, "links.tsv"), sep = "\t", quote = FALSE)
+
+# ---- gene level: site groups of each gene's sites against its KO-effect group
+#   link "GREAT": step 01 domains; link "within_50kb" (check): every bulk-tested gene whose TSS is within 50 kb of the
+#   site summit (a site can link to several genes; catches sites GREAT gives to a neighbouring gene, e.g. near PAX6)
+kc <- paste0("k", K_GENE)
+reg <- fread(file.path(res, "01_great", "gene_regions.bed"), header = FALSE,
+             col.names = c("chr", "start", "end", "gene_id", "gene_name", "strand", "tss", "basal_start",
+                           "basal_end", "gene_type", "tested"))
+sb <- fread(file.path(cnr, "sites_used.bed"), header = FALSE, select = c(1:4),
+            col.names = c("chr", "start", "end", "site"))
+sb[, `:=`(s0 = start + (end - start) %/% 2, s1 = start + (end - start) %/% 2)]
+tw <- reg[gene_id %in% gt$gene_id, .(chr, s0 = pmax(tss - 50000L, 0L), s1 = tss + 50000L, gene_id)]
+setkey(tw, chr, s0, s1)
+w50 <- unique(foverlaps(sb[, .(chr, s0, s1, site)], tw, nomatch = NULL)[, .(site, gene_id)])
+links_by <- list(GREAT = sgl[tested_in_bulk == 1, .(site, gene_id)], within_50kb = w50)
+kgroups <- c(paste0("cluster", 1:6), "stays", "other_KO", "no_KO_effect")
+gg_all <- list(); gl_all <- list()
+for (ln in names(links_by)) {
+  gs <- merge(links_by[[ln]], st[, c("site", kc), with = FALSE], by = "site")
+  setnames(gs, kc, "sgroup")
+  gs[, sgroup := factor(sgroup, levels = 0:K_GENE)]
+  gw <- dcast(gs, gene_id ~ sgroup, fun.aggregate = length, value.var = "site", drop = FALSE)
+  setnames(gw, as.character(0:K_GENE), paste0("sites_group", 0:K_GENE))
+  gg <- merge(gt[, .(gene_id, gene_name, group, domain_kb)], gw, by = "gene_id")
+  gg[, n_sites := rowSums(.SD), .SDcols = patterns("^sites_group")]
+  gg <- gg[n_sites > 0]
+  stopifnot(!anyDuplicated(gg$gene_id))
+  if (ln == "GREAT") stopifnot(all(gg$n_sites == gt[match(gg$gene_id, gene_id), n_sites]))
+  gg[mk, marker := i.cell_type, on = c(gene_name = "gene")]
+  gg[, `:=`(link = ln, stable_only = sites_group0 == n_sites)]
+  # covariates: number of linked sites; for GREAT also the domain size (the 50 kb window is the same for all genes)
+  cov <- if (ln == "GREAT") "+ log2(1 + n_sites) + log10(domain_kb)" else "+ log2(1 + n_sites)"
+  gl_all[[ln]] <- rbindlist(lapply(seq_len(K_GENE), function(c) {
+    sub <- gg[get(paste0("sites_group", c)) > 0 | stable_only]
+    sub[, y := as.integer(get(paste0("sites_group", c)) > 0)]
+    rbindlist(lapply(kgroups, function(kg) {
+      sub[, x := as.integer(group == kg)]
+      ft <- fisher.test(table(factor(sub$x, 1:0), factor(sub$y, 1:0)))
+      fit <- glm(as.formula(paste("y ~ x", cov)), data = sub, family = binomial)
+      cf <- summary(fit)$coefficients["x", ]
+      data.table(link = ln, site_group = c, ko_group = kg, genes = sub[x == 1 & y == 1, .N],
+                 genes_in_site_group = sum(sub$y), pct_in_site_group = round(100 * sub[x == 1 & y == 1, .N] / sum(sub$y), 2),
+                 pct_stable_only = round(100 * sub[x == 1 & y == 0, .N] / sum(sub$y == 0), 2),
+                 odds_ratio = signif(unname(ft$estimate), 3), p = signif(ft$p.value, 3),
+                 adj_odds_ratio = signif(exp(cf[["Estimate"]]), 3), adj_p = signif(cf[["Pr(>|z|)"]], 3))
+    }))
+  }))
+  gg_all[[ln]] <- gg
+  cat(sprintf("%s: linked genes %d; with only stable sites %d\n", ln, nrow(gg), sum(gg$stable_only)))
+}
+gg <- rbindlist(gg_all, use.names = TRUE)
+setcolorder(gg, c("link", "gene_id", "gene_name", "group", "marker", "n_sites"))
+setorder(gg, link, group, gene_name)
+fwrite(gg, file.path(od, "gene_site_groups.tsv"), sep = "\t", quote = FALSE)
+gl <- rbindlist(gl_all)
+gl[, `:=`(fdr = signif(p.adjust(p, "BH"), 3), adj_fdr = signif(p.adjust(adj_p, "BH"), 3)), by = link]
+fwrite(gl, file.path(od, "gene_links.tsv"), sep = "\t", quote = FALSE)
+print(gl[adj_fdr < 0.1 | fdr < 0.1])
+print(gg[gene_name %in% c("INS", "PAX6", "ARX", "PAX4", "MAFA", "MAFB", "PDX1", "NKX6-1")])
 
 print(rbindlist(elbow)); print(ho); print(centers[k %in% c(4, 5, 6, NA)])

@@ -15,5 +15,5 @@ scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/04_candidates/*.tsv" results/04_candid
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/05_binding_signal/*.tsv" results/05_binding_signal/
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/06_cluster_contrast/*.tsv" results/06_cluster_contrast/
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/07_diff_site_targets/diff_site_genes.tsv" "${REMOTE}:${SRC}/07_diff_site_targets/summary.tsv" "${REMOTE}:${SRC}/07_diff_site_targets/tests.tsv" results/07_diff_site_targets/
-scp -q -i ~/.ssh/id_rsa $(for f in site_clusters centers elbow heldout heldout_clusters links; do echo "${REMOTE}:${SRC}/08_site_clusters/${f}.tsv"; done) results/08_site_clusters/
+scp -q -i ~/.ssh/id_rsa $(for f in site_clusters centers elbow heldout heldout_clusters links gene_site_groups gene_links; do echo "${REMOTE}:${SRC}/08_site_clusters/${f}.tsv"; done) results/08_site_clusters/
 ls -l results/*/

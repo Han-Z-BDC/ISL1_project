@@ -471,6 +471,46 @@ l["value"] = [f"{int(a):,} ({p:.1f}%)" + ("" if np.isnan(o) else f"; OR {o:.2g},
 t8_links = l.pivot(index="feature", columns="cluster", values="value").reindex(list(FEAT.values()))
 t8_links.columns = [SC_LABEL[c] for c in t8_links.columns]
 t8_links = t8_links.reset_index().rename(columns={"feature": "Sites"})
+# gene level: genes linked to sites of each group vs genes whose linked sites are all stable
+LINK8 = {"GREAT": "GREAT domain", "within_50kb": "TSS within ±50 kb"}
+gl8 = rd(os.path.join(D8, "gene_links.tsv"))
+gl8["value"] = [f"{int(n):,} ({p:.1f}%); OR {o:.2g}, adj. OR {ao:.2g}, adj. FDR {q:.2g}"
+                for n, p, o, ao, q in zip(gl8.genes, gl8.pct_in_site_group, gl8.odds_ratio, gl8.adj_odds_ratio, gl8.adj_fdr)]
+t8_genes = []
+for ln, lab in LINK8.items():
+    x = gl8[gl8.link == ln]
+    pv = x.pivot(index="ko_group", columns="site_group", values="value").reindex([g for g in GROUPS if g in set(x.ko_group)])
+    pv.columns = [f"Genes with a group {c} site" for c in pv.columns]
+    st = x.groupby("ko_group").pct_stable_only.first()
+    pv.insert(0, "Genes with only stable sites (%)", [f"{st[g]:.1f}%" for g in pv.index])
+    pv.insert(0, "KO gene group", [LABEL[g] for g in pv.index])
+    pv.insert(0, "Link", lab)
+    t8_genes.append(pv.reset_index(drop=True))
+t8_genes = pd.concat(t8_genes, ignore_index=True)
+ng8 = {ln: {c: int(gl8[(gl8.link == ln) & (gl8.site_group == c)].genes_in_site_group.iloc[0]) for c in range(1, K8 + 1)}
+       for ln in LINK8}
+
+# gene list: KO clusters 2 and 4 genes with a varying site under either link
+gs8 = rd(os.path.join(D8, "gene_site_groups.tsv"))
+gs8["stable_only"] = gs8.stable_only.astype(str).str.upper() == "TRUE"
+gv = gs8[~gs8.stable_only & gs8.group.isin(["cluster2", "cluster4"])]
+
+
+def site_str(r):
+    s = [f"{c}: {int(r[f'sites_group{c}'])}" for c in range(1, K8 + 1) if r[f"sites_group{c}"] > 0]
+    return "; ".join(s) + f" (stable {int(r.sites_group0)})"
+
+
+gv = gv.assign(sites=gv.apply(site_str, axis=1))
+w = gv.pivot(index=["gene_id", "gene_name", "group", "marker"], columns="link", values="sites").reset_index()
+for ln in LINK8:
+    if ln not in w.columns:
+        w[ln] = ""
+w = w.fillna("").sort_values(["group", "gene_name"], kind="stable")
+t8_list = pd.DataFrame({"Gene": w.gene_name, "KO gene group": w.group.map(LABEL), "Marker": w.marker,
+                        "Varying sites by group, GREAT": w.GREAT, "Varying sites by group, ±50 kb": w.within_50kb})
+n8_list = {g: int((w.group == g).sum()) for g in ["cluster2", "cluster4"]}
+
 t8_ho = ho8.rename(columns={"pct_batch3_nearest_own": "% sites whose batch 3 profile is closest to own group",
                             "pct_expected_by_chance": "% expected by chance",
                             "pct_same_as_9lib_best_match": "% same group as the 9-library clustering"})
@@ -607,6 +647,27 @@ rise after D15 awaits the unified CUT&amp;RUN time course.</p>
 ratio and BH FDR of a Fisher test of the group against the stable sites. Gained and lost sites are part of what the
 LRT selects, so they have no test.</p>
 {table_html(t8_links)}
+<h3>Genes linked to each group and their KO effect</h3>
+<p class="note">Gene level, two ways of linking sites to bulk-tested genes: GREAT domains (step 01; main) and, as a check,
+every gene whose TSS lies within ±50 kb of the site. A gene counts in every group in which it has at least one linked
+site (GREAT: {ng8["GREAT"][1]:,} / {ng8["GREAT"][2]:,} / {ng8["GREAT"][3]:,} / {ng8["GREAT"][4]:,} genes in groups 1-4;
+±50 kb: {ng8["within_50kb"][1]:,} / {ng8["within_50kb"][2]:,} / {ng8["within_50kb"][3]:,} / {ng8["within_50kb"][4]:,})
+and is compared with the genes whose linked sites are all stable. Genes with a varying site have more sites (median 2
+against 1), which alone raises their chance of a KO effect, so the main figure is the adjusted odds ratio: logistic
+regression of KO group membership on group membership with log2(1 + number of sites) and, for GREAT, log10 domain
+length as covariates; BH FDR over all rows of each link. Each cell: genes in the KO group (share of the site group's
+genes); Fisher odds ratio; adjusted odds ratio and its FDR.</p>
+<p class="note">KO cluster 4 (down, emerging and growing) is enriched near the varying sites after adjustment: groups 1
+and 2 with GREAT (adj. OR 2.2 and 2.0), groups 2 and 4 with ±50 kb (2.9 and 4.0). KO cluster 2 (up early) is enriched
+only before adjustment with GREAT, and after adjustment only for group 2 with ±50 kb (1.8). Group 3 (late rise) links
+to no KO group under either link.</p>
+{table_html(t8_genes)}
+<details><summary>Gene list: {n8_list["cluster2"] + n8_list["cluster4"]} genes of KO clusters 2 ({n8_list["cluster2"]}) and 4
+({n8_list["cluster4"]}) with a varying site under either link</summary>
+<p class="note">Varying sites per group (group: number of sites), with the number of stable sites in brackets; blank: no
+varying site under that link.</p>
+{table_html(t8_list)}
+</details>
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)

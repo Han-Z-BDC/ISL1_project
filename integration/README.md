@@ -61,7 +61,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
 | 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
 | 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
-| 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `vst_libraries.tsv` |
+| 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `gene_links.tsv` and `gene_site_groups.tsv` (gene level, GREAT and ±50 kb links), `vst_libraries.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -284,3 +284,26 @@ with k = 4 (share of variance between groups 0.81; k = 5-6 split the same shapes
   match their own group no more often than chance. The earlier libraries come from another differentiation with
   relabelled days (D12 as D15, D15 as D18). The D18-vs-D22 distinction between groups awaits the unified CUT&RUN
   time course; the same caveat applies to the D22 alpha-vs-beta difference of step 06.
+
+Gene level: genes linked to each group's sites against genes whose linked sites are all stable, with two links:
+GREAT domains (main) and every gene whose TSS lies within ±50 kb of the site (check). Genes with a varying site have
+more sites (median 2 vs 1), so the main figure is the adjusted odds ratio from a logistic regression with
+log2(1 + number of sites) (and, for GREAT, log10 domain length) as covariates; BH FDR per link. Tables:
+`gene_links.tsv` (per link, site group and KO group) and `gene_site_groups.tsv` (per gene: sites in each group).
+
+| KO gene group | Link | Group 1 | Group 2 | Group 3 | Group 4 |
+|---|---|---|---|---|---|
+| Cluster 4 (down, emerging and growing) | GREAT | **2.2 (1e-4)** | **2.0 (0.005)** | 1.0 (0.99) | 1.5 (0.83) |
+| | ±50 kb | 1.5 (0.19) | **2.9 (2e-5)** | 1.0 (0.96) | **4.0 (6e-4)** |
+| Cluster 2 (up early, down by D22) | GREAT | 1.2 (0.83) | 1.2 (0.83) | 1.3 (0.83) | 1.1 (0.93) |
+| | ±50 kb | 1.0 (0.96) | **1.8 (0.03)** | 1.0 (0.96) | 1.6 (0.51) |
+
+Adjusted odds ratio (adjusted FDR).
+
+- KO cluster 4 genes are enriched near the varying sites under both links, most consistently near group 2 (peaks at
+  D18). KO cluster 2's enrichment (Fisher OR about 2 with GREAT) is mostly explained by the number of sites. Group 3
+  (late rise) links to no KO group.
+- 279 genes of KO clusters 2 and 4 have a varying site under either link (listed in the report), among them PDX1
+  (groups 1 and 2), GCG, PCSK1, ABCC8, DPP4, TTR and, with GREAT only, MAFB (group 2).
+- Key genes: within 50 kb, INS, PAX6, PAX4, ARX, MAFA and MAFB have only stable sites, and NKX6-1 one group 1 site.
+  With GREAT, INS and PAX6 have no site, PAX4, ARX and MAFA only stable sites, NKX6-1 group 1 and 2 sites.
