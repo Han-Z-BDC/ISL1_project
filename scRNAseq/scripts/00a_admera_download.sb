@@ -16,7 +16,7 @@ set -euo pipefail
 # Deliveries: 260924-0015 (2026-10-08); 261016-0008 (notified 2026-11-13).
 # Admera deletes FTP data 3 weeks after delivery.
 # First run: job 33674668, from /projects/.../jobs/ISL1_scRNAseq/,
-# copied from jobs/templates/transfer/admera.download.sb). Credentials are NOT stored in
+# copied from jobs/templates/transfer/admera.download.sb. Credentials are NOT stored in
 # git: export them before submitting, e.g.
 #   ADMERA_FTP_USER=... ADMERA_FTP_PASS=... sbatch --export=ALL scripts/00a_admera_download.sb
 # lftp exits non-zero if any server folder is missing (the empty readme/ and expired
