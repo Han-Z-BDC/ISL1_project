@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=isl1_sc_cellranger
 #SBATCH --partition=amem
-#SBATCH --qos=mem-long
+#SBATCH --qos=mem-normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=256G
-#SBATCH --time=5-00:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.out
 #SBATCH --error=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellranger_multi.%j.err
 
@@ -19,8 +19,15 @@
 # 256G (same as earlier cr_migl runs) even though Cell Ranger itself needs ~64G;
 # --localmem leaves headroom under the Slurm limit.
 # Time: with 16 CPUs / 24 h the 2026-11-05 runs (D40 2 deliveries, D15/D22 1) timed out and needed a resume
-# (30-37 h in total). With all 3 deliveries (2026-11-13) the data is 1.6-2.8x larger, so
-# mem-long (max 7 d), 5 days and 32 CPUs.
+# (30-37 h in total). With all deliveries (2026-11-13) the data is 1.6-2.8x larger (est.
+# 60-95 h at 16 CPUs), so 32 CPUs. mem-long (7 d) was blocked by its 618-CPU group cap, so
+# mem-normal (max 1 d) with a chain of 24 h jobs per channel: each later job waits on the
+# previous one with --dependency=afternotok and resumes the run in place; leftovers are
+# cancelled when a run finishes (--kill-on-invalid-dep=yes), e.g. 2026-11-13:
+#   for r in HZ_Diff34_D40_scRNA_combined HZ_Diff37_D15_scRNA HZ_Diff37_D22_scRNA; do
+#     j=$(sbatch --parsable scripts/01_cellranger_multi.sb $r)
+#     for i in 2 3 4; do j=$(sbatch --parsable --dependency=afternotok:$j --kill-on-invalid-dep=yes scripts/01_cellranger_multi.sb $r); done
+#   done
 # Rerunning resumes an interrupted run in place (same --id, same cwd).
 # Optional arguments: run_id(s) to process (default: all of RUNS). Lets each OCM channel
 # go in its own job, e.g. 2026-11-05:
