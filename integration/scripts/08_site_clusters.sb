@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=int08_siteclus
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=15G
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/logs/%x.%j.out
+# Step 08: group all ISL1 sites by binding pattern across days (DESeq2 LRT filter, VST, k-means). Needs steps 00-03.
+# Submit from integration/:  sbatch scripts/08_site_clusters.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/config.sh
+"${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/08_site_clusters.R" "${CNR_DIFF}" "${RESULTS}" "${MARKERS}" "${RESULTS}/08_site_clusters"
