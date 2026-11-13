@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REMOTE=hzhu10@xsede.org@login.rc.colorado.edu
 SRC=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/results
-for d in 01_great 02_direct_targets 03_binding_change 04_candidates 05_binding_signal 06_cluster_contrast 07_diff_site_targets 08_six_library; do
+for d in 01_great 02_direct_targets 03_binding_change 04_candidates 05_binding_signal 06_cluster_contrast 07_diff_site_targets; do
   mkdir -p "results/${d}"
 done
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/01_great/summary.tsv" "${REMOTE}:${SRC}/01_great/site_gene.tsv" results/01_great/
@@ -15,5 +15,4 @@ scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/04_candidates/*.tsv" results/04_candid
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/05_binding_signal/*.tsv" results/05_binding_signal/
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/06_cluster_contrast/*.tsv" results/06_cluster_contrast/
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/07_diff_site_targets/diff_site_genes.tsv" "${REMOTE}:${SRC}/07_diff_site_targets/summary.tsv" "${REMOTE}:${SRC}/07_diff_site_targets/tests.tsv" results/07_diff_site_targets/
-scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/08_six_library/*.tsv" results/08_six_library/
 ls -l results/*/

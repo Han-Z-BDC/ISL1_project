@@ -403,10 +403,6 @@ fig.update_layout(boxmode="group", boxgap=0.3, boxgroupgap=0.08,
 fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
 parts.append(("07b", fig_html(style(fig, 520), False)))
 
-# ---- section 08: differential binding with the 6 earlier libraries only
-D8 = os.path.join(RES, "08_six_library")
-s08 = {k: rd(os.path.join(D8, f"{k}.tsv")) for k in ("summary", "overlap", "heldout", "alpha_beta_tests", "norm_factors")}
-
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -516,17 +512,6 @@ between days within the set (sites as units, uncorrected; descriptive).</p>
 {parts[7][1]}
 {table_html(w07)}
 
-<h2>08 Differential binding with the 6 earlier libraries only</h2>
-<p class="note">Same 14,431 sites, counts and normalization as step 27 (DiffBind, DESeq2, background 15 kb bins), but only the
-two earlier (non-batch-3) libraries per day: D15 rep3/4, D18 rep3/4, D22 rep4/5 (D18 rep4, D15_CtrGFP_rep2, came with
-the batch 3 delivery). Design ~ day; FDR &lt; 0.05. Held-out check: the 3 batch 3 libraries (D15 rep1, D18 rep1, D22
-rep2) as an independent time course; for each contrast, the share of sites whose batch 3 change has the same sign as the
-6-library log2FC. The site set was built partly from the batch 3 libraries' peaks; the check uses their change between
-days, not their peaks. Alpha vs beta: as section 06 with the 6 libraries (3 residual df).</p>
-{table_html(s08["summary"])}
-{table_html(s08["overlap"])}
-{table_html(s08["heldout"])}
-{table_html(s08["alpha_beta_tests"])}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)
