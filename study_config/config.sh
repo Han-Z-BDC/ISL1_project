@@ -34,7 +34,6 @@ CELLRANGER=/projects/hzhu10@xsede.org/software/cellranger-9.0.1/bin/cellranger
 # HZ_Diff34_D40_scRNA = first D40 sequencing only (the run the current out/ analysis uses);
 # HZ_Diff34_D40_scRNA_combined = same library, both sequencing runs (two [libraries] rows).
 RUNS=(
-  HZ_Diff34_D40_scRNA
   HZ_Diff34_D40_scRNA_combined
   HZ_Diff37_D15_scRNA
   HZ_Diff37_D22_scRNA
