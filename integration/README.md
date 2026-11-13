@@ -12,7 +12,7 @@ All paths are in `config.sh`.
 | Data | Source | Used |
 |---|---|---|
 | Bulk RNA-seq, Ctr vs ISL1 KO, D15 / D18 / D22, 2 replicates (run YJZ5LS) | `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` | `LRT_interaction.tsv` (KO effect changes with day), `LRT_genotype.tsv` (KO effect at any day), `KO_vs_Ctr_D15/D18/D22.tsv`, `timecourse_clusters_LRT_interaction.tsv` |
-| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_KO_histone` step 26 (sites) and step 27 (DiffBind), on scratch | 14,431 sites of 401 bp, site counts, normalization factors, per-site differential tables |
+| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_KO_histone` step 26 (sites) and step 27 (DiffBind), on scratch | 14,431 sites of 401 bp; per-site differential tables (main analysis: DiffBind, background normalization); the DiffBind object, from which step 00 exports counts and size factors |
 | Genes | 10x GRCh38 2020-A `genes.gtf`, the annotation of the bulk counts | gene IDs, TSSs |
 
 The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the unified CUT&RUN data are there.
@@ -31,12 +31,15 @@ The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the un
 - **Direct target.** A gene with at least one ISL1 site (any day) in its domain. Enrichment per KO-effect group
   against the no-KO-effect genes: Fisher's exact test, and logistic regression `bound ~ group +
   log10(domain length)`, since longer domains collect more sites by chance (BH over groups).
-- **Binding classes (step 27, background normalization).** Gained: FDR < 0.05 up in D18 vs D15 or D22 vs D15.
-  Stable-bound: every other site. The sites lost over time (about 10) are listed, not tested.
+- **Counts and signal.** Every step uses step 27's DiffBind counts (paired-end fragments per site, duplicates kept)
+  and its background size factors (DESeq2 on 15 kb genome bins), exported by step 00. Signal per site and library =
+  reads / size factor.
+- **Binding classes (step 27, DiffBind, background normalization).** Gained: FDR < 0.05 up in D18 vs D15 or D22 vs
+  D15. Stable-bound: every other site. The sites lost over time (12) are listed, not tested.
 - **Binding change per KO-effect group.** Sites are members of a set and the 9 libraries are the replicates: limma
-  voom on the site counts (step 27 background normalization, `~ batch + day`), `camera` for each group against all
-  other sites, contrasts D18 vs D15, D22 vs D18 and D22 vs D15. Figure: cumulative distribution of the site log2FC per group
-  against all sites.
+  voom on the DiffBind site counts (background size factors, `~ batch + day`), `camera` for each group against all
+  other sites, contrasts D18 vs D15, D22 vs D18 and D22 vs D15. Figure: cumulative distribution of the DiffBind site
+  log2FC per group against all sites.
 - **Candidate time-dependent direct target.** A gene with a site in its domain whose binding change matches the
   timing of its KO effect (the sign of the KO effect is not used): cluster 1 (strongest at D18) a site gained D18 vs
   D15; clusters 3 and 4 (emerging from D18) a site gained D18 or D22 vs D15; cluster 5 (late) a site gained D22 vs
@@ -50,14 +53,15 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 
 | Step | Script | Output |
 |---|---|---|
+| 00 DiffBind counts and size factors | `scripts/00_diffbind_counts.sb` (amem, 12 CPUs, 240 GB; re-reads the BAMs for the background bins) | `results/00_diffbind_counts/`: `counts_raw.tsv`, `norm_factors.tsv`, `counts_norm.tsv` |
 | 01 GREAT domains, site -> gene | `scripts/01_great_site_to_gene.sb` (acpu, 2 CPUs, 7 GB) | `results/01_great/`: `gene_regions.bed`, `site_gene.tsv`, `summary.tsv` |
 | 02 Direct targets per KO-effect group | `scripts/02_direct_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/02_direct_targets/`: `gene_table.tsv` (group, KO log2FC per day, sites per gene), `enrichment.tsv` |
-
 | 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
 | 04 Candidate time-dependent direct targets | `scripts/04_candidates.sb` (acpu, 2 CPUs, 7 GB) | `results/04_candidates/`: `candidate_genes.tsv`, `candidates.tsv` (every matching site), `summary.tsv`, `gained_enrichment.tsv` |
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
 | 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
 | 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
+| 08 Differential binding with the 6 earlier libraries only | `scripts/08_six_library.sb` (amem, 12 CPUs, 240 GB) | `results/08_six_library/`: `tables/`, `summary.tsv`, `overlap.tsv`, `heldout.tsv`, `alpha_beta_tests.tsv`, `norm_factors.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -66,7 +70,7 @@ Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anacond
 -> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
 site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: alpha-leaning vs
 beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts;
-section 07: KO effect of the target genes of the differentially bound sites).
+section 07: KO effect of the target genes of the differentially bound sites; section 08: the 6-library test).
 
 ## Results
 
@@ -112,24 +116,24 @@ group with a linked gene. Cells: median DiffBind log2FC of the group's sites (ot
 
 | Group | Sites | D18 vs D15 | D22 vs D18 | D22 vs D15 | % gained (other sites) |
 |---|---|---|---|---|---|
-| No KO effect | 7,631 | 0.317 (0.345), down 0.88 | -0.006 (-0.060), **up 0.023** | 0.289 (0.229), up 0.39 | 4.1 (6.6) |
-| Cluster 1 | 850 | 0.330 (0.330), down 0.89 | -0.043 (-0.032), down 0.89 | 0.235 (0.265), down 0.74 | 4.7 (5.3) |
-| Cluster 2 | 629 | 0.343 (0.329), up 0.89 | -0.060 (-0.032), down 0.82 | 0.241 (0.264), down 0.94 | 7.2 (5.2) |
-| Cluster 3 | 390 | 0.307 (0.330), down 0.89 | -0.038 (-0.033), up 0.94 | 0.253 (0.263), up 0.95 | 5.1 (5.3) |
-| **Cluster 4** | 613 | **0.388** (0.328), up 0.23 | **-0.084** (-0.030), **down 0.023** | 0.224 (0.264), down 0.74 | **9.8** (5.1) |
-| Cluster 5 | 219 | 0.301 (0.330), down 0.88 | -0.021 (-0.033), up 1.00 | 0.241 (0.263), down 0.74 | 2.7 (5.3) |
-| Cluster 6 | 218 | 0.324 (0.330), up 0.89 | -0.054 (-0.032), down 0.25 | 0.213 (0.264), down 0.39 | 3.7 (5.3) |
-| Stays | 3,077 | 0.324 (0.331), down 0.89 | -0.027 (-0.034), up 1.00 | 0.258 (0.264), down 0.95 | 4.9 (5.3) |
-| Other KO | 625 | 0.332 (0.329), down 0.89 | -0.020 (-0.033), up 0.89 | 0.268 (0.263), up 0.95 | 4.6 (5.3) |
+| No KO effect | 7,631 | 0.317 (0.345), down 0.85 | -0.006 (-0.060), **up 0.018** | 0.289 (0.229), up 0.40 | 4.1 (6.6) |
+| Cluster 1 | 850 | 0.330 (0.330), down 0.85 | -0.043 (-0.032), down 0.91 | 0.235 (0.265), down 0.67 | 4.7 (5.3) |
+| Cluster 2 | 629 | 0.343 (0.329), up 0.85 | -0.060 (-0.032), down 0.73 | 0.241 (0.264), down 0.90 | 7.2 (5.2) |
+| Cluster 3 | 390 | 0.307 (0.330), down 0.85 | -0.038 (-0.033), up 0.94 | 0.253 (0.263), up 0.95 | 5.1 (5.3) |
+| **Cluster 4** | 613 | **0.388** (0.328), up 0.21 | **-0.084** (-0.030), **down 0.018** | 0.224 (0.264), down 0.67 | **9.8** (5.1) |
+| Cluster 5 | 219 | 0.301 (0.330), down 0.85 | -0.021 (-0.033), up 0.98 | 0.241 (0.263), down 0.67 | 2.7 (5.3) |
+| Cluster 6 | 218 | 0.324 (0.330), up 0.85 | -0.054 (-0.032), down 0.24 | 0.213 (0.264), down 0.40 | 3.7 (5.3) |
+| Stays | 3,077 | 0.324 (0.331), down 0.85 | -0.027 (-0.034), up 0.98 | 0.258 (0.264), down 0.95 | 4.9 (5.3) |
+| Other KO | 625 | 0.332 (0.329), down 0.85 | -0.020 (-0.033), up 0.91 | 0.268 (0.263), up 0.95 | 4.6 (5.3) |
 
 - The whole site set rises from D15 to D18 (median log2FC about 0.33) and stays there (D22 vs D18 about -0.03); the
   groups follow that rise.
-- **Cluster 4** (KO effect down, emerging and growing) rises most from D15 to D18 (FDR 0.23) and is the one cluster
-  whose sites then **fall from D18 to D22 relative to all other sites** (median -0.084 vs -0.030, FDR 0.023). Its
+- **Cluster 4** (KO effect down, emerging and growing) rises most from D15 to D18 (FDR 0.21) and is the one cluster
+  whose sites then **fall from D18 to D22 relative to all other sites** (median -0.084 vs -0.030, FDR 0.018). Its
   binding peaks at D18, when its KO effect first appears. The genes without a KO effect move the opposite way
-  (FDR 0.023), as the complement of the KO-effect clusters.
-- Sites move together: the inter-site correlation estimated by camera is 0.21-0.31, far above limma's default 0.01.
-  With the estimated correlation every FDR is >= 0.97 (D22 vs D18: 0.999), so the cluster 4 results are leads, not
+  (FDR 0.018), as the complement of the KO-effect clusters.
+- Sites move together: the inter-site correlation estimated by camera is 0.19-0.28, far above limma's default 0.01.
+  With the estimated correlation every FDR is >= 0.96 (D22 vs D18: 0.995), so the cluster 4 results are leads, not
   firm differences.
 - Sites near genes without a KO effect are gained less often (4.1%) than the other sites (6.6%), which lie mostly
   near genes with a KO effect.
@@ -161,28 +165,28 @@ group with a linked gene. Cells: median DiffBind log2FC of the group's sites (ot
 
 ### 05 Binding signal per day at each cluster's sites
 
-Signal: reads per site / step 27 background size factor, mean of the 3 libraries per day. Paired Wilcoxon between
-days within each group (BH).
+Signal: DiffBind reads per site / background size factor (step 00), mean of the 3 libraries per day. Paired
+Wilcoxon between days within each group (BH).
 
 | Group | Sites | Median signal D15 / D18 / D22 | Sites up D18 vs D15 | Sites up D22 vs D18 | Median log2 ratio D22 vs D18 (FDR) |
 |---|---|---|---|---|---|
-| No KO effect | 7,631 | 24.0 / 32.3 / 32.5 | 84.7% | 50.4% | 0.00 (3.3e-6) |
-| Cluster 1 | 850 | 23.4 / 31.3 / 29.2 | 82.8% | 39.9% | -0.15 (9.0e-15) |
-| Cluster 2 | 629 | 22.3 / 31.4 / 28.7 | 84.4% | 36.1% | -0.21 (7.0e-19) |
-| Cluster 3 | 390 | 22.9 / 30.7 / 29.8 | 84.9% | 43.3% | -0.10 (1.3e-4) |
-| **Cluster 4** | 613 | 22.9 / **33.7** / 27.4 | 86.6% | **27.9%** | **-0.31** (7.2e-38) |
-| Cluster 5 | 219 | 23.4 / 31.9 / 30.9 | 85.4% | 44.3% | -0.06 (0.010) |
-| Cluster 6 | 218 | 23.0 / 31.2 / 28.3 | 86.7% | 37.2% | -0.17 (5.5e-8) |
+| No KO effect | 7,631 | 23.6 / 31.8 / 32.4 | 84.9% | 51.6% | +0.02 (0.054) |
+| Cluster 1 | 850 | 23.0 / 31.0 / 29.1 | 83.4% | 41.5% | -0.13 (5.7e-12) |
+| Cluster 2 | 629 | 22.0 / 31.1 / 28.8 | 85.1% | 36.9% | -0.18 (1.4e-16) |
+| Cluster 3 | 390 | 22.6 / 30.4 / 29.8 | 84.6% | 43.6% | -0.07 (1.4e-3) |
+| **Cluster 4** | 613 | 22.5 / **33.3** / 27.6 | 87.3% | **29.2%** | **-0.28** (7.9e-35) |
+| Cluster 5 | 219 | 23.1 / 31.7 / 30.7 | 87.2% | 46.6% | -0.04 (0.035) |
+| Cluster 6 | 218 | 22.7 / 31.0 / 28.4 | 87.2% | 36.7% | -0.16 (5.8e-7) |
 
-- Binding rises from D15 to D18 at 83-87% of the sites of every group (all FDR < 1e-12), the overall ISL1 increase.
-- **From D18 to D22 the sites near the KO-effect clusters lose signal while the reference stays flat** (50.4% of
-  sites up, median ratio 0.00). Cluster 4 shows both the largest rise to D18 (median 22.9 -> 33.7) and the largest
-  fall to D22 (72% of its sites down). Per site, none of these D22 vs D18 changes reaches significance in step 27.
-  Against all other sites, cluster 4's fall is the one that stands out (step 03 camera D22 vs D18, FDR 0.023, not
+- Binding rises from D15 to D18 at 83-87% of the sites of every group (all FDR < 1e-28), the overall ISL1 increase.
+- **From D18 to D22 the sites near the KO-effect clusters lose signal while the reference stays flat** (51.6% of
+  sites up, median ratio +0.02). Cluster 4 shows both the largest rise to D18 (median 22.5 -> 33.3) and the largest
+  fall to D22 (71% of its sites down). Per site, none of these D22 vs D18 changes reaches significance in step 27.
+  Against all other sites, cluster 4's fall is the one that stands out (step 03 camera D22 vs D18, FDR 0.018, not
   significant with the estimated inter-site correlation). The batch-aware model gives a smaller shift than these
   day means (median DiffBind log2FC -0.084 vs -0.030 for the other sites).
 - The paired tests use sites as units; with hundreds of sites per group even small shifts give tiny p values
-  (the reference's D22 vs D18 FDR of 3.3e-6 comes with a median change of 0). They describe each group; whether a
+  (cluster 5's D22 vs D18 FDR of 0.035 comes with a median change of -0.04). They describe each group; whether a
   group differs from the others is the camera test of step 03.
 
 ### 06 Alpha-leaning against beta-leaning sites, per day and over time
@@ -200,19 +204,19 @@ compare days. p values uncorrected.
 
 | log2 alpha-leaning / beta-leaning | Sites | D15 | D18 | D22 | Change D22 vs D15 |
 |---|---|---|---|---|---|
-| Cluster 4 / cluster 2, total | 613 / 629 | -0.01 (p 0.89) | +0.07 (p 0.13) | -0.00 (p 0.94) | +0.00 (p 0.97) |
-| Cluster 4 / cluster 2, median per site | 613 / 629 | +0.03 (p 0.63) | +0.09 (p 0.18) | -0.03 (p 0.64) | -0.06 (p 0.51) |
+| Cluster 4 / cluster 2, total | 613 / 629 | -0.01 (p 0.83) | +0.07 (p 0.14) | -0.01 (p 0.87) | +0.00 (p 0.97) |
+| Cluster 4 / cluster 2, median per site | 613 / 629 | +0.03 (p 0.62) | +0.08 (p 0.23) | -0.02 (p 0.77) | -0.05 (p 0.58) |
 | **Alpha / beta markers, median per site** | 45 / 52 | **-0.01 (p 0.92)** | **-0.13 (p 0.27)** | **-0.26 (p 0.048)** | -0.25 (p 0.14) |
 | Alpha markers in cluster 4 / beta markers in cluster 2, median per site | 25 / 10 | +0.10 (p 0.54) | -0.24 (p 0.18) | -0.29 (p 0.11) | -0.39 (p 0.13) |
 
 - **Binding at alpha and beta marker sites is the same at D15; beta sites then pull ahead, and at D22 they bind
-  more than alpha sites** (median per site 25.9 vs 31.8; log2 -0.26, p 0.048, uncorrected). Binding is not stronger
+  more than alpha sites** (median per site 26.0 vs 32.1; log2 -0.26, p 0.048, uncorrected). Binding is not stronger
   at alpha genes at D15 or D18. The relative shift over time (-0.25 from D15 to D22) is not significant (p 0.14).
-- The whole clusters show no crossover: cluster 4 is about 5% above cluster 2 at D18 (p 0.13) and equal at D15 and
+- The whole clusters show no crossover: cluster 4 is about 5% above cluster 2 at D18 (p 0.14) and equal at D15 and
   D22.
 - Gene by gene, binding near alpha markers of cluster 4 (LOXL4, DPP4, TTR, RGS4) and near beta markers of cluster 2
   (MAFA, PCSK1, ABCC8) peaks at D18 while their control expression keeps rising to D22. GCG binding keeps rising
-  (48 / 77 / 84) and ARX is level after D18 (32 / 42 / 41). INS has no linked site.
+  (48 / 76 / 84) and ARX is level after D18 (31 / 42 / 41). INS has no linked site.
 - In control islets the alpha genes and ISL1 keep rising from D18 to D22 (GCG 35,545 -> 203,556; ARX 485 -> 1,020;
   ISL1 373 / 1,990 / 4,425 at D15 / D18 / D22), so the fall in binding at alpha sites is not from less ISL1 or fewer
   alpha-lineage cells.
@@ -252,7 +256,35 @@ Gained against only-stable genes, logistic regression with domain length and num
   38, other KO 24, cluster 3 19, clusters 5 and 6 6 each. Strongest at D22: ERO1B, PCP4, LMO2, TMOD1, EDARADD, ETV1,
   TMCC3, CLU, GLS, CHRNA3, DPP4, LOXL4 (all lower in the KO).
 - Lost sites are too few (14 genes; e.g. GATA3, NR2E3, TGFBR3) to test.
-- Binding at the 313 gained sites of the 343 genes (report boxplot): median 16.8 / 45.3 / 35.3 at D15 / D18 / D22,
-  lower at D22 than at D18 for 87% of the sites (all sites: 57%), for genes lower (202 sites) and higher in the KO
+- Binding at the 313 gained sites of the 343 genes (report boxplot): median 16.5 / 44.7 / 35.3 at D15 / D18 / D22,
+  lower at D22 than at D18 for 87% of the sites (all sites: 55%), for genes lower (202 sites) and higher in the KO
   (118 sites) alike. The rise from D15 is how the sites were selected; part of the fall to D22 is regression to the
   mean of sites picked for a high D18 reading.
+
+### 08 Differential binding with the 6 earlier libraries only
+
+Same sites, counts and normalization as step 27 (DiffBind, background), libraries D15 rep3/4, D18 rep3/4, D22 rep4/5
+(2 per day; D18 rep4 came with the batch 3 delivery), design ~ day, FDR < 0.05.
+
+| Contrast | 6 libraries: significant (up / down) | 9 libraries: significant (up / down) | In both, same direction | log2FC Pearson r |
+|---|---|---|---|---|
+| D18 vs D15 | 281 (281 / 0) | 705 (701 / 4) | 249 | 0.88 |
+| D22 vs D18 | 2 (0 / 2) | 0 | 0 | 0.89 |
+| D22 vs D15 | 14 (12 / 2) | 199 (190 / 9) | 12 | 0.89 |
+
+Held-out check with the 3 batch 3 libraries (D15 rep1, D18 rep1, D22 rep2), share of sites whose batch 3 change has
+the sign of the 6-library log2FC:
+
+| Contrast | 6-library significant sites | All sites |
+|---|---|---|
+| D18 vs D15 | 89.3% (281 sites) | 71.3% |
+| D22 vs D15 | 85.7% (14 sites) | 68.0% |
+
+- **Dropping the batch 3 libraries loses power and gains no robustness.** The 6 libraries find 40% as many sites for
+  D18 vs D15 and 7% for D22 vs D15; 249 of their 281 D18 sites are among the 9-library calls. Their calls hold up in
+  the held-out batch 3 libraries (89% same sign against 71% for all sites), so they are real, but they are a subset
+  of what the 9 libraries find. The 9-library analysis stays the main one.
+- Alpha vs beta marker sites per day (median per site, 3 residual df): -0.27 at D22 (p 0.18), the same direction and
+  size as with 9 libraries (-0.26, p 0.048), with less power.
+- The site set was built partly from the batch 3 libraries' peaks; the held-out check uses their change between days,
+  not their peaks.

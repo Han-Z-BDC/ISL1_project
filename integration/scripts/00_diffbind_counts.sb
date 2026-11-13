@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH --job-name=int00_dbcounts
+#SBATCH --account=amc-general
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/logs/%x.%j.out
+# Step 00: export step 27's DiffBind site counts and background size factors (9 libraries). The background
+# normalization reads the BAMs for 15 kb bins, hence amem as for step 27. Submit from integration/:
+#   sbatch scripts/00_diffbind_counts.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/config.sh
+DB_CORES=4 "${DIFFBIND_ENV}/bin/Rscript" "${INT_DIR}/scripts/00_diffbind_counts.R" "${CNR_DIFF}" "${DB_COUNTS}"

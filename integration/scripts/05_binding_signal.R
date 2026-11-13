@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 # Step 05: ISL1 binding signal per site and day, for the sites linked (GREAT) to each KO-effect cluster's genes.
-#   Signal     step 27 featureCounts reads per site divided by step 27's background size factors (DESeq2 on 15 kb
-#              bins), averaged over the 3 libraries of each day (one batch 3 and two earlier libraries per day, so
-#              batch is balanced across days).
+#   Signal     step 27's DiffBind fragment counts per site divided by the DiffBind background size factors (DESeq2
+#              on 15 kb bins; both exported by step 00), averaged over the 3 libraries of each day (one batch 3
+#              and two earlier libraries per day, so batch is balanced across days).
 #   Groups     clusters 1-6 and no KO effect (reference); sites from step 03 site_groups.tsv (a site linked to genes
 #              of two groups counts in both).
 #   Tests      paired Wilcoxon signed-rank test between days within each group (sites paired): D18 vs D15,
@@ -20,11 +20,11 @@ cnr <- args[1]; res <- args[2]; od <- args[3]
 dir.create(od, showWarnings = FALSE, recursive = TRUE)
 days <- c("D15", "D18", "D22")
 
-cs <- fread(file.path(cnr, "counts_sites.tsv"))
+cs <- fread(file.path(res, "00_diffbind_counts", "counts_raw.tsv"))
 m <- as.matrix(cs[, -1]); rownames(m) <- cs$name
 smp <- fread(file.path(cnr, "samples.tsv"))
 stopifnot(identical(colnames(m), smp$sample))
-nf <- fread(file.path(cnr, "norm_factors.tsv"))[method == "deseq2" & normalization == "background"]
+nf <- fread(file.path(res, "00_diffbind_counts", "norm_factors.tsv"))
 sf <- nf$norm_factor[match(colnames(m), nf$sample)]
 stopifnot(!anyNA(sf))
 nm <- sweep(m, 2, sf, "/")

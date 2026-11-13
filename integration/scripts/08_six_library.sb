@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=int08_sixlib
+#SBATCH --account=amc-general
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/logs/%x.%j.out
+# Step 08: differential binding with the 6 earlier libraries only (DiffBind, background), held-out batch 3 check,
+# alpha vs beta per day. Needs steps 00 and 01. Submit from integration/:
+#   sbatch --dependency=afterok:<step 00 job> scripts/08_six_library.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/config.sh
+DB_CORES=4 "${DIFFBIND_ENV}/bin/Rscript" "${INT_DIR}/scripts/08_six_library.R" "${CNR_DIFF}" "${RESULTS}" "${MARKERS}" \
+  "${RESULTS}/08_six_library"
