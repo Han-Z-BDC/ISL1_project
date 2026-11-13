@@ -3,7 +3,7 @@
 
 Run on the Mac from integration/ after `bash scripts/fetch_results.sh`:
   ~/anaconda3/bin/python3 build_report.py
-Reads the step 01-05 tables in results/ and, for section 06, the bulk normalized counts
+Reads the step 01-08 tables in results/ and, for section 06, the bulk normalized counts
 (../bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/normalized_counts.tsv).
 Output: results/report_integration.html
 """
@@ -403,6 +403,78 @@ fig.update_layout(boxmode="group", boxgap=0.3, boxgroupgap=0.08,
 fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
 parts.append(("07b", fig_html(style(fig, 520), False)))
 
+# ---- section 08: all sites grouped by binding pattern across days (k-means, k = 4)
+D8 = os.path.join(RES, "08_site_clusters")
+K8 = 4
+SC_LABEL = {0: "Stable (LRT p ≥ 0.05)", 1: "1: rises by D18, stays", 2: "2: peaks at D18, falls by D22",
+            3: "3: late, rises at D22", 4: "4: falls at D22"}
+C_B3 = "#eb6834"   # series slot 2
+sc8 = rd(os.path.join(D8, "site_clusters.tsv"))
+cen8 = rd(os.path.join(D8, "centers.tsv"))
+for c_ in cen8.columns:
+    cen8[c_] = pd.to_numeric(cen8[c_], errors="coerce")
+elb8 = rd(os.path.join(D8, "elbow.tsv"))
+ho8 = rd(os.path.join(D8, "heldout.tsv"))
+hoc8 = rd(os.path.join(D8, "heldout_clusters.tsv"))
+lk8 = rd(os.path.join(D8, "links.tsv"))
+zc = [f"z_{d}" for d in DAYS]
+
+# 08a: z-scored profiles per group (median line, 25th-75th percentile band)
+fig = make_subplots(rows=1, cols=K8, shared_yaxes=True, horizontal_spacing=0.04,
+                    subplot_titles=[f"{SC_LABEL[c]}<br>n = {int((sc8[f'k{K8}'] == c).sum()):,}" for c in range(1, K8 + 1)])
+for c in range(1, K8 + 1):
+    z = sc8.loc[sc8[f"k{K8}"] == c, zc].to_numpy()
+    q1, med, q3 = np.percentile(z, [25, 50, 75], axis=0)
+    fig.add_trace(go.Scatter(x=DAYS + DAYS[::-1], y=np.r_[q3, q1[::-1]], mode="lines", fill="toself", fillcolor="rgba(42,120,214,0.18)",
+                             line=dict(width=0), hoverinfo="skip", showlegend=False), row=1, col=c)
+    fig.add_trace(go.Scatter(x=DAYS, y=med, mode="lines+markers", line=dict(color=C_GROUP, width=2), marker=dict(size=8),
+                             showlegend=False, customdata=np.c_[q1, q3],
+                             hovertemplate="%{x}: median z %{y:.2f} (IQR %{customdata[0]:.2f} to %{customdata[1]:.2f})<extra></extra>"),
+                  row=1, col=c)
+fig.update_yaxes(title_text="ISL1 binding, z-score across days", col=1)
+fig.update_layout(title="ISL1 sites grouped by binding pattern (2,747 sites with LRT p < 0.05; k-means, k = 4)")
+fig = style(fig, 400)
+fig.update_layout(margin=dict(t=100))
+parts.append(("08a", fig_html(fig, False)))
+
+# 08b: held-out check, 6-library cluster centre vs mean batch 3 profile
+h = hoc8[hoc8.k == K8].reset_index(drop=True)
+fig = make_subplots(rows=1, cols=K8, shared_yaxes=True, horizontal_spacing=0.04,
+                    subplot_titles=[f"6-library group {r.cluster}, n = {int(r.n_sites):,}<br>r = {r.pearson_r:.2f}"
+                                    for r in h.itertuples()])
+for i, r in h.iterrows():
+    for cols_, name, col in [(["centre_D15", "centre_D18", "centre_D22"], "6 earlier libraries: group centre", C_GROUP),
+                             (["batch3_D15", "batch3_D18", "batch3_D22"], "3 batch 3 libraries: mean of the group's sites", C_B3)]:
+        fig.add_trace(go.Scatter(x=DAYS, y=[r[c] for c in cols_], mode="lines+markers", name=name, legendgroup=name,
+                                 showlegend=(i == 0), line=dict(color=col, width=2), marker=dict(size=8),
+                                 hovertemplate=f"{name}<br>%{{x}}: z %{{y:.2f}}<extra></extra>"), row=1, col=i + 1)
+fig.update_yaxes(title_text="z-score across days", col=1)
+fig.update_layout(title="Held-out check: groups found with the 6 earlier libraries, profile in the 3 batch 3 libraries",
+                  legend=dict(orientation="h", y=1.2, x=0, xanchor="left", yanchor="bottom"))
+fig = style(fig, 430)
+fig.update_layout(margin=dict(t=140), title=dict(y=0.98, yanchor="top"))
+parts.append(("08b", fig_html(fig, False)))
+
+t8_cen = cen8[(cen8.k == K8) | (cen8.cluster == 0)].copy()
+t8_cen.insert(0, "group", t8_cen.cluster.map(SC_LABEL))
+t8_cen = t8_cen.drop(columns=["k", "cluster"])
+FEAT = {"gained_step27": "Gained in step 27", "lost_step27": "Lost in step 27", "alpha_markers": "Alpha marker sites",
+        "beta_markers": "Beta marker sites", **{f"KO_cluster{i}": f"KO-effect cluster {i}" for i in range(1, 7)},
+        "KO_stays": "KO effect stays", "KO_other_KO": "Other KO effect", "KO_no_KO_effect": "No KO effect"}
+l = lk8[lk8.k == K8].copy()
+for c_ in ["odds_ratio_vs_stable", "p_vs_stable", "fdr_vs_stable"]:
+    l[c_] = pd.to_numeric(l[c_].replace({"Inf": "inf"}), errors="coerce")
+l.loc[l.feature.isin(["gained_step27", "lost_step27"]), ["odds_ratio_vs_stable", "p_vs_stable", "fdr_vs_stable"]] = np.nan
+l["feature"] = l.feature.map(FEAT)
+l["value"] = [f"{int(a):,} ({p:.1f}%)" + ("" if np.isnan(o) else f"; OR {o:.2g}, FDR {q:.2g}")
+              for a, p, o, q in zip(l.n_with, l.pct_with, l.odds_ratio_vs_stable, l.fdr_vs_stable)]
+t8_links = l.pivot(index="feature", columns="cluster", values="value").reindex(list(FEAT.values()))
+t8_links.columns = [SC_LABEL[c] for c in t8_links.columns]
+t8_links = t8_links.reset_index().rename(columns={"feature": "Sites"})
+t8_ho = ho8.rename(columns={"pct_batch3_nearest_own": "% sites whose batch 3 profile is closest to own group",
+                            "pct_expected_by_chance": "% expected by chance",
+                            "pct_same_as_9lib_best_match": "% same group as the 9-library clustering"})
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -512,6 +584,29 @@ between days within the set (sites as units, uncorrected; descriptive).</p>
 {parts[7][1]}
 {table_html(w07)}
 
+<h2>08 All ISL1 sites grouped by binding pattern across days</h2>
+<p class="note">All 14,431 sites, step 27 DiffBind counts and background size factors. DESeq2 LRT (~ batch + day against
+~ batch) picks the sites whose binding varies across days (p &lt; 0.05, a filter against noise, not a significance call);
+the rest are the stable group. Per site: DESeq2 VST, batch 3 effect removed, mean per day, z-score across the 3 days;
+k-means on the varying sites (k = 4, from the elbow: the share of variance between groups is 0.71 / 0.81 / 0.87 / 0.91
+for k = 3-6; more groups split the same shapes). Lines: median z per day; band: 25th-75th percentile.</p>
+{dict(parts)["08a"]}
+<p class="note"><b>Caveat: only the rise after D15 replicates in an independent batch.</b> The clustering repeated with the 6
+earlier libraries finds the same shapes, but the 3 batch 3 libraries (D15 rep1, D18 rep1, D22 rep2) do not follow them
+between D18 and D22: every group rises from D15 in batch 3, while its D18-vs-D22 shape is not reproduced (the
+"peaks at D18" group rises further to D22, the "late" group peaks at D18, the "falls at D22" group rises). Single
+sites match their own group no more often than chance. The earlier libraries come from another differentiation with
+relabelled days (D12 as D15, D15 as D18), which may carry differences between D18 and D22 that batch 3 does not
+show. The groups and their links below describe the 9-library data; the distinction between groups 1-4 beyond the
+rise after D15 awaits the unified CUT&amp;RUN time course.</p>
+{dict(parts)["08b"]}
+{table_html(t8_ho)}
+<p class="note">Groups: number of sites, z-score centre per day and median VST per day (batch-corrected).</p>
+{table_html(t8_cen)}
+<p class="note">Sites per group with each feature: number (share of the group); for the gene links (GREAT, step 01), odds
+ratio and BH FDR of a Fisher test of the group against the stable sites. Gained and lost sites are part of what the
+LRT selects, so they have no test.</p>
+{table_html(t8_links)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)

@@ -12,7 +12,7 @@ All paths are in `config.sh`.
 | Data | Source | Used |
 |---|---|---|
 | Bulk RNA-seq, Ctr vs ISL1 KO, D15 / D18 / D22, 2 replicates (run YJZ5LS) | `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` | `LRT_interaction.tsv` (KO effect changes with day), `LRT_genotype.tsv` (KO effect at any day), `KO_vs_Ctr_D15/D18/D22.tsv`, `timecourse_clusters_LRT_interaction.tsv` |
-| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_KO_histone` (git tag `cutnrun-exploratory`) step 26 (sites) and step 27 (DiffBind), on scratch | 14,431 sites of 401 bp; per-site differential tables (main analysis: DiffBind, background normalization); the DiffBind object, from which step 00 exports counts and size factors |
+| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_KO_histone` step 26 (sites) and step 27 (DiffBind), on scratch | 14,431 sites of 401 bp; per-site differential tables (main analysis: DiffBind, background normalization); the DiffBind object, from which step 00 exports counts and size factors |
 | Genes | 10x GRCh38 2020-A `genes.gtf`, the annotation of the bulk counts | gene IDs, TSSs |
 
 The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the unified CUT&RUN data are there.
@@ -61,6 +61,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
 | 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
 | 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
+| 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `vst_libraries.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -69,7 +70,8 @@ Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anacond
 -> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
 site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: alpha-leaning vs
 beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts;
-section 07: KO effect of the target genes of the differentially bound sites).
+section 07: KO effect of the target genes of the differentially bound sites; section 08: all sites grouped by
+binding pattern, with the held-out check).
 
 ## Results
 
@@ -259,3 +261,26 @@ Gained against only-stable genes, logistic regression with domain length and num
   lower at D22 than at D18 for 87% of the sites (all sites: 55%), for genes lower (202 sites) and higher in the KO
   (118 sites) alike. The rise from D15 is how the sites were selected; part of the fall to D22 is regression to the
   mean of sites picked for a high D18 reading.
+
+### 08 All ISL1 sites grouped by binding pattern across days
+
+All 14,431 sites, step 27 DiffBind counts and background size factors. DESeq2 LRT (~ batch + day against ~ batch)
+selects the sites whose binding varies across days (p < 0.05, a noise filter: 2,747 sites; 408 at FDR < 0.1); the
+other 11,684 are the stable group. Per site: VST, batch 3 effect removed, mean per day, z-score across days; k-means
+with k = 4 (share of variance between groups 0.81; k = 5-6 split the same shapes).
+
+| Group | z D15 / D18 / D22 | Sites | Gained in step 27 | Sites linked to (OR vs stable, FDR) |
+|---|---|---|---|---|
+| 1 rises by D18, stays | -1.13 / 0.57 / 0.56 | 1,145 | 35.0% | beta markers 3.0 (0.02); KO cluster 4 1.6 (0.003) |
+| 2 peaks at D18, falls by D22 | -0.92 / 1.02 / -0.10 | 909 | 36.6% | alpha markers 3.6 (0.01); KO cluster 4 1.9 (3e-4) |
+| 3 late, rises at D22 | -0.61 / -0.45 / 1.06 | 419 | 5.5% | none |
+| 4 falls at D22 | 0.14 / 0.79 / -0.93 | 274 | 0.4% (10 of the 14 lost sites) | none |
+
+- In the 9 libraries the groups fit early alpha / late beta binding: alpha-marker sites peak at D18 and fall, beta-
+  marker sites rise and stay. Marker sites are few (9 and 10).
+- **Only the rise after D15 replicates in an independent batch.** Clustering the 6 earlier libraries gives the same
+  shapes; the 3 batch 3 libraries rise from D15 in every group but do not follow the D18-vs-D22 shapes (mean batch 3
+  profile vs group centre: r 0.89 for "rises and stays", 0.44, 0.11 and -0.28 for the others), and single sites
+  match their own group no more often than chance. The earlier libraries come from another differentiation with
+  relabelled days (D12 as D15, D15 as D18). The D18-vs-D22 distinction between groups awaits the unified CUT&RUN
+  time course; the same caveat applies to the D22 alpha-vs-beta difference of step 06.
