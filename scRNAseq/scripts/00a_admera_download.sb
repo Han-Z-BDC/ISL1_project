@@ -6,13 +6,16 @@
 #SBATCH --time=08:00:00
 #SBATCH --partition=acpu
 #SBATCH --qos=cpu-normal
-#SBATCH --job-name=admera_260924_0015
-#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/admera_260924_0015.%j.out
+#SBATCH --job-name=admera_download
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/admera_download.%j.out
 
 set -euo pipefail
 
-# Download Admera Health project 260924-0015 (delivered 2026-10-08) by FTP mirror.
-# Record of what was actually run (job 33674668, from /projects/.../jobs/ISL1_scRNAseq/,
+# Download an Admera Health delivery by FTP mirror into raw_data/ISL1_scRNAseq; each delivery
+# lands in its own 7535-... subfolder, and files already present are skipped (--continue).
+# Deliveries: 260924-0015 (2026-10-08); 261016-0008 (notified 2026-11-13).
+# Admera deletes FTP data 3 weeks after delivery.
+# First run: job 33674668, from /projects/.../jobs/ISL1_scRNAseq/,
 # copied from jobs/templates/transfer/admera.download.sb). Credentials are NOT stored in
 # git: export them before submitting, e.g.
 #   ADMERA_FTP_USER=... ADMERA_FTP_PASS=... sbatch --export=ALL scripts/00a_admera_download.sb
