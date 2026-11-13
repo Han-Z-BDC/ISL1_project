@@ -9,8 +9,10 @@ Repo (Alpine): `/pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecours
 `Han-Z-BDC/ISL1_project`. Scratch: `/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse`.
 
 This folder replaces, for the paper, the exploratory analyses in `cutnrun_ISL1_KO_histone/` (batch 3,
-with histone marks) and `cutnrun_ISL1_batch1-2/` (earlier ISL1 batches). Those folders record how
-the libraries, the replicate choice and the methods below were chosen.
+with histone marks) and `cutnrun_ISL1_batch1-2/` (earlier ISL1 batches), which record how the libraries,
+the replicate choice and the methods below were chosen. Both are kept at git tag `cutnrun-exploratory`
+(`git checkout cutnrun-exploratory -- <folder>` restores one); the peak-methods report that chose
+macs3_ge2 is `reports/isl1_peak_methods/report.html` in the Mac copy.
 
 ## Design (decided 2026-11-12)
 

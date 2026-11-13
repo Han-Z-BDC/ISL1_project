@@ -12,7 +12,7 @@ All paths are in `config.sh`.
 | Data | Source | Used |
 |---|---|---|
 | Bulk RNA-seq, Ctr vs ISL1 KO, D15 / D18 / D22, 2 replicates (run YJZ5LS) | `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` | `LRT_interaction.tsv` (KO effect changes with day), `LRT_genotype.tsv` (KO effect at any day), `KO_vs_Ctr_D15/D18/D22.tsv`, `timecourse_clusters_LRT_interaction.tsv` |
-| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_KO_histone` step 26 (sites) and step 27 (DiffBind), on scratch | 14,431 sites of 401 bp; per-site differential tables (main analysis: DiffBind, background normalization); the DiffBind object, from which step 00 exports counts and size factors |
+| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_KO_histone` (git tag `cutnrun-exploratory`) step 26 (sites) and step 27 (DiffBind), on scratch | 14,431 sites of 401 bp; per-site differential tables (main analysis: DiffBind, background normalization); the DiffBind object, from which step 00 exports counts and size factors |
 | Genes | 10x GRCh38 2020-A `genes.gtf`, the annotation of the bulk counts | gene IDs, TSSs |
 
 The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the unified CUT&RUN data are there.
