@@ -16,6 +16,8 @@ CNR_NORM=${CNR_DIFF}/norm_factors.tsv         # DiffBind / DESeq2 normalization 
 CNR_SAMPLES=${CNR_DIFF}/samples.tsv           # library -> day, batch
 CNR_TABLES=${CNR_DIFF}/tables                 # per-site differential binding tables
 CHROM_SIZES=/scratch/alpine/hzhu10@xsede.org/ISL1_KO_histone_cutNrun/results/isl1_consensus/genome.txt
+# DiffBind counts and background size factors of the 9 libraries, exported by step 00 (used by steps 03, 05, 08)
+DB_COUNTS=${RESULTS}/00_diffbind_counts
 
 # ---- Bulk RNA-seq: Ctr vs ISL1 KO, D15 / D18 / D22 (run YJZ5LS) ---------------------------------
 BULK_DE=${PROJECT}/bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2
@@ -27,3 +29,4 @@ MARKERS=${INT_DIR}/markers.tsv
 # ---- Environments -------------------------------------------------------------------------------
 PY=/projects/hzhu10@xsede.org/software/anaconda/envs/bulkRNAseq/bin/python
 R_ENV=/projects/hzhu10@xsede.org/software/anaconda/envs/r_env
+DIFFBIND_ENV=/projects/hzhu10@xsede.org/software/anaconda/envs/diffbind

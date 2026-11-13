@@ -403,6 +403,10 @@ fig.update_layout(boxmode="group", boxgap=0.3, boxgroupgap=0.08,
 fig.update_yaxes(title="ISL1 CUT&RUN signal (normalized reads per site)", range=[0, ymax * 1.2])
 parts.append(("07b", fig_html(style(fig, 520), False)))
 
+# ---- section 08: differential binding with the 6 earlier libraries only
+D8 = os.path.join(RES, "08_six_library")
+s08 = {k: rd(os.path.join(D8, f"{k}.tsv")) for k in ("summary", "overlap", "heldout", "alpha_beta_tests", "norm_factors")}
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -431,7 +435,7 @@ within 50 kb.</p>
 <h2>03 Binding change near each KO-effect group</h2>
 <p class="note">Sites near a group's genes (GREAT) against all other sites. Lines: cumulative distribution of the step 27
 DiffBind log2FC (background normalization); a curve shifted right means binding rises more than at other sites. Test:
-limma voom on the 9 libraries (~ batch + day) and camera per group (competitive; main FDR with limma's default
+limma voom on the DiffBind counts of the 9 libraries (~ batch + day) and camera per group (competitive; main FDR with limma's default
 inter-site correlation 0.01, est_fdr with the correlation estimated from the data). The Wilcoxon p treats sites as
 independent and is descriptive only. Gained = FDR &lt; 0.05 up in D18 vs D15 or D22 vs D15.</p>
 {parts[1][1]}
@@ -452,11 +456,11 @@ domain length and number of sites in the domain).</p>
 
 <h2>05 ISL1 binding signal per day at each cluster's sites</h2>
 <p class="note">Sites linked (GREAT) to the genes of each cluster, and to genes without a KO effect as the reference.
-Signal: reads per site divided by the step 27 background size factors, mean of the 3 libraries per day; boxes show
+Signal: DiffBind reads per site divided by the DiffBind background size factors (step 00), mean of the 3 libraries per day; boxes show
 the median and quartiles, whiskers 1.5 x IQR, outliers not drawn. Stars: paired Wilcoxon signed-rank test between days
 within the group (BH; *** FDR &lt; 0.001, ** &lt; 0.01, * &lt; 0.05). Binding rises after D15 at most sites, so these
 tests show that binding changes at a group's sites, not that it changes more than at other sites; that comparison is
-the camera test in section 03 (cluster 4: up D18 vs D15, FDR 0.23; down D22 vs D18, FDR 0.023; both not
+the camera test in section 03 (cluster 4: up D18 vs D15, FDR 0.21; down D22 vs D18, FDR 0.018; both not
 significant with the estimated inter-site correlation).</p>
 {parts[2][1]}
 {table_html(t05)}
@@ -467,7 +471,7 @@ significant with the estimated inter-site correlation).</p>
 cluster 2 holds {n_beta2} beta and {n_alpha2} alpha markers. Site sets (sites linked by GREAT): cluster 4
 ({set_n["cluster4"]:,}) and cluster 2 ({set_n["cluster2"]:,}); all alpha ({set_n["alpha"]}) and all beta
 ({set_n["beta"]}) marker sites; alpha markers in cluster 4 ({set_n["alpha_in_c4"]}) and beta markers in cluster 2
-({set_n["beta_in_c2"]}). For each of the 9 libraries: signal per site = reads / step 27 background size factor,
+({set_n["beta_in_c2"]}). For each of the 9 libraries: signal per site = DiffBind reads / background size factor (step 00),
 summarized per set as the total (depends on the number of sites) or the median per site (does not). log2 ratio
 of the two sets fitted on ~ batch + day with the libraries as replicates (5 residual df): level_&lt;day&gt; tests whether
 one set binds more on that day (between different site sets this also reflects site number and intrinsic site
@@ -511,6 +515,18 @@ only. Stars: paired Wilcoxon
 between days within the set (sites as units, uncorrected; descriptive).</p>
 {parts[7][1]}
 {table_html(w07)}
+
+<h2>08 Differential binding with the 6 earlier libraries only</h2>
+<p class="note">Same 14,431 sites, counts and normalization as step 27 (DiffBind, DESeq2, background 15 kb bins), but only the
+two earlier (non-batch-3) libraries per day: D15 rep3/4, D18 rep3/4, D22 rep4/5 (D18 rep4, D15_CtrGFP_rep2, came with
+the batch 3 delivery). Design ~ day; FDR &lt; 0.05. Held-out check: the 3 batch 3 libraries (D15 rep1, D18 rep1, D22
+rep2) as an independent time course; for each contrast, the share of sites whose batch 3 change has the same sign as the
+6-library log2FC. The site set was built partly from the batch 3 libraries' peaks; the check uses their change between
+days, not their peaks. Alpha vs beta: as section 06 with the 6 libraries (3 residual df).</p>
+{table_html(s08["summary"])}
+{table_html(s08["overlap"])}
+{table_html(s08["heldout"])}
+{table_html(s08["alpha_beta_tests"])}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)

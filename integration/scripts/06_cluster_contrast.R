@@ -6,7 +6,7 @@
 #     alpha / beta          sites of all alpha / beta marker genes (markers.tsv)
 #     alpha_in_c4 / beta_in_c2  sites of the alpha markers in cluster 4 / the beta markers in cluster 2
 #     all                   all sites
-#   Per library and set, from the step 05 normalized signal (reads / step 27 background size factor):
+#   Per library and set, from the step 05 normalized signal (DiffBind reads / background size factor, steps 00 and 05):
 #     total   sum over the set's sites (depends on how many sites a set has)
 #     median  median signal per site (does not depend on the number of sites)
 #   Outcome per library: log2(set A / set B) for each comparison and metric.

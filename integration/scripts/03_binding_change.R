@@ -2,16 +2,16 @@
 # Step 03: does ISL1 binding near each bulk KO-effect group's genes change over time, relative to all sites?
 #   Sites      step 27 sites (14,431); a site belongs to every KO-effect group that has a gene linked to it in
 #              step 01 (GREAT), so a site can be in more than one group. Groups from step 02.
-#   Counts     step 27 featureCounts reads per site (the counts of its DESeq2 check), 9 control ISL1 libraries;
-#              scaling from step 27's background size factors (DESeq2 on 15 kb bins), times the geometric mean of
-#              the reads in sites so voom sees counts on their real scale.
+#   Counts     step 27's DiffBind fragment counts per site (exported by step 00), 9 control ISL1 libraries;
+#              scaling from the DiffBind background size factors (DESeq2 on 15 kb bins, step 00), times the
+#              geometric mean of the reads in sites so voom sees counts on their real scale.
 #   Model      limma voom, ~ batch + day (batch = batch 3 vs earlier libraries; day D15 / D18 / D22);
 #              contrasts D18 vs D15, D22 vs D15 and D22 vs D18.
 #   Test       camera per group, competitive: the group's sites against all other sites. Main: limma's default
 #              inter-site correlation (0.01); check: correlation estimated from the data (inter.gene.cor = NA).
 #   Descriptive per group: median step 27 DiffBind (background) log2FC, share of gained sites (FDR < 0.05 up in
 #              D18 vs D15 or D22 vs D15), Wilcoxon test of the DiffBind log2FC against all other sites.
-# usage: Rscript 03_binding_change.R <step 27 isl1_diff dir> <integration results dir> <out_dir>
+# usage: Rscript 03_binding_change.R <step 27 isl1_diff dir> <integration results dir (with 00_diffbind_counts)> <out_dir>
 # Output in <out_dir>: camera.tsv, site_stats.tsv (per site: DiffBind and voom log2FC, FDR, gained),
 #   site_groups.tsv (site, group)
 
@@ -23,11 +23,11 @@ dir.create(od, showWarnings = FALSE, recursive = TRUE)
 TH <- 0.05
 
 # ---- counts, libraries, scaling
-cs <- fread(file.path(cnr, "counts_sites.tsv"))
+cs <- fread(file.path(res, "00_diffbind_counts", "counts_raw.tsv"))
 m <- as.matrix(cs[, -1]); rownames(m) <- cs$name
 smp <- fread(file.path(cnr, "samples.tsv"))
 stopifnot(identical(colnames(m), smp$sample))
-nf <- fread(file.path(cnr, "norm_factors.tsv"))[method == "deseq2" & normalization == "background"]
+nf <- fread(file.path(res, "00_diffbind_counts", "norm_factors.tsv"))
 sf <- nf$norm_factor[match(colnames(m), nf$sample)]
 stopifnot(!anyNA(sf))
 lib <- sf * exp(mean(log(colSums(m))))
