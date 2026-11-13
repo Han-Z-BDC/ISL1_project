@@ -61,7 +61,6 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
 | 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
 | 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
-| 08 Differential binding with the 6 earlier libraries only | `scripts/08_six_library.sb` (amem, 12 CPUs, 240 GB) | `results/08_six_library/`: `tables/`, `summary.tsv`, `overlap.tsv`, `heldout.tsv`, `alpha_beta_tests.tsv`, `norm_factors.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -70,7 +69,7 @@ Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anacond
 -> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
 site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: alpha-leaning vs
 beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts;
-section 07: KO effect of the target genes of the differentially bound sites; section 08: the 6-library test).
+section 07: KO effect of the target genes of the differentially bound sites).
 
 ## Results
 
@@ -260,31 +259,3 @@ Gained against only-stable genes, logistic regression with domain length and num
   lower at D22 than at D18 for 87% of the sites (all sites: 55%), for genes lower (202 sites) and higher in the KO
   (118 sites) alike. The rise from D15 is how the sites were selected; part of the fall to D22 is regression to the
   mean of sites picked for a high D18 reading.
-
-### 08 Differential binding with the 6 earlier libraries only
-
-Same sites, counts and normalization as step 27 (DiffBind, background), libraries D15 rep3/4, D18 rep3/4, D22 rep4/5
-(2 per day; D18 rep4 came with the batch 3 delivery), design ~ day, FDR < 0.05.
-
-| Contrast | 6 libraries: significant (up / down) | 9 libraries: significant (up / down) | In both, same direction | log2FC Pearson r |
-|---|---|---|---|---|
-| D18 vs D15 | 281 (281 / 0) | 705 (701 / 4) | 249 | 0.88 |
-| D22 vs D18 | 2 (0 / 2) | 0 | 0 | 0.89 |
-| D22 vs D15 | 14 (12 / 2) | 199 (190 / 9) | 12 | 0.89 |
-
-Held-out check with the 3 batch 3 libraries (D15 rep1, D18 rep1, D22 rep2), share of sites whose batch 3 change has
-the sign of the 6-library log2FC:
-
-| Contrast | 6-library significant sites | All sites |
-|---|---|---|
-| D18 vs D15 | 89.3% (281 sites) | 71.3% |
-| D22 vs D15 | 85.7% (14 sites) | 68.0% |
-
-- **Dropping the batch 3 libraries loses power and gains no robustness.** The 6 libraries find 40% as many sites for
-  D18 vs D15 and 7% for D22 vs D15; 249 of their 281 D18 sites are among the 9-library calls. Their calls hold up in
-  the held-out batch 3 libraries (89% same sign against 71% for all sites), so they are real, but they are a subset
-  of what the 9 libraries find. The 9-library analysis stays the main one.
-- Alpha vs beta marker sites per day (median per site, 3 residual df): -0.27 at D22 (p 0.18), the same direction and
-  size as with 9 libraries (-0.26, p 0.048), with less power.
-- The site set was built partly from the batch 3 libraries' peaks; the held-out check uses their change between days,
-  not their peaks.
