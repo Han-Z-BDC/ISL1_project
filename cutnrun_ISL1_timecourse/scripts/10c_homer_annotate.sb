@@ -23,7 +23,7 @@ H=${OUT_DIR}/homer; A=${H}/annotation
 mkdir -p "${A}"
 awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "${OUT_DIR}/genome.txt" > "${A}/genome.canonical.txt"
 "${TOOLS}/bedtools" random -l 200 -n 60000 -seed 1 -g "${A}/genome.canonical.txt" \
-  | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" | head -50000 \
+  | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" | awk "NR <= 50000" \
   | awk 'BEGIN{OFS="\t"} {print $1, $2, $3, "random_" NR, 0, "+"}' | sort -k1,1 -k2,2n > "${A}/genome_random.bed"
 for s in D15 D18 D22 genome_random; do
   bed=${H}/inputs/${s}.target.bed; [[ ${s} == genome_random ]] && bed=${A}/genome_random.bed
