@@ -43,3 +43,11 @@ MAPQ=20
 MACS_QVALUE=0.01
 SITE_HALF_WIDTH=200                          # differential sites: summit +/- 200 bp = 401 bp
 TRACK_BIN=10                                 # bigWig bin (bp)
+
+# HOMER motifs (step 10): consensus peaks as summit +/- HOMER_HALF_WIDTH (200 bp windows), on hg38
+# chr1-22/X/Y soft-masked with RepeatMasker (built by step 10a from GENOME_FA and RMSK).
+HOMER_BIN=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin   # HOMER v5.1
+GENOME_FA=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0/fasta/genome.fa
+RMSK=/pl/active/ZhuLab_BDC/genome/repeats_hg38/rmsk_hg38.bed.gz
+HOMER_FA=${SCRATCH}/genome/hg38.canonical.softmasked.fa
+HOMER_HALF_WIDTH=100

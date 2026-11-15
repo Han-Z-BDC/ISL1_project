@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Step 09: HTML report of the ISL1 time course: library QC (steps 01-04), consensus peaks (05),
-differential binding (06-07). Standard library only; plots are inline SVG.
+differential binding (06-07), HOMER motifs (10). Standard library only; plots are inline SVG.
   python report.py <results> <sample_metadata.tsv> <out.html>
 """
 import csv
@@ -218,13 +218,46 @@ for n in NORMS:
               num(r["log2FC"], 2), f'{float(r["FDR"]):.1e}'] for r in top], num_cols=(3, 4, 5)))
     S.append((f"Top sites, DiffBind {n}", "".join(parts)))
 
+H = os.path.join(OUT, "homer")
+if os.path.isdir(H):
+    q = {r["item"]: r["n"] for r in tsv(os.path.join(H, "inputs", "qc.tsv"))}
+    parts = ["<p>HOMER v5.1 <code>findMotifsGenome.pl</code> on each day's macs3_ge2 consensus peaks: 200 bp windows "
+             "centred on the strongest summit, known motifs and de novo motifs (8, 10, 12 bp), repeats masked. "
+             "<b>vs genome</b>: random genomic windows matched for GC content (HOMER default). "
+             "<b>vs other days</b>: the other two days' windows, without those overlapping a consensus region of the "
+             "target day; ISL1's own motif is expected to cancel out here, so this comparison shows which partner "
+             "motifs differ between days.</p>",
+             table(["Day", "Target windows", "Other-days windows", "Overlap the target day (dropped)",
+                    "Background (other days)"],
+                   [[d, num(q[f"{d} target windows"]), num(q[f"{d} other-days windows"]),
+                     num(q[f"{d} other-days, overlap a {d} region (dropped)"]), num(q[f"{d} other-days background"])]
+                    for d in ["D15", "D18", "D22"]], num_cols=(1, 2, 3, 4))]
+    for bg, label in [("vs_genome", "vs genome"), ("vs_other_days", "vs other days")]:
+        for d in ["D15", "D18", "D22"]:
+            k = os.path.join(H, f"{d}_{bg}", "knownResults.txt")
+            if not os.path.exists(k):
+                parts.append(f"<h3>{d} {label}</h3><p>Not run.</p>")
+                continue
+            with open(k, newline="") as f:
+                rows = list(csv.reader(f, delimiter="\t"))[1:]
+            sig = [r for r in rows if float(r[4]) < TH]
+            top = rows[:15]
+            parts.append(f'<h3>{d} {label}</h3><p>{len(sig)} of {len(rows)} known motifs with q &lt; {TH}; top 15 by '
+                         f'p-value. HOMER pages: <code>homer/{d}_{bg}/knownResults.html</code>, '
+                         f'<code>homerResults.html</code> (de novo).</p>' + table(
+                ["Motif", "log p", "q", "% targets", "% background"],
+                [[html.escape(r[0].split("/")[0]), num(r[3], 1), f"{float(r[4]):.1e}", r[6], r[8]] for r in top],
+                num_cols=(1, 2, 3, 4)))
+    S.append(("HOMER motifs, consensus peaks per day", "".join(parts)))
+
 S.append(("Files", "<p>Under <code>results/</code> (scratch; keepers copied to the folder's <code>results/</code> on "
           "/pl/active): <code>consensus/&lt;day&gt;_Ctr_ISL1.{macs3_ge2,macs3_3of3}.bed</code>, "
           "<code>tracks/</code> (bigWigs per library and per day, beds, <code>igv_session.xml</code>), and in "
           "<code>diff/</code>: <code>sites_used.bed</code>, "
           "<code>tables/{diffbind,deseq2}_&lt;norm&gt;_&lt;contrast&gt;.tsv</code> (all sites), "
           "<code>beds/diffbind_&lt;norm&gt;_&lt;contrast&gt;_{up,down}.bed</code>, <code>summary.tsv</code>, "
-          "<code>agreement.tsv</code>, <code>norm_factors.tsv</code>, <code>counts_sites.tsv</code>.</p>"))
+          "<code>agreement.tsv</code>, <code>norm_factors.tsv</code>, <code>counts_sites.tsv</code>; "
+          "<code>homer/inputs/</code> (target and background beds) and <code>homer/&lt;day&gt;_{vs_genome,vs_other_days}/</code>.</p>"))
 
 css = """
 :root{--bg:#fff;--fg:#1d1d1f;--mut:#5f6368;--line:#dcdcdc;--head:#f3f4f6;--acc:#1f5fa8;--ns:#b8bcc2;--up:#e8710a;--dn:#1a73e8}

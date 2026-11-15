@@ -11,8 +11,8 @@
 
 # Step 09: HTML report (scripts/report.py) and copy of the keepers to the folder's results/ on
 # /pl/active (untracked; not purged): report.html, consensus/, diff/ (tables, beds, summaries;
-# not the DiffBind object or the bin counts), qc/ (peak stats, alignment logs), tenx_filter/*.tsv.
-#   sbatch --dependency=afterok:<07 job>:<08c job> scripts/09_report.sb
+# not the DiffBind object or the bin counts), homer/, qc/ (peak stats, alignment logs), tenx_filter/*.tsv.
+#   sbatch --dependency=afterok:<07 job>:<08c job>:<10b job> scripts/09_report.sb
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
@@ -23,5 +23,6 @@ rsync -a "${OUT_DIR}/report.html" "${KEEP}/"
 rsync -a --exclude work "${OUT_DIR}/consensus" "${KEEP}/"
 rsync -a --exclude '*.rds' --exclude 'featurecounts/bins15k*' "${OUT_DIR}/diff" "${KEEP}/"
 rsync -a "${OUT_DIR}/qc" "${KEEP}/"
+[[ -d "${OUT_DIR}/homer" ]] && rsync -a "${OUT_DIR}/homer" "${KEEP}/"
 rsync -a "${SCRATCH}"/tenx_filter/*.tsv "${KEEP}/tenx_filter/"
 echo "copied to ${KEEP} ($(du -sh "${KEEP}" | cut -f1))"

@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=tc_homer_prep
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/homer_prep.%j.out
+
+# Step 10a: HOMER inputs. (1) Per day, the macs3_ge2 consensus peaks as 200 bp windows centred on
+# the strongest summit (target), and the other two days' windows minus those overlapping a target-day
+# region (other-days background); scripts/homer_inputs.py. (2) A soft-masked hg38 FASTA for HOMER
+# (-mask uses lower case): chr1-22/X/Y of GENOME_FA with the RepeatMasker intervals (RMSK) in lower
+# case; built once, reused while present.
+# Output: homer/inputs/<day>.{target,other_days}.bed, homer/inputs/qc.tsv, ${HOMER_FA}
+#   sbatch --dependency=afterok:<05 job> scripts/10a_homer_prepare.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/homer_inputs.py" "${OUT_DIR}" "${METADATA}" "${TOOLS}/bedtools" "${BLACKLIST}" \
+  "${OUT_DIR}/genome.txt" "${HOMER_HALF_WIDTH}" "${OUT_DIR}/homer/inputs"
+
+if [[ ! -s "${HOMER_FA}" ]]; then
+  mkdir -p "$(dirname "${HOMER_FA}")"
+  t=${HOMER_FA}.tmp
+  "${TOOLS}/samtools" faidx "${GENOME_FA}" $(for c in $(seq 1 22) X Y; do echo "chr${c}"; done) > "${t}.hard.fa"
+  zcat "${RMSK}" | awk -F'\t' 'BEGIN{OFS="\t"} $1 ~ /^chr([0-9]+|X|Y)$/ {print $1, $2, $3}' > "${t}.rmsk.bed"
+  "${TOOLS}/bedtools" maskfasta -soft -fi "${t}.hard.fa" -bed "${t}.rmsk.bed" -fo "${t}"
+  rm -f "${t}.hard.fa" "${t}.hard.fa.fai" "${t}.rmsk.bed"
+  mv "${t}" "${HOMER_FA}"
+  "${TOOLS}/samtools" faidx "${HOMER_FA}"
+fi
+awk '{n += $2} END {printf "HOMER genome: %d sequences, %.2f Gb\n", NR, n / 1e9}' "${HOMER_FA}.fai"

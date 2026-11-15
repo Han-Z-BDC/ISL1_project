@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH --job-name=tc_homer
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=12:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/homer.%A_%a.out
+
+# Step 10b: HOMER findMotifsGenome.pl on each day's macs3_ge2 consensus peaks (200 bp windows from
+# step 10a, -size given), known motifs and de novo motifs of 8, 10 and 12 bp, repeats masked (-mask,
+# soft-masked FASTA), 12 threads. Two backgrounds per day:
+#   vs_genome      HOMER default: random genomic 200 bp windows matched to the targets' GC content
+#   vs_other_days  the other two days' windows that do not overlap a target-day region (-bg)
+# Array index: day = index / 2 (D15, D18, D22), background = index % 2 (vs_genome, vs_other_days).
+# Each task has its own preparsed folder (tasks on different nodes would race on a shared one).
+# Output: homer/<day>_<background>/ (knownResults.txt, homerResults.html, ...)
+#   sbatch --array=0-5 --dependency=afterok:<10a job> scripts/10b_homer.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+: "${SLURM_ARRAY_TASK_ID:?ERROR: submit as an array}"
+DAYS=(D15 D18 D22); BGS=(vs_genome vs_other_days)
+day=${DAYS[$((SLURM_ARRAY_TASK_ID / 2))]}; bg=${BGS[$((SLURM_ARRAY_TASK_ID % 2))]}
+H=${OUT_DIR}/homer; IN=${H}/inputs; O=${H}/${day}_${bg}
+P=${SCRATCH}/homer_preparsed/${day}_${bg}
+export PATH=${HOMER_BIN}:${PATH}
+rm -rf "${O}" "${P}"; mkdir -p "${P}"
+EXTRA=()
+[[ ${bg} == vs_other_days ]] && EXTRA=(-bg "${IN}/${day}.other_days.bed")
+echo "${day} ${bg}: $(wc -l < "${IN}/${day}.target.bed") targets${EXTRA:+, $(wc -l < "${IN}/${day}.other_days.bed") background}"
+findMotifsGenome.pl "${IN}/${day}.target.bed" "${HOMER_FA}" "${O}" -size given -mask -len 8,10,12 \
+  -p "${SLURM_CPUS_PER_TASK}" -preparsedDir "${P}" "${EXTRA[@]}"
+rm -rf "${P}"
+[[ -s "${O}/knownResults.txt" ]] || { echo "ERROR: no knownResults.txt in ${O}" >&2; exit 1; }
+head -6 "${O}/knownResults.txt" | cut -f1,3,7,9
