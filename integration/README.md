@@ -63,6 +63,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
 | 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `gene_links.tsv` and `gene_site_groups.tsv` (gene level, GREAT and ±50 kb links), `vst_libraries.tsv` |
 | 09 Overlap of the per-day peak calls, checked against the counts | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB) | `results/09_peak_overlap/`: `sites_days.tsv` (per site: days called, libraries calling it per day, step 08 and DiffBind results), `classes.tsv`, `class_days.tsv`, `presence_vs_counts.tsv`, `libraries.tsv`, `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb links) |
+| 10 Pre-specified beta − alpha binding contrast | `scripts/10_beta_alpha_contrast.sb` (acpu, 1 CPU, 3 GB; `MODE=dry_run` now, `primary` for the unified time course) | `results/10_beta_alpha_contrast/`: `sets.tsv`, `set_sites.tsv`, `library_values.tsv`, `contrasts.tsv`, `site_level.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -73,7 +74,7 @@ site log2FC per group, candidate lists, boxplots of the binding signal per day a
 beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts;
 section 07: KO effect of the target genes of the differentially bound sites; section 08: all sites grouped by
 binding pattern, with the held-out check and the gene level; section 09: overlap of the per-day peak calls against the
-counts).
+counts; section 10: the pre-specified beta − alpha contrast).
 
 ## Results
 
@@ -355,3 +356,30 @@ number of sites) (and, for GREAT, log10 domain length) as covariates; BH FDR per
 - Examples (sites in one class only): MAFA (cluster 2) D18 only; NEUROG3 (cluster 6) D22 only; ISL1 (cluster 2)
   D15 + D22; PAX4 (cluster 2), ARX (cluster 4) all three days. All KO cluster 1-6 genes with their classes are listed
   in the report.
+
+### 10 Pre-specified beta − alpha contrast
+
+Fixed on 2026-11-15 (commit 3e89f03), before the unified CUT&RUN time course is analysed; full definition in the header
+of `scripts/10_beta_alpha_contrast.R`.
+
+- Hypothesis: ISL1 binding at beta-program genes gains on binding at alpha-program genes late in differentiation.
+- Gene sets: `markers.tsv` (28 alpha, 34 beta). Sites: centre within ±50 kb of a marker gene's TSS (29 alpha sites near
+  21 genes, 44 beta sites near 23 genes; none shared).
+- Per library: y = log2(median signal at beta sites / median at alpha sites), signal = DiffBind reads / background size
+  factor. Model: lm(y ~ batch + day), or lm(y ~ day) for one batch.
+- **Primary: D22 − D18, one-sided (beta gains), α = 0.05.** Secondary: D22 − D15, D18 − D15, GREAT-linked sites, site-level
+  DiffBind log2FC (descriptive).
+- The primary test is for the unified time course (`MODE=primary`). The current 9 libraries give a dry run only, since
+  step 06 already examined beta vs alpha marker sites in them.
+
+Dry run on the current 9 libraries:
+
+| Sites | Contrast | Estimate (log2) | SE | One-sided p |
+|---|---|---|---|---|
+| ±50 kb (primary) | D22 vs D18 | -0.03 | 0.19 | 0.55 |
+| ±50 kb | D22 vs D15 | 0.08 | 0.19 | 0.34 |
+| GREAT | D22 vs D18 | 0.14 | 0.14 | 0.19 |
+| GREAT | D22 vs D15 | 0.25 | 0.14 | 0.07 |
+
+- No gain of beta on alpha between D18 and D22 in these libraries. Libraries of the same day differ by up to 0.8 log2
+  (D18), more than any shift between days; the GREAT version reproduces step 06.

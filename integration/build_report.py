@@ -659,6 +659,50 @@ w9 = w9.fillna("").sort_values(["group", "gene_name"], kind="stable")
 t9_list = pd.DataFrame({"Gene": w9.gene_name, "KO gene group": w9.group.map(LABEL), "Marker": w9.marker,
                         "Sites per class, GREAT": w9.GREAT, "Sites per class, ±50 kb": w9.within_50kb})
 
+# ---- section 10: pre-specified beta - alpha contrast
+D10 = os.path.join(RES, "10_beta_alpha_contrast")
+lv10 = rd(os.path.join(D10, "library_values.tsv"))
+ct10 = rd(os.path.join(D10, "contrasts.tsv"))
+st10 = rd(os.path.join(D10, "sets.tsv"))
+sl10 = rd(os.path.join(D10, "site_level.tsv"))
+MODE10 = lv10["mode"].iloc[0]
+LINK10 = {"within_50kb": "Sites within ±50 kb of the TSS (primary)", "GREAT": "GREAT domains (secondary)"}
+fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.05, subplot_titles=list(LINK10.values()))
+for i, ln in enumerate(LINK10, 1):
+    x = lv10[lv10.link == ln]
+    for b, name, col in [("batch3", "Batch 3 library", C_B3), ("earlier", "Earlier library", C_GROUP)]:
+        xb = x[x.batch == b]
+        fig.add_trace(go.Scatter(x=xb.day, y=xb.log2_beta_alpha, mode="markers", name=name, legendgroup=name,
+                                 showlegend=(i == 1), marker=dict(size=10, color=col, line=dict(color="#fcfcfb", width=2)),
+                                 customdata=np.c_[xb["sample"], xb.median_beta, xb.median_alpha],
+                                 hovertemplate="%{customdata[0]}<br>log2(beta / alpha) %{y:.2f}<br>median beta "
+                                               "%{customdata[1]:.1f}, alpha %{customdata[2]:.1f}<extra></extra>"),
+                      row=1, col=i)
+    mu = x.groupby("day").log2_beta_alpha.mean().reindex(DAYS)
+    fig.add_trace(go.Scatter(x=DAYS, y=mu.values, mode="lines", name="Mean per day", legendgroup="mean",
+                             showlegend=(i == 1), line=dict(color="#2b2b2b", width=2),
+                             hovertemplate="%{x}: mean %{y:.2f}<extra></extra>"), row=1, col=i)
+fig.update_yaxes(title_text="log2(median signal at beta / alpha sites)", col=1)
+fig.update_layout(title=f"ISL1 binding at beta against alpha marker genes, per library ({MODE10.replace('_', ' ')})",
+                  legend=dict(orientation="h", y=1.12, x=1, xanchor="right", yanchor="bottom"))
+fig = style(fig, 420)
+fig.update_layout(margin=dict(t=110))
+parts.append(("10a", fig_html(fig, False)))
+
+CTL = {"D22_vs_D18": "D22 vs D18", "D22_vs_D15": "D22 vs D15", "D18_vs_D15": "D18 vs D15"}
+t10_ct = pd.DataFrame({"Role": ct10.role, "Sites": ct10.link.map({"within_50kb": "±50 kb", "GREAT": "GREAT"}),
+                       "Contrast": ct10.contrast.map(CTL), "Model": ct10.model,
+                       "Estimate (beta − alpha gain, log2)": ct10.estimate, "SE": ct10.se, "df": ct10.df,
+                       "One-sided p (beta gains)": ct10.p_one_sided, "Two-sided p": ct10.p_two_sided})
+t10_sets = pd.DataFrame({"Link": st10.link.map({"within_50kb": "±50 kb", "GREAT": "GREAT"}), "Set": st10.cell_type,
+                         "Marker genes with sites": [f"{a} of {b}" for a, b in zip(st10.genes_with_sites, st10.genes_in_set)],
+                         "Sites": st10.sites, "Genes": st10.genes})
+t10_sl = pd.DataFrame({"Sites": sl10.link.map({"within_50kb": "±50 kb", "GREAT": "GREAT"}),
+                       "Contrast": sl10.contrast.map(CTL), "Alpha sites": sl10.alpha_sites, "Beta sites": sl10.beta_sites,
+                       "Median log2FC alpha": sl10.median_log2FC_alpha, "Median log2FC beta": sl10.median_log2FC_beta,
+                       "Beta − alpha": sl10.difference, "Wilcoxon p": sl10.p_wilcoxon})
+pr10 = ct10[ct10.role == "primary"].iloc[0]
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -863,6 +907,28 @@ large but unstable odds ratios; none: no gene of that KO group.</p>
 overlap class</summary>
 {table_html(t9_list)}
 </details>
+
+<h2>10 Pre-specified test: binding at beta against alpha marker genes</h2>
+<p class="note"><b>Definition, fixed on 2026-11-15 before the unified CUT&amp;RUN time course is analysed</b> (scripts/10_beta_alpha_contrast.R).
+Hypothesis: ISL1 binding at beta-program genes gains on binding at alpha-program genes late in differentiation. Gene
+sets: integration/markers.tsv (28 alpha, 34 beta marker genes). Sites: every site whose centre lies within ±50 kb of a
+marker gene's TSS. Per library: y = log2(median signal over the beta sites / median over the alpha sites), signal =
+DiffBind reads / background size factor. Model: lm(y ~ batch + day) with several batches, else lm(y ~ day).
+<b>Primary contrast: D22 − D18, one-sided (beta gains), α = 0.05.</b> Secondary: D22 − D15 and D18 − D15, the same with
+GREAT-linked sites, and a site-level comparison of DiffBind log2FC (descriptive).</p>
+<p class="note"><b>Mode: {MODE10.replace("_", " ")}.</b> These are the current 9 libraries, which step 06 already examined
+for beta against alpha marker sites, so this run checks the code and shows the size of the noise; it is not the
+pre-specified test. That will be run once on the unified time course. Here the primary contrast is
+{pr10.estimate:+.3f} (SE {pr10.se:.3f}, {int(pr10.df)} df, one-sided p {pr10.p_one_sided:.2g}): no gain of beta on alpha between D18
+and D22 in these libraries. The library-to-library spread within a day (up to 0.8 log2 at D18) is larger than any
+shift between days, and the batch 3 library differs from the earlier ones; the GREAT version reproduces step 06.</p>
+{dict(parts)["10a"]}
+{table_html(t10_ct)}
+<p class="note">Site sets. No site is near both an alpha and a beta marker gene.</p>
+{table_html(t10_sets)}
+<p class="note">Site-level check (descriptive; sites are not independent replicates): median DiffBind log2FC
+(background normalization) of the beta and the alpha sites, and a Wilcoxon rank-sum test.</p>
+{table_html(t10_sl)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)
