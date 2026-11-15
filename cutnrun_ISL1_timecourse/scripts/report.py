@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Step 09: HTML report of the ISL1 time course: library QC (steps 01-04), consensus peaks (05),
-differential binding (06-07), HOMER motifs (10). Standard library only; plots are inline SVG.
+differential binding (06-07), HOMER motifs (10-11). Standard library only; plots are inline SVG.
   python report.py <results> <sample_metadata.tsv> <out.html>
 """
 import csv
@@ -250,6 +250,51 @@ if os.path.isdir(H):
                 num_cols=(1, 2, 3, 4)))
     S.append(("HOMER motifs, consensus peaks per day", "".join(parts)))
 
+AN = os.path.join(OUT, "homer", "annotation", "summary.tsv")
+if os.path.exists(AN):
+    a = tsv(AN)
+    sets = ["D15", "D18", "D22", "genome_random"]
+    cats = [r["category"] for r in a if r["set"] == "D15" and r["category"] != "total"]
+    get = {(r["set"], r["category"]): r for r in a}
+    S.append(("Genomic annotation of the consensus peaks", "<p>HOMER <code>annotatePeaks.pl</code> (GENCODE v32) on "
+              "the 200 bp summit windows of all macs3_ge2 peaks of each day, and on 50,000 random genomic windows. "
+              "promoter-TSS = -1 kb to +100 bp of a TSS; the 10x GTF has no separate UTR features (UTRs count as "
+              "exon). Percent of windows.</p>" + table(
+                  ["Category", "D15", "D18", "D22", "Random genome"],
+                  [[html.escape(c)] + [num(get[(st, c)]["pct"], 1) if (st, c) in get else "–" for st in sets] for c in cats]
+                  + [["windows"] + [num(get[(st, "total")]["n"]) for st in sets]], num_cols=(1, 2, 3, 4))))
+
+MH = os.path.join(OUT, "homer", "matched")
+if os.path.isdir(MH):
+    q = {r["item"]: r["n"] for r in tsv(os.path.join(MH, "inputs", "qc.tsv"))}
+    classes = ["promoter", "intron", "Intergenic", "exon", "TTS", "other"]
+    parts = ["<p>Backgrounds matched to the peaks' genomic composition. Pools of 200 bp windows that overlap no "
+             "consensus peak, the blacklist, or more than 20 N: 150,000 random genomic windows (annotated by HOMER) and "
+             "60,000 windows centred within 1 kb of a random GENCODE TSS. <b>A</b>: peaks split into promoter (within "
+             "1 kb of a TSS) and distal; promoter peaks vs the promoter pool, distal peaks vs genome windows more than "
+             "1 kb from a TSS. <b>B</b>: all peaks vs 3 x as many random windows of each genomic class as the peaks "
+             "have. HOMER normalizes GC on top in every run; settings as above.</p>",
+             table(["Day", "Class", "Peaks", "Matched background (B)"],
+                   [[d, c, num(q.get(f"{d} targets, {c}")), num(q.get(f"{d} matched background, {c}"))]
+                    for d in ["D15", "D18", "D22"] for c in classes], num_cols=(2, 3))]
+    for run, label in [("promoter_vs_promoters", "A: promoter peaks vs promoters"),
+                       ("distal_vs_genome", "A: distal peaks vs genome (> 1 kb from a TSS)"),
+                       ("all_vs_matched", "B: all peaks vs composition-matched windows")]:
+        for d in ["D15", "D18", "D22"]:
+            k = os.path.join(MH, f"{d}_{run}", "knownResults.txt")
+            if not os.path.exists(k):
+                parts.append(f"<h3>{d}, {label}</h3><p>Not run.</p>")
+                continue
+            with open(k, newline="") as f:
+                rows = list(csv.reader(f, delimiter="\t"))[1:]
+            sig = [r for r in rows if float(r[4]) < TH]
+            parts.append(f'<h3>{d}, {label}</h3><p>{len(sig)} of {len(rows)} known motifs with q &lt; {TH}; top 15 by '
+                         f'p-value. HOMER pages: <code>homer/matched/{d}_{run}/</code>.</p>' + table(
+                ["Motif", "log p", "q", "% targets", "% background"],
+                [[html.escape(r[0].split("/")[0]), num(r[3], 1), f"{float(r[4]):.1e}", r[6], r[8]] for r in rows[:15]],
+                num_cols=(1, 2, 3, 4)))
+    S.append(("HOMER motifs, composition-matched backgrounds", "".join(parts)))
+
 S.append(("Files", "<p>Under <code>results/</code> (scratch; keepers copied to the folder's <code>results/</code> on "
           "/pl/active): <code>consensus/&lt;day&gt;_Ctr_ISL1.{macs3_ge2,macs3_3of3}.bed</code>, "
           "<code>tracks/</code> (bigWigs per library and per day, beds, <code>igv_session.xml</code>), and in "
@@ -257,7 +302,8 @@ S.append(("Files", "<p>Under <code>results/</code> (scratch; keepers copied to t
           "<code>tables/{diffbind,deseq2}_&lt;norm&gt;_&lt;contrast&gt;.tsv</code> (all sites), "
           "<code>beds/diffbind_&lt;norm&gt;_&lt;contrast&gt;_{up,down}.bed</code>, <code>summary.tsv</code>, "
           "<code>agreement.tsv</code>, <code>norm_factors.tsv</code>, <code>counts_sites.tsv</code>; "
-          "<code>homer/inputs/</code> (target and background beds) and <code>homer/&lt;day&gt;_{vs_genome,vs_other_days}/</code>.</p>"))
+          "<code>homer/inputs/</code> (target and background beds) and <code>homer/&lt;day&gt;_{vs_genome,vs_other_days}/</code>, <code>homer/annotation/</code>, "
+          "<code>homer/matched/</code>.</p>"))
 
 css = """
 :root{--bg:#fff;--fg:#1d1d1f;--mut:#5f6368;--line:#dcdcdc;--head:#f3f4f6;--acc:#1f5fa8;--ns:#b8bcc2;--up:#e8710a;--dn:#1a73e8}

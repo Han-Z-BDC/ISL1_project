@@ -4,7 +4,8 @@
 #   01 10x filter (batch 3 fastqs)  -> 02 align (pipeline 01_align.sb, 18 libraries)
 #   -> 03 deduplicated matched IgG (pipeline 02)  -> 04 MACS3 per library  -> 05 consensus per day
 #   -> 06 401 bp sites  -> 07 DiffBind + DESeq2 check  -> 08a-c tracks
-#   -> 10a-b HOMER per day (after 05)  -> 09 report + keepers
+#   -> 10a-c HOMER per day and peak annotation (after 05)  -> 11a-b HOMER, matched backgrounds
+#   -> 09 report + keepers
 #   bash scripts/run_all.sh
 set -euo pipefail
 R=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd); cd "${R}"
@@ -32,9 +33,11 @@ S08c=$(sb $(dep "${S08b}") scripts/08c_tracks_finalize.sb)
 S10a=$(sb $(dep "${S05}") scripts/10a_homer_prepare.sb)
 S10b=$(sb --array=0-5 $(dep "${S10a}") scripts/10b_homer.sb)
 S10c=$(sb $(dep "${S10a}") scripts/10c_homer_annotate.sb)
-S09=$(sb $(dep "${S07}" "${S08c}" "${S10b}" "${S10c}") scripts/09_report.sb)
+S11a=$(sb $(dep "${S10c}") scripts/11a_homer_matched_prepare.sb)
+S11b=$(sb --array=0-8 $(dep "${S11a}") scripts/11b_homer_matched.sb)
+S09=$(sb $(dep "${S07}" "${S08c}" "${S10b}" "${S11b}") scripts/09_report.sb)
 cat <<EOF
 01 filter ${S01} | 02 align ${S02} | 03 IgG ${S03} | 04 peaks ${S04} | 05 consensus ${S05}
 06 sites ${S06} | 07 diffbind ${S07} | 08a ${S08a} | 08b ${S08b} | 08c ${S08c}
-10a ${S10a} | 10b ${S10b} | 10c ${S10c} | 09 report ${S09}
+10a ${S10a} | 10b ${S10b} | 10c ${S10c} | 11a ${S11a} | 11b ${S11b} | 09 report ${S09}
 EOF

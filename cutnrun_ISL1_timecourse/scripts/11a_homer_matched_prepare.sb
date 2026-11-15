@@ -1,0 +1,46 @@
+#!/bin/bash
+#SBATCH --job-name=tc_homer_mprep
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/homer_mprep.%j.out
+
+# Step 11a: HOMER inputs whose backgrounds match the peaks' genomic composition (about half of the
+# consensus peaks are within 1 kb of a TSS, vs 5% of the genome; step 10c).
+# Pools of 200 bp windows, none overlapping a consensus region of any day, the blacklist, or > 20 N:
+#   genome pool    150,000 random windows (chr1-22/X/Y, seed 2), annotated with annotatePeaks.pl
+#   promoter pool   60,000 windows centred within 1 kb of a random GENCODE transcript TSS (seed 3)
+# Per day (scripts/homer_matched.py select): targets split into promoter (within 1 kb of a TSS) and
+# distal; backgrounds: A promoter = promoter pool, A distal = up to 100,000 genome-pool windows > 1 kb
+# from a TSS, B matched = 3 x the targets of each class (promoter, intron, intergenic, exon, TTS,
+# other) drawn from the pools. HOMER adds its GC normalization in step 11b.
+# Output: homer/matched/inputs/{<day>.{promoter,distal,bg_promoter,bg_distal,bg_matched}.bed, qc.tsv, pools}
+#   sbatch --dependency=afterok:<10c job> scripts/11a_homer_matched_prepare.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+export PATH=${HOMER_BIN}:${PATH}
+BT=${TOOLS}/bedtools
+H=${OUT_DIR}/homer; M=${H}/matched/inputs
+mkdir -p "${M}"
+G=${H}/annotation/genome.canonical.txt
+cat "${OUT_DIR}"/consensus/D{15,18,22}_Ctr_ISL1.macs3_ge2.bed | cut -f1-3 | sort -k1,1 -k2,2n | "${BT}" merge > "${M}/all_peaks.bed"
+# keep windows off the blacklist and the peaks, with <= 20 N (bedtools nuc column 13 = num_N for BED6)
+clean () { "${BT}" intersect -v -a - -b "${BLACKLIST}" | "${BT}" intersect -v -a - -b "${M}/all_peaks.bed" \
+  | "${BT}" nuc -fi "${HOMER_FA}" -bed - | awk -F'\t' 'BEGIN{OFS="\t"} !/^#/ && $13 <= 20 {print $1, $2, $3, $4, 0, "+"}'; }
+
+"${BT}" random -l 200 -n 160000 -seed 2 -g "${G}" | awk 'BEGIN{OFS="\t"} {print $1, $2, $3, "genome_" NR, 0, "+"}' \
+  | clean | awk 'NR <= 150000' | sort -k1,1 -k2,2n > "${M}/pool_genome.bed"
+annotatePeaks.pl "${M}/pool_genome.bed" "${HOMER_FA}" -gtf "${GENES_GTF}" -cpu "${SLURM_CPUS_PER_TASK}" \
+  > "${M}/pool_genome.annotatePeaks.txt" 2> "${M}/pool_genome.annotatePeaks.log"
+
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/homer_matched.py" tss "${GENES_GTF}" "${G}" 66000 "${HOMER_HALF_WIDTH}" "${M}/pool_promoter.raw.bed"
+clean < "${M}/pool_promoter.raw.bed" | awk 'NR <= 60000' | sort -k1,1 -k2,2n > "${M}/pool_promoter.bed"
+rm -f "${M}/pool_promoter.raw.bed"
+
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/homer_matched.py" select "${H}" "${M}/pool_promoter.bed" "${M}/pool_genome.bed" \
+  "${M}/pool_genome.annotatePeaks.txt" "${M}"
