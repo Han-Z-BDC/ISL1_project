@@ -598,6 +598,67 @@ t9_pc = pc9.assign(contrast=pc9.contrast.str.replace("_vs_", " vs ")).rename(col
     "contrast": "Contrast", "presence": "Peak presence", "sites": "Sites", "median_log2FC": "Median log2FC",
     "pct_log2FC_positive": "% log2FC > 0", "pct_up_fdr": "% up, FDR < 0.05", "pct_down_fdr": "% down, FDR < 0.05"})
 
+# 09d: genes linked to each class against the KO-effect groups (adjusted odds ratio heatmap, one panel per link)
+gl9 = rd(os.path.join(D9, "gene_class_links.tsv"))
+KG9 = [f"cluster{i}" for i in range(1, 7)] + ["stays", "other_KO", "no_KO_effect"]
+CLS9 = list(cl9["class"])
+fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.03, subplot_titles=list(LINK8.values()))
+for i, ln in enumerate(LINK8, 1):
+    x = gl9[gl9.link == ln].set_index(["ko_group", "class"])
+    z = np.array([[np.log2(x.loc[(k, c), "adj_odds_ratio"]) if x.loc[(k, c), "genes"] > 0 else np.nan
+                   for c in CLS9] for k in KG9])
+    q = np.array([[x.loc[(k, c), "adj_fdr"] for c in CLS9] for k in KG9])
+    n = np.array([[f"{int(x.loc[(k, c), 'genes'])} of {int(x.loc[(k, c), 'genes_in_class']):,} genes "
+                   f"({x.loc[(k, c), 'pct_in_class']:.1f}%; other genes {x.loc[(k, c), 'pct_other_genes']:.1f}%)"
+                   for c in CLS9] for k in KG9])
+    txt = np.array([["none" if np.isnan(v) else f"{2 ** v:.2f}" + ("*" if qq < 0.05 else "") for v, qq in zip(r, rq)]
+                    for r, rq in zip(z, q)])
+    fig.add_trace(go.Heatmap(z=z, x=[CL_LABEL[c] for c in CLS9], y=[LABEL[k] for k in KG9], zmin=-1.5, zmax=1.5,
+                             colorscale=[[0, "#2a78d6"], [0.5, "#f0efec"], [1, "#eb6834"]], text=txt,
+                             texttemplate="%{text}", textfont=dict(size=11, color="#2b2b2b"), xgap=2, ygap=2,
+                             customdata=np.dstack([n, q]), showscale=(i == 2),
+                             colorbar=dict(title="log2 adj. OR", thickness=12, len=0.8),
+                             hovertemplate="%{y}<br>called on %{x}: %{customdata[0]}<br>adj. OR %{text}, "
+                                           "adj. FDR %{customdata[1]:.2g}<extra></extra>"), row=1, col=i)
+fig.update_yaxes(autorange="reversed", showgrid=False)
+fig.update_xaxes(showgrid=False, tickangle=-35)
+fig.update_layout(title="Genes linked to each overlap class: KO-effect groups, adjusted odds ratio (* adj. FDR < 0.05)")
+fig = style(fig, 520)
+fig.update_layout(margin=dict(l=230, t=90))
+parts.append(("09d", fig_html(fig, False)))
+
+gl9["value"] = [f"{int(n):,} ({p:.1f}%); OR {o:.2g}, adj. OR {ao:.2g}, adj. FDR {q:.2g}"
+                for n, p, o, ao, q in zip(gl9.genes, gl9.pct_in_class, gl9.odds_ratio, gl9.adj_odds_ratio, gl9.adj_fdr)]
+t9_genes = []
+for ln, lab in LINK8.items():
+    x = gl9[gl9.link == ln]
+    pv = x.pivot(index="ko_group", columns="class", values="value").reindex(index=KG9, columns=CLS9)
+    pv.columns = [f"Called on {CL_LABEL[c]}" for c in pv.columns]
+    pv.insert(0, "KO gene group", [LABEL[g] for g in pv.index])
+    pv.insert(0, "Link", lab)
+    t9_genes.append(pv.reset_index(drop=True))
+t9_genes = pd.concat(t9_genes, ignore_index=True)
+ng9 = {ln: [int(gl9[(gl9.link == ln) & (gl9["class"] == c)].genes_in_class.iloc[0]) for c in CLS9] for ln in LINK8}
+
+# gene list: KO cluster 1-6 genes with their sites per class under each link
+gc9 = rd(os.path.join(D9, "gene_classes.tsv"))
+gc9 = gc9[gc9.group.str.startswith("cluster")]
+scol = {c: "sites_" + c.replace(",", "_") for c in CLS9}
+
+
+def cls_str(r):
+    return "; ".join(f"{CL_LABEL[c]}: {int(r[scol[c]])}" for c in CLS9 if r[scol[c]] > 0)
+
+
+gc9 = gc9.assign(sites=gc9.apply(cls_str, axis=1))
+w9 = gc9.pivot(index=["gene_id", "gene_name", "group", "marker"], columns="link", values="sites").reset_index()
+for ln in LINK8:
+    if ln not in w9.columns:
+        w9[ln] = ""
+w9 = w9.fillna("").sort_values(["group", "gene_name"], kind="stable")
+t9_list = pd.DataFrame({"Gene": w9.gene_name, "KO gene group": w9.group.map(LABEL), "Marker": w9.marker,
+                        "Sites per class, GREAT": w9.GREAT, "Sites per class, ±50 kb": w9.within_50kb})
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -782,6 +843,26 @@ not independent evidence, and it carries the batch caveat of section 08.</p>
 libraries (2 are needed for the consensus), share called by the batch 3 library, and median batch-corrected VST on that
 day (compare the VST columns of the class table above).</p>
 {table_html(t9_abs)}
+<h3>Target genes of each overlap class and their KO effect</h3>
+<p class="note">Bulk-tested genes linked to the sites of each class, by GREAT domains (main) and, as a check, every gene
+whose TSS lies within ±50 kb of the site. A gene counts in every class in which it has at least one site (GREAT:
+{" / ".join(f"{n:,}" for n in ng9["GREAT"])} genes for the classes in the order of the overlap plot; ±50 kb:
+{" / ".join(f"{n:,}" for n in ng9["within_50kb"])}) and is compared with all other linked genes. Genes with more sites
+are more often in any class and more often KO-affected, so the main figure is the adjusted odds ratio: logistic
+regression with log2(1 + number of sites) and, for GREAT, log10 domain length as covariates; BH FDR over all cells of
+each link.</p>
+<p class="note">No overlap class maps onto one KO cluster. The one consistent signal is D18-only binding: its genes are
+less often without a KO effect (adj. OR 0.83 with GREAT, 0.77 with ±50 kb), and within 50 kb more often in KO clusters 1
+(1.4) and 4 (1.6) and "stays" (1.2). D22-only genes go the other way within 50 kb (fewer cluster 4 genes, 0.64; more
+without a KO effect, 1.13). With GREAT, the cluster 2 and 4 enrichments of the Fisher test (D18 only, all three days)
+are explained by the number of sites. The three small classes (D15 + D18, D15 + D22, D15 only; 160-360 genes) give
+large but unstable odds ratios; none: no gene of that KO group.</p>
+{dict(parts)["09d"]}
+{table_html(t9_genes)}
+<details><summary>Gene list: {len(t9_list):,} genes of KO clusters 1-6 linked to at least one site, with their sites per
+overlap class</summary>
+{table_html(t9_list)}
+</details>
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)

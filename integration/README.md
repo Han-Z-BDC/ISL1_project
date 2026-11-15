@@ -62,7 +62,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
 | 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
 | 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `gene_links.tsv` and `gene_site_groups.tsv` (gene level, GREAT and ±50 kb links), `vst_libraries.tsv` |
-| 09 Overlap of the per-day peak calls, checked against the counts | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB) | `results/09_peak_overlap/`: `sites_days.tsv` (per site: days called, libraries calling it per day, step 08 and DiffBind results), `classes.tsv`, `class_days.tsv`, `presence_vs_counts.tsv`, `libraries.tsv` |
+| 09 Overlap of the per-day peak calls, checked against the counts | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB) | `results/09_peak_overlap/`: `sites_days.tsv` (per site: days called, libraries calling it per day, step 08 and DiffBind results), `classes.tsv`, `class_days.tsv`, `presence_vs_counts.tsv`, `libraries.tsv`, `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb links) |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -336,3 +336,22 @@ with the DiffBind counts (background normalization) and the step 08 groups.
   1 of that day's 3 libraries.
 - The overlap classes describe the same patterns as the step 08 groups; they are not independent evidence and carry the
   same batch caveat.
+
+Target genes per class: bulk-tested genes linked by GREAT (main) or with the TSS within ±50 kb (check); a gene counts in
+every class in which it has a site and is compared with all other linked genes; logistic regression with log2(1 +
+number of sites) (and, for GREAT, log10 domain length) as covariates; BH FDR per link.
+
+| Class | Genes (GREAT / ±50 kb) | Adjusted odds ratio (adj. FDR < 0.05) |
+|---|---|---|
+| all three days | 2,493 / 3,236 | none (GREAT cluster 4 1.46, FDR 0.14) |
+| D18 + D22 | 4,160 / 5,521 | none |
+| D18 only | 3,386 / 3,164 | no KO effect 0.83 (GREAT), 0.77 (±50 kb); ±50 kb: cluster 1 1.38, cluster 4 1.59, stays 1.21 |
+| D22 only | 3,520 / 4,970 | ±50 kb: cluster 4 0.64, no KO effect 1.13 |
+| D15 + D18, D15 + D22, D15 only | 160-360 | none (small, unstable odds ratios) |
+
+- No overlap class maps onto one KO cluster. Genes with a D18-only site are more often KO-affected (cluster 4 and
+  cluster 1 within 50 kb); genes with a D22-only site are less often in cluster 4. The Fisher enrichments of clusters
+  2 and 4 with GREAT are explained by the number of sites.
+- Examples (sites in one class only): MAFA (cluster 2) D18 only; NEUROG3 (cluster 6) D22 only; ISL1 (cluster 2)
+  D15 + D22; PAX4 (cluster 2), ARX (cluster 4) all three days. All KO cluster 1-6 genes with their classes are listed
+  in the report.
