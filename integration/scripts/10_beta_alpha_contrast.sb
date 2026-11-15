@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=int10_betaalpha
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=00:20:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=3G
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/logs/%x.%j.out
+# Step 10: pre-specified beta - alpha binding contrast (see the script header). Needs steps 00, 01, 03.
+# MODE: dry_run for the current 9 libraries; primary once config.sh points to the unified CUT&RUN time course.
+# Submit from integration/:  sbatch scripts/10_beta_alpha_contrast.sb
+
+set -euo pipefail
+MODE=dry_run
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/config.sh
+"${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/10_beta_alpha_contrast.R" "${CNR_DIFF}" "${RESULTS}" "${MARKERS}" "${MODE}" \
+  "${RESULTS}/10_beta_alpha_contrast"
