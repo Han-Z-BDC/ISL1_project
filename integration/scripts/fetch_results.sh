@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REMOTE=hzhu10@xsede.org@login.rc.colorado.edu
 SRC=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/results
-for d in 01_great 02_direct_targets 03_binding_change 04_candidates 05_binding_signal 06_cluster_contrast 07_diff_site_targets 08_site_clusters; do
+for d in 01_great 02_direct_targets 03_binding_change 04_candidates 05_binding_signal 06_cluster_contrast 07_diff_site_targets 08_site_clusters 09_peak_overlap; do
   mkdir -p "results/${d}"
 done
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/01_great/summary.tsv" "${REMOTE}:${SRC}/01_great/site_gene.tsv" results/01_great/
@@ -16,4 +16,5 @@ scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/05_binding_signal/*.tsv" results/05_bi
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/06_cluster_contrast/*.tsv" results/06_cluster_contrast/
 scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/07_diff_site_targets/diff_site_genes.tsv" "${REMOTE}:${SRC}/07_diff_site_targets/summary.tsv" "${REMOTE}:${SRC}/07_diff_site_targets/tests.tsv" results/07_diff_site_targets/
 scp -q -i ~/.ssh/id_rsa $(for f in site_clusters centers elbow heldout heldout_clusters links gene_site_groups gene_links; do echo "${REMOTE}:${SRC}/08_site_clusters/${f}.tsv"; done) results/08_site_clusters/
+scp -q -i ~/.ssh/id_rsa "${REMOTE}:${SRC}/09_peak_overlap/*.tsv" results/09_peak_overlap/
 ls -l results/*/

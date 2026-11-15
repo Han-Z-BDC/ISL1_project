@@ -62,6 +62,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 06 Alpha-leaning vs beta-leaning binding per day, libraries as replicates | `scripts/06_cluster_contrast.sb` (acpu, 2 CPUs, 7 GB) | `results/06_cluster_contrast/`: `library_values.tsv`, `tests.tsv`, `set_sizes.tsv` |
 | 07 Target genes of the differentially bound sites and their KO effect | `scripts/07_diff_site_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/07_diff_site_targets/`: `diff_site_genes.tsv` (every differential site and target gene), `gene_classes.tsv`, `summary.tsv`, `tests.tsv` |
 | 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `gene_links.tsv` and `gene_site_groups.tsv` (gene level, GREAT and ±50 kb links), `vst_libraries.tsv` |
+| 09 Overlap of the per-day peak calls, checked against the counts | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB) | `results/09_peak_overlap/`: `sites_days.tsv` (per site: days called, libraries calling it per day, step 08 and DiffBind results), `classes.tsv`, `class_days.tsv`, `presence_vs_counts.tsv`, `libraries.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -71,7 +72,8 @@ Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anacond
 site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: alpha-leaning vs
 beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts;
 section 07: KO effect of the target genes of the differentially bound sites; section 08: all sites grouped by
-binding pattern, with the held-out check).
+binding pattern, with the held-out check and the gene level; section 09: overlap of the per-day peak calls against the
+counts).
 
 ## Results
 
@@ -307,3 +309,30 @@ Adjusted odds ratio (adjusted FDR).
   (groups 1 and 2), GCG, PCSK1, ABCC8, DPP4, TTR and, with GREAT only, MAFB (group 2).
 - Key genes: within 50 kb, INS, PAX6, PAX4, ARX, MAFA and MAFB have only stable sites, and NKX6-1 one group 1 site.
   With GREAT, INS and PAX6 have no site, PAX4, ARX and MAFA only stable sites, NKX6-1 group 1 and 2 sites.
+
+### 09 Overlap of the per-day peak calls, checked against the counts
+
+Each site carries the days whose consensus peaks (MACS3 q 0.01 in >= 2 of the day's 3 libraries) contain it; each site
+is also overlapped with every library's own peaks. Peak presence is a threshold call without a test, so it is compared
+with the DiffBind counts (background normalization) and the step 08 groups.
+
+| Called on | Sites | Median log2FC D18 vs D15 / D22 vs D15 / D22 vs D18 | Enriched step 08 group |
+|---|---|---|---|
+| all three days | 2,450 | 0.38 / 0.24 / -0.07 | - |
+| D18 + D22 | 4,130 | 0.41 / 0.35 / -0.01 | 1 (14.6%) |
+| D18 only | 3,958 | 0.41 / 0.12 / -0.14 | 2 (11.2%) |
+| D22 only | 3,153 | 0.12 / 0.34 / 0.13 | 3 (8.9%) |
+| D15 + D18 | 368 | 0.17 / -0.20 / -0.22 | 4 (16.3%) |
+| D15 only | 230 | -0.19 / -0.28 / -0.05 | 4 (15.2%) |
+| D15 + D22 | 142 | 0.02 / 0.17 / 0.08 | - |
+
+- **The day calls mostly follow the earlier libraries.** The batch 3 libraries call 6.5-34% of the sites (the earlier
+  libraries 28-82%) although they have as many peaks of their own; the earlier D15 libraries are the weakest (7,809 and
+  14,019 peaks), so part of the small D15 set is library strength.
+- **Presence agrees with the direction of the counts, rarely with significance.** Sites called on D18 but not D15: 95%
+  have a positive log2FC, 7.6% FDR < 0.05; sites called on both days rise almost as much (median 0.36 vs 0.41), so most
+  "gained" calls are the overall rise after D15 crossing the threshold. D22 vs D18: direction agrees (85% of D22-not-D18
+  sites up, 12% of D18-not-D22 sites), no site significant; about half of the sites missing on D18 or D22 are called by
+  1 of that day's 3 libraries.
+- The overlap classes describe the same patterns as the step 08 groups; they are not independent evidence and carry the
+  same batch caveat.
