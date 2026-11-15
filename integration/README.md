@@ -383,3 +383,8 @@ Dry run on the current 9 libraries:
 
 - No gain of beta on alpha between D18 and D22 in these libraries. Libraries of the same day differ by up to 0.8 log2
   (D18), more than any shift between days; the GREAT version reproduces step 06.
+
+Replicates needed (planning, `power.tsv`): residual SD of the dry-run primary fit 0.23 log2 (5 df; upper 80% bound 0.40).
+In a one-batch design with n libraries per day, the D22 − D18 shift detectable with 80% power (one-sided, α = 0.05) is
+0.52 log2 for n = 3, 0.43 for n = 4, 0.38 for n = 5, 0.34 for n = 6 and 0.29 for n = 8 (0.92 / 0.76 / 0.67 / 0.60 / 0.51 at
+the upper SD bound). A 0.3 shift needs about 8 libraries per day.

@@ -702,6 +702,16 @@ t10_sl = pd.DataFrame({"Sites": sl10.link.map({"within_50kb": "±50 kb", "GREAT"
                        "Median log2FC alpha": sl10.median_log2FC_alpha, "Median log2FC beta": sl10.median_log2FC_beta,
                        "Beta − alpha": sl10.difference, "Wilcoxon p": sl10.p_wilcoxon})
 pr10 = ct10[ct10.role == "primary"].iloc[0]
+pw10 = rd(os.path.join(D10, "power.tsv")) if os.path.exists(os.path.join(D10, "power.tsv")) else None
+if pw10 is not None:
+    e = pw10[(pw10.link == "within_50kb") & (pw10.sigma_basis == "estimate")].set_index("n_per_day")
+    u = pw10[(pw10.link == "within_50kb") & (pw10.sigma_basis == "upper80")].set_index("n_per_day")
+    t10_pw = pd.DataFrame({"Libraries per day": e.index,
+                           "Detectable shift, 80% power (SD estimate)": e.detectable_80.values,
+                           "Detectable shift, 80% power (SD upper 80% bound)": u.detectable_80.values,
+                           "Power for a 0.3 shift (SD estimate)": e["power_0.3"].values,
+                           "Power for a 0.5 shift (SD estimate)": e["power_0.5"].values})
+    sg10 = (float(e.sigma.iloc[0]), float(u.sigma.iloc[0]), int(e.sigma_df.iloc[0]))
 
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -929,6 +939,17 @@ shift between days, and the batch 3 library differs from the earlier ones; the G
 <p class="note">Site-level check (descriptive; sites are not independent replicates): median DiffBind log2FC
 (background normalization) of the beta and the alpha sites, and a Wilcoxon rank-sum test.</p>
 {table_html(t10_sl)}
+<h3>Replicates needed for the unified time course</h3>
+<p class="note">Planning estimate for the primary contrast in a one-batch design (lm(y ~ day), the same number of libraries
+per day): the D22 − D18 estimate has SE = σ·√(2/n) with 3n − 3 df; power of the one-sided test at α = 0.05 from the
+noncentral t. σ is the residual SD of this dry run's primary fit with batch removed, {sg10[0]:.2f} log2, which rests on
+{sg10[2]} df only, so the table also uses the upper end of its 80% interval ({sg10[1]:.2f}). It assumes libraries from one
+differentiation vary as much as libraries within a batch did here. Shift = gain of log2(beta / alpha) from D18 to D22;
+for scale, all sites rose by a median log2FC of about 0.4 from D15 to D18.</p>
+<p class="note">With 3 libraries per day only a shift of about 0.5 log2 or more is likely to be detected (0.9 if σ is at its
+upper bound); 4 libraries per day reach about 0.43, and a shift of 0.3 needs about 8 per day. A smaller sample makes a
+negative result uninformative.</p>
+{table_html(t10_pw)}
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)

@@ -21,7 +21,8 @@
 #   mode: dry_run (current libraries) or primary (unified time course); written into every output table.
 # Output in <out_dir>: sets.tsv (per link and set: genes with sites, sites), set_sites.tsv (site membership),
 #   library_values.tsv (per link and library: medians and y), contrasts.tsv (per link and contrast),
-#   site_level.tsv (per contrast: DiffBind log2FC of beta vs alpha sites)
+#   site_level.tsv (per contrast: DiffBind log2FC of beta vs alpha sites), power.tsv (planning, dry run only: replicates
+#   per day needed for the primary contrast in a one-batch design, from the residual SD of this run's primary fit)
 
 suppressPackageStartupMessages(library(data.table))
 args <- commandArgs(trailingOnly = TRUE)
@@ -80,10 +81,12 @@ lv <- rbindlist(lapply(names(links), function(ln) {
 fwrite(lv, file.path(od, "library_values.tsv"), sep = "\t", quote = FALSE)
 
 CT <- list(D22_vs_D18 = c(D18 = -1, D22 = 1), D22_vs_D15 = c(D18 = 0, D22 = 1), D18_vs_D15 = c(D18 = 1, D22 = 0))
+fits <- list()
 cts <- rbindlist(lapply(names(links), function(ln) {
   d <- lv[link == ln]
   d <- data.frame(y = d$log2_beta_alpha, day = factor(d$day, levels = days), batch = factor(d$batch))
   fit <- if (length(batches) > 1) lm(y ~ batch + day, data = d) else lm(y ~ day, data = d)
+  fits[[ln]] <<- fit
   cf <- coef(fit); V <- vcov(fit)
   rbindlist(lapply(names(CT), function(cn) {
     w <- setNames(numeric(length(cf)), names(cf)); w["dayD18"] <- CT[[cn]][["D18"]]; w["dayD22"] <- CT[[cn]][["D22"]]
@@ -113,3 +116,23 @@ slv <- rbindlist(lapply(names(links), function(ln) {
 }))
 fwrite(slv, file.path(od, "site_level.tsv"), sep = "\t", quote = FALSE)
 print(slv)
+
+# ---- planning: replicates per day for the primary contrast in a one-batch design (lm(y ~ day), n libraries per day:
+#   SE of D22 - D18 = sigma * sqrt(2 / n), df = 3n - 3; power of the one-sided t test at alpha 0.05 from the noncentral
+#   t). sigma = residual SD of this run's fit (batch removed), also at the upper end of its 80% interval (chi-square),
+#   since it rests on few df. Assumes libraries of one differentiation vary as much as libraries within a batch here.
+if (mode == "dry_run") {
+  pw <- rbindlist(lapply(names(fits), function(ln) {
+    f <- fits[[ln]]; s0 <- sigma(f); dfr <- f$df.residual
+    sig <- c(estimate = s0, upper80 = s0 * sqrt(dfr / qchisq(0.10, dfr)))
+    rbindlist(lapply(names(sig), function(sn) rbindlist(lapply(2:8, function(n) {
+      se <- sig[[sn]] * sqrt(2 / n); df <- 3 * n - 3; qc <- qt(0.95, df)
+      pow <- function(d) 1 - pt(qc, df, ncp = d / se)
+      data.table(link = ln, sigma_basis = sn, sigma = round(sig[[sn]], 3), sigma_df = dfr, n_per_day = n, df = df,
+                 power_0.2 = round(pow(0.2), 3), power_0.3 = round(pow(0.3), 3), power_0.5 = round(pow(0.5), 3),
+                 detectable_80 = round(uniroot(function(d) pow(d) - 0.8, c(0, 20))$root, 3))
+    }))))
+  }))
+  fwrite(pw, file.path(od, "power.tsv"), sep = "\t", quote = FALSE)
+  print(pw)
+}
