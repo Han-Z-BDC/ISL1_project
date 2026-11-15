@@ -51,3 +51,4 @@ GENOME_FA=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.
 RMSK=/pl/active/ZhuLab_BDC/genome/repeats_hg38/rmsk_hg38.bed.gz
 HOMER_FA=${SCRATCH}/genome/hg38.canonical.softmasked.fa
 HOMER_HALF_WIDTH=100
+GENES_GTF=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0/genes/genes.gtf   # 10x GRCh38 2020-A (GENCODE v32), for step 10c

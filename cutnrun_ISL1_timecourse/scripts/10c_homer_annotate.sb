@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --job-name=tc_homer_annot
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=240G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/homer_annot.%j.out
+
+# Step 10c: genomic annotation (HOMER annotatePeaks.pl, GENES_GTF) of each day's macs3_ge2 consensus
+# peaks (the 200 bp summit windows of step 10a, all peaks of the day) and of a genome baseline of
+# 50,000 random 200 bp windows (chr1-22/X/Y, seed 1, blacklist excluded). HOMER's categories:
+# promoter-TSS (-1 kb to +100 bp of a TSS), TTS, exon, 5'/3' UTR, intron, intergenic, non-coding.
+# Output: homer/annotation/<set>.annotatePeaks.txt, homer/annotation/summary.tsv (scripts/homer_annotation.py)
+#   sbatch --dependency=afterok:<10a job> scripts/10c_homer_annotate.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+export PATH=${HOMER_BIN}:${PATH}
+H=${OUT_DIR}/homer; A=${H}/annotation
+mkdir -p "${A}"
+awk -F'\t' '$1 ~ /^chr([0-9]+|X|Y)$/' "${OUT_DIR}/genome.txt" > "${A}/genome.canonical.txt"
+"${TOOLS}/bedtools" random -l 200 -n 60000 -seed 1 -g "${A}/genome.canonical.txt" \
+  | "${TOOLS}/bedtools" intersect -v -a - -b "${BLACKLIST}" | head -50000 \
+  | awk 'BEGIN{OFS="\t"} {print $1, $2, $3, "random_" NR, 0, "+"}' | sort -k1,1 -k2,2n > "${A}/genome_random.bed"
+for s in D15 D18 D22 genome_random; do
+  bed=${H}/inputs/${s}.target.bed; [[ ${s} == genome_random ]] && bed=${A}/genome_random.bed
+  annotatePeaks.pl "${bed}" "${HOMER_FA}" -gtf "${GENES_GTF}" -cpu "${SLURM_CPUS_PER_TASK}" > "${A}/${s}.annotatePeaks.txt" 2> "${A}/${s}.log"
+done
+"${TOOLS}/python" -I "${STUDY_DIR}/scripts/homer_annotation.py" "${A}"

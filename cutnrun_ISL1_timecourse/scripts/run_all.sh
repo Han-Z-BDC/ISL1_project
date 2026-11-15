@@ -31,9 +31,10 @@ S08b=$(sb --array=0-$((2 * n_tf - 1)) $(dep "${S08a}") scripts/08b_tracks_bigwig
 S08c=$(sb $(dep "${S08b}") scripts/08c_tracks_finalize.sb)
 S10a=$(sb $(dep "${S05}") scripts/10a_homer_prepare.sb)
 S10b=$(sb --array=0-5 $(dep "${S10a}") scripts/10b_homer.sb)
-S09=$(sb $(dep "${S07}" "${S08c}" "${S10b}") scripts/09_report.sb)
+S10c=$(sb $(dep "${S10a}") scripts/10c_homer_annotate.sb)
+S09=$(sb $(dep "${S07}" "${S08c}" "${S10b}" "${S10c}") scripts/09_report.sb)
 cat <<EOF
 01 filter ${S01} | 02 align ${S02} | 03 IgG ${S03} | 04 peaks ${S04} | 05 consensus ${S05}
 06 sites ${S06} | 07 diffbind ${S07} | 08a ${S08a} | 08b ${S08b} | 08c ${S08c}
-10a ${S10a} | 10b ${S10b} | 09 report ${S09}
+10a ${S10a} | 10b ${S10b} | 10c ${S10c} | 09 report ${S09}
 EOF
