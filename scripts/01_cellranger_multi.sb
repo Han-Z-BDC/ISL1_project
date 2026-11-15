@@ -56,6 +56,11 @@ for run in "${TODO_RUNS[@]}"; do
     exit 1
   fi
 
+  # A job killed at its time limit leaves ${run}/_lock behind, and the resume then stops with
+  # "locked by another Martian instance" (2026-11-14). Jobs for one run_id never overlap (chain),
+  # so a lock found here is stale.
+  if [ -f "${run}/_lock" ]; then echo "[$(date)] removing stale ${run}/_lock"; rm -f "${run}/_lock"; fi
+
   echo "[$(date)] cellranger multi: ${run} (${SLURM_CPUS_PER_TASK} cores, ${LOCALMEM}G)"
   "${CELLRANGER}" multi \
     --id="${run}" \
