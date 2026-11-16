@@ -12,7 +12,7 @@ All paths are in `config.sh`.
 | Data | Source | Used |
 |---|---|---|
 | Bulk RNA-seq, Ctr vs ISL1 KO, D15 / D18 / D22, 2 replicates (run YJZ5LS) | `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` | `LRT_interaction.tsv` (KO effect changes with day), `LRT_genotype.tsv` (KO effect at any day), `KO_vs_Ctr_D15/D18/D22.tsv`, `timecourse_clusters_LRT_interaction.tsv` |
-| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_KO_histone` step 26 (sites) and step 27 (DiffBind), on scratch | 14,431 sites of 401 bp; per-site differential tables (main analysis: DiffBind, background normalization); the DiffBind object, from which step 00 exports counts and size factors |
+| ISL1 CUT&RUN, control line, D15 / D18 / D22, 3 libraries per day | `cutnrun_ISL1_timecourse` step 06 (sites) and step 07 (IgG greylist, DiffBind), on scratch | 14,431 sites of 401 bp; per-site differential tables (main analysis: DiffBind, background normalization); DiffBind reads per site (`counts_diffbind.tsv`) and size factors (`norm_factors.tsv`, method diffbind, background) |
 | Genes | 10x GRCh38 2020-A `genes.gtf`, the annotation of the bulk counts | gene IDs, TSSs |
 
 The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the unified CUT&RUN data are there.
@@ -31,10 +31,10 @@ The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the un
 - **Direct target.** A gene with at least one ISL1 site (any day) in its domain. Enrichment per KO-effect group
   against the no-KO-effect genes: Fisher's exact test, and logistic regression `bound ~ group +
   log10(domain length)`, since longer domains collect more sites by chance (BH over groups).
-- **Counts and signal.** Every step uses step 27's DiffBind counts (paired-end fragments per site, duplicates kept)
-  and its background size factors (DESeq2 on 15 kb genome bins), exported by step 00. Signal per site and library =
+- **Counts and signal.** Every step uses the CUT&RUN step 07 DiffBind counts (paired-end fragments per site, duplicates
+  kept) and its background size factors (DESeq2 on 15 kb genome bins). Signal per site and library =
   reads / size factor.
-- **Binding classes (step 27, DiffBind, background normalization).** Gained: FDR < 0.05 up in D18 vs D15 or D22 vs
+- **Binding classes (CUT&RUN step 07, DiffBind, background normalization).** Gained: FDR < 0.05 up in D18 vs D15 or D22 vs
   D15. Stable-bound: every other site. The sites lost over time (12) are listed, not tested.
 - **Binding change per KO-effect group.** Sites are members of a set and the 9 libraries are the replicates: limma
   voom on the DiffBind site counts (background size factors, `~ batch + day`), `camera` for each group against all
@@ -53,7 +53,6 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 
 | Step | Script | Output |
 |---|---|---|
-| 00 DiffBind counts and size factors | `scripts/00_diffbind_counts.sb` (amem, 12 CPUs, 240 GB; re-reads the BAMs for the background bins) | `results/00_diffbind_counts/`: `counts_raw.tsv`, `norm_factors.tsv`, `counts_norm.tsv` |
 | 01 GREAT domains, site -> gene | `scripts/01_great_site_to_gene.sb` (acpu, 2 CPUs, 7 GB) | `results/01_great/`: `gene_regions.bed`, `site_gene.tsv`, `summary.tsv` |
 | 02 Direct targets per KO-effect group | `scripts/02_direct_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/02_direct_targets/`: `gene_table.tsv` (group, KO log2FC per day, sites per gene), `enrichment.tsv` |
 | 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
@@ -169,7 +168,7 @@ group with a linked gene. Cells: median DiffBind log2FC of the group's sites (ot
 
 ### 05 Binding signal per day at each cluster's sites
 
-Signal: DiffBind reads per site / background size factor (step 00), mean of the 3 libraries per day. Paired
+Signal: DiffBind reads per site / background size factor (CUT&RUN step 07), mean of the 3 libraries per day. Paired
 Wilcoxon between days within each group (BH).
 
 | Group | Sites | Median signal D15 / D18 / D22 | Sites up D18 vs D15 | Sites up D22 vs D18 | Median log2 ratio D22 vs D18 (FDR) |
@@ -185,7 +184,7 @@ Wilcoxon between days within each group (BH).
 - Binding rises from D15 to D18 at 83-87% of the sites of every group (all FDR < 1e-28), the overall ISL1 increase.
 - **From D18 to D22 the sites near the KO-effect clusters lose signal while the reference stays flat** (51.6% of
   sites up, median ratio +0.02). Cluster 4 shows both the largest rise to D18 (median 22.5 -> 33.3) and the largest
-  fall to D22 (71% of its sites down). Per site, none of these D22 vs D18 changes reaches significance in step 27.
+  fall to D22 (71% of its sites down). Per site, none of these D22 vs D18 changes reaches significance in CUT&RUN step 07.
   Against all other sites, cluster 4's fall is the one that stands out (step 03 camera D22 vs D18, FDR 0.018, not
   significant with the estimated inter-site correlation). The batch-aware model gives a smaller shift than these
   day means (median DiffBind log2FC -0.084 vs -0.030 for the other sites).
@@ -267,12 +266,12 @@ Gained against only-stable genes, logistic regression with domain length and num
 
 ### 08 All ISL1 sites grouped by binding pattern across days
 
-All 14,431 sites, step 27 DiffBind counts and background size factors. DESeq2 LRT (~ batch + day against ~ batch)
+All 14,431 sites, CUT&RUN step 07 DiffBind counts and background size factors. DESeq2 LRT (~ batch + day against ~ batch)
 selects the sites whose binding varies across days (p < 0.05, a noise filter: 2,747 sites; 408 at FDR < 0.1); the
 other 11,684 are the stable group. Per site: VST, batch 3 effect removed, mean per day, z-score across days; k-means
 with k = 4 (share of variance between groups 0.81; k = 5-6 split the same shapes).
 
-| Group | z D15 / D18 / D22 | Sites | Gained in step 27 | Sites linked to (OR vs stable, FDR) |
+| Group | z D15 / D18 / D22 | Sites | Gained (CUT&RUN step 07) | Sites linked to (OR vs stable, FDR) |
 |---|---|---|---|---|
 | 1 rises by D18, stays | -1.13 / 0.57 / 0.56 | 1,145 | 35.0% | beta markers 3.0 (0.02); KO cluster 4 1.6 (0.003) |
 | 2 peaks at D18, falls by D22 | -0.92 / 1.02 / -0.10 | 909 | 36.6% | alpha markers 3.6 (0.01); KO cluster 4 1.9 (3e-4) |

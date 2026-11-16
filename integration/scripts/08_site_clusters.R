@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Step 08: group all ISL1 sites by their binding pattern across D15 / D18 / D22.
-#   Counts     step 27's DiffBind fragment counts and background size factors (step 00), 9 libraries.
+#   Counts     CUT&RUN step 07's DiffBind fragment counts and background size factors, 9 libraries.
 #   Varying    DESeq2 LRT, ~ batch + day against ~ batch, size factors fixed to the DiffBind ones. Sites with
 #              LRT p < 0.05 are clustered (a filter against noise, not a significance claim); the others form the
 #              "stable" group (cluster 0).
@@ -14,7 +14,7 @@
 #              (D15 rep1, D18 rep1, D22 rep2; VST of the 9-library fit) is compared with the 6-library cluster
 #              centres: share of sites whose batch 3 profile is closest (Pearson r) to their own cluster's centre,
 #              against the share expected by chance (sum of squared cluster fractions).
-#   Links      per cluster: sites gained / lost in step 27 (step 03 site_stats), sites linked (GREAT, step 01) to
+#   Links      per cluster: sites gained / lost in CUT&RUN step 07 (step 03 site_stats), sites linked (GREAT, step 01) to
 #              each bulk KO-effect group (step 02) and to the alpha / beta markers; Fisher test of each cluster
 #              against the stable sites for each group.
 #   Genes      gene level, for the report's k (K_GENE = 4): linked genes tested in the bulk RNA-seq (step 02); a gene is
@@ -24,7 +24,7 @@
 #              with more sites more often have a varying site, as in step 02), BH over all tests. Done twice: genes
 #              linked by GREAT (main), and every bulk-tested gene with its TSS within 50 kb of the site summit (check;
 #              covariate log2(1 + n_sites) only).
-# usage: Rscript 08_site_clusters.R <step 27 isl1_diff dir> <integration results dir> <markers.tsv> <out_dir>
+# usage: Rscript 08_site_clusters.R <CUT&RUN diff dir> <integration results dir> <markers.tsv> <out_dir>
 # Output in <out_dir>: site_clusters.tsv, elbow.tsv, centers.tsv, heldout.tsv (per site), heldout_clusters.tsv
 #   (mean batch 3 profile per 6-library cluster), links.tsv, vst_libraries.tsv, gene_site_groups.tsv (per link and
 #   gene: KO group, marker, sites per site group), gene_links.tsv (per link, site group and KO group)
@@ -36,11 +36,11 @@ cnr <- args[1]; res <- args[2]; mfile <- args[3]; od <- args[4]
 dir.create(od, showWarnings = FALSE, recursive = TRUE)
 days <- c("D15", "D18", "D22"); P_VAR <- 0.05; KS <- 2:10; K_GENE <- 4
 
-cs <- fread(file.path(res, "00_diffbind_counts", "counts_raw.tsv"))
+cs <- fread(file.path(cnr, "counts_diffbind.tsv"))
 m <- as.matrix(cs[, -1]); rownames(m) <- cs$name
 smp <- fread(file.path(cnr, "samples.tsv"))
 stopifnot(identical(colnames(m), smp$sample))
-nf <- fread(file.path(res, "00_diffbind_counts", "norm_factors.tsv"))
+nf <- fread(file.path(cnr, "norm_factors.tsv"))[method == "diffbind" & normalization == "background"]
 sf <- setNames(nf$norm_factor[match(smp$sample, nf$sample)], smp$sample)
 stopifnot(!anyNA(sf))
 cd <- data.frame(day = factor(smp$day, levels = days), batch = factor(smp$batch, levels = c("earlier", "batch3")),
@@ -145,7 +145,7 @@ sgl <- fread(file.path(res, "01_great", "site_gene.tsv"), sep = "\t", quote = ""
 gt <- fread(file.path(res, "02_direct_targets", "gene_table.tsv"), sep = "\t", quote = "", na.strings = "NA")
 mk <- fread(mfile, skip = "cell_type")
 sgl[gt, group := i.group, on = "gene_id"]
-feat <- list(gained_step27 = ss[gained == TRUE, site], lost_step27 = ss[lost == TRUE, site])
+feat <- list(gained = ss[gained == TRUE, site], lost = ss[lost == TRUE, site])
 for (g in c(paste0("cluster", 1:6), "stays", "other_KO", "no_KO_effect"))
   feat[[paste0("KO_", g)]] <- unique(sgl[group == g, site])
 feat$alpha_markers <- unique(sgl[gene_name %in% mk[cell_type == "alpha", gene], site])

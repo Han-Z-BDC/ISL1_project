@@ -1,13 +1,13 @@
 #!/usr/bin/env Rscript
 # Step 09: overlap of the per-day ISL1 peak calls (D15 / D18 / D22), checked against the count-based tests.
-#   Presence   each of the 14,431 sites (step 26/27 sites after the IgG greylist) carries the days on which it lies in
-#              that day's consensus peaks (macs3_ge2: MACS3 q 0.01 peaks in >= 2 of the day's 3 libraries, step 18).
+#   Presence   each of the 14,431 sites (CUT&RUN step 06 sites after the step 07 IgG greylist) carries the days on which it lies in
+#              that day's consensus peaks (macs3_ge2: MACS3 q 0.01 peaks in >= 2 of the day's 3 libraries, CUT&RUN step 05).
 #              The 7 combinations of days are the overlap classes.
 #   Libraries  each site is also overlapped with each library's own MACS3 peaks: number of a day's libraries that call
 #              it (0-3), and whether the batch 3 library does. Per library: peaks, sites called, library size and
-#              share of reads in the 14,431 sites (DiffBind counts, step 00), to show how call rates follow the library.
+#              share of reads in the 14,431 sites (DiffBind counts, CUT&RUN step 07), to show how call rates follow the library.
 #   Counts     per class: batch-corrected VST per day and the step 08 LRT / binding-pattern group; DiffBind
-#              (background normalization, step 27 via step 03) log2FC and FDR per contrast.
+#              (background normalization, CUT&RUN step 07 via step 03) log2FC and FDR per contrast.
 #   Check      per contrast A -> B: sites called on B but not A, on A but not B, on both, on neither; for each, the
 #              median DiffBind log2FC and the share with FDR < 0.05 up / down. If presence differences reflect binding
 #              changes, the sites that appear should mostly go up in the counts.
@@ -17,7 +17,7 @@
 #              Per class and KO-effect group: genes in the class against all other linked genes; Fisher test, and
 #              logistic regression in_class ~ in_KO_group + log2(1 + n_sites) (+ log10(domain_kb) for GREAT), since
 #              genes with more sites are more often in any class and more often KO-affected; BH per link.
-# usage: Rscript 09_peak_overlap.R <step 27 isl1_diff dir> <integration results dir> <markers.tsv> <out_dir>
+# usage: Rscript 09_peak_overlap.R <CUT&RUN diff dir> <integration results dir> <markers.tsv> <out_dir>
 # Output in <out_dir>: sites_days.tsv (per site), classes.tsv (per class), class_days.tsv (per class and day),
 #   presence_vs_counts.tsv (per contrast and presence category), libraries.tsv (per library), gene_classes.tsv (per
 #   link and gene: KO group, marker, sites per class), gene_class_links.tsv (per link, class and KO group)
@@ -38,9 +38,7 @@ for (d in days) si[, (paste0("called_", d)) := grepl(d, days_called, fixed = TRU
 
 # ---- per-library calls
 smp <- fread(file.path(cnr, "samples.tsv"))
-smp[, peaks := ifelse(batch == "batch3",
-                      file.path(root, "macs3", paste0(original_sample, "_peaks.filtered.narrowPeak")),
-                      file.path(root, "ctr_matched", "macs3", paste0(sample, "_peaks.filtered.narrowPeak")))]
+smp[, peaks := file.path(root, "macs3", paste0(sample, "_peaks.filtered.narrowPeak"))]   # CUT&RUN step 04
 stopifnot(all(file.exists(smp$peaks)))
 sk <- si[, .(chr, s = start + 1L, e = end, site)]
 setkey(sk, chr, s, e)
@@ -65,8 +63,8 @@ for (d in days) {
   cat(sprintf("  %s: %.1f%% / %.1f%%\n", d, 100 * mean(nl[cd] >= 2), 100 * mean(nl[!cd] <= 1)))
 }
 
-nf <- fread(file.path(res, "00_diffbind_counts", "norm_factors.tsv"))
-cr <- fread(file.path(res, "00_diffbind_counts", "counts_raw.tsv"))
+nf <- fread(file.path(cnr, "norm_factors.tsv"))[method == "diffbind" & normalization == "background"][, .(sample, lib_size, norm_factor)]
+cr <- fread(file.path(cnr, "counts_diffbind.tsv"))
 rs <- colSums(as.matrix(cr[, smp$sample, with = FALSE]))
 libs <- rbindlist(lib)[nf, on = "sample", nomatch = NULL]
 stopifnot(nrow(libs) == nrow(smp))

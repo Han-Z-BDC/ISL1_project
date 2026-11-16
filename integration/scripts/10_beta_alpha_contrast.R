@@ -4,12 +4,13 @@
 # PRE-SPECIFICATION (fixed 2026-11-15, before the unified CUT&RUN time course is analysed; decisions by the user)
 #   Hypothesis   ISL1 binding at beta-program genes gains on binding at alpha-program genes late in differentiation.
 #   Data         primary test: the unified CUT&RUN time course (cutnrun_ISL1_timecourse; Ctr ISL1, D15 / D18 / D22).
-#                The current 9 libraries (cutnrun_ISL1_KO_histone step 27) give a DRY RUN only: step 06 already
+#                The current 9 libraries (cutnrun_ISL1_timecourse step 07 as of 2026-11-16, the same libraries and
+#                counts as cutnrun_ISL1_KO_histone step 27) give a DRY RUN only: step 06 already
 #                examined beta vs alpha marker sites in these libraries, so a test on them is not pre-specified.
 #   Gene sets    integration/markers.tsv as it stands (28 alpha, 34 beta human islet marker genes).
 #   Sites        every ISL1 site whose centre lies within +-50 kb of the TSS of a marker gene of the set (TSS from
 #                step 01 gene_regions.bed). A site near both an alpha and a beta gene counts in both sets.
-#   Signal       per library and site: DiffBind reads / DiffBind background size factor (step 00).
+#   Signal       per library and site: DiffBind reads / DiffBind background size factor (CUT&RUN step 07).
 #   Outcome      per library: y = log2(median signal over the beta sites / median signal over the alpha sites).
 #   Model        lm(y ~ batch + day) when the libraries come from more than one batch, else lm(y ~ day).
 #   Primary      contrast D22 - D18 of the day effect; H1: > 0 (beta gains on alpha); one-sided t test, alpha 0.05.
@@ -17,7 +18,7 @@
 #                GREAT-linked sites (step 01); site-level check: DiffBind log2FC (step 03) of the beta against the
 #                alpha sites per contrast, Wilcoxon rank-sum (descriptive; sites are not independent replicates).
 #
-# usage: Rscript 10_beta_alpha_contrast.R <isl1_diff dir> <integration results dir> <markers.tsv> <mode> <out_dir>
+# usage: Rscript 10_beta_alpha_contrast.R <CUT&RUN diff dir> <integration results dir> <markers.tsv> <mode> <out_dir>
 #   mode: dry_run (current libraries) or primary (unified time course); written into every output table.
 # Output in <out_dir>: sets.tsv (per link and set: genes with sites, sites), set_sites.tsv (site membership),
 #   library_values.tsv (per link and library: medians and y), contrasts.tsv (per link and contrast),
@@ -33,11 +34,11 @@ dir.create(od, showWarnings = FALSE, recursive = TRUE)
 days <- c("D15", "D18", "D22"); WIN <- 50000L
 
 # ---- signal
-cs <- fread(file.path(res, "00_diffbind_counts", "counts_raw.tsv"))
+cs <- fread(file.path(cnr, "counts_diffbind.tsv"))
 m <- as.matrix(cs[, -1]); rownames(m) <- cs$name
 smp <- fread(file.path(cnr, "samples.tsv"))
 stopifnot(identical(colnames(m), smp$sample), all(smp$day %in% days))
-nf <- fread(file.path(res, "00_diffbind_counts", "norm_factors.tsv"))
+nf <- fread(file.path(cnr, "norm_factors.tsv"))[method == "diffbind" & normalization == "background"]
 sf <- nf$norm_factor[match(colnames(m), nf$sample)]
 stopifnot(!anyNA(sf))
 nm <- sweep(m, 2, sf, "/")

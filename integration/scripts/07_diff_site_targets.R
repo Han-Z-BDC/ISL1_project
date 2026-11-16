@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Step 07: target genes of the differentially bound ISL1 sites, and their KO effect.
-#   Differential sites: step 27 DiffBind (background normalization), FDR < 0.05; gained = up in D18 vs D15 or
+#   Differential sites: CUT&RUN step 07 DiffBind (background normalization), FDR < 0.05; gained = up in D18 vs D15 or
 #   D22 vs D15, lost = down in either (step 03 site_stats.tsv; D22 vs D18 has no significant site).
 #   Target genes: genes whose GREAT domain contains the site (step 01), limited to the genes tested in the bulk
 #   analysis. Gene binding classes: gained (>= 1 gained site), lost (>= 1 lost site, no gained site), stable

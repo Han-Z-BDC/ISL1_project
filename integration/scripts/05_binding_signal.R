@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # Step 05: ISL1 binding signal per site and day, for the sites linked (GREAT) to each KO-effect cluster's genes.
-#   Signal     step 27's DiffBind fragment counts per site divided by the DiffBind background size factors (DESeq2
-#              on 15 kb bins; both exported by step 00), averaged over the 3 libraries of each day (one batch 3
+#   Signal     CUT&RUN step 07's DiffBind fragment counts per site divided by the DiffBind background size factors
+#              (DESeq2 on 15 kb bins; both from CUT&RUN step 07), averaged over the 3 libraries of each day (one batch 3
 #              and two earlier libraries per day, so batch is balanced across days).
 #   Groups     clusters 1-6 and no KO effect (reference); sites from step 03 site_groups.tsv (a site linked to genes
 #              of two groups counts in both).
@@ -9,7 +9,7 @@
 #              D22 vs D18, D22 vs D15; BH over all tests. Sites are not independent and binding rises at most sites
 #              after D15, so these p values say that binding changes at a group's sites, not that it changes more
 #              than elsewhere (that is step 03's camera test).
-# usage: Rscript 05_binding_signal.R <step 27 isl1_diff dir> <integration results dir> <out_dir>
+# usage: Rscript 05_binding_signal.R <CUT&RUN diff dir> <integration results dir> <out_dir>
 # Output in <out_dir>: site_signal.tsv (site, normalized signal per library and mean per day),
 #   group_signal.tsv (group, site, signal per day), wilcoxon.tsv
 
@@ -20,11 +20,11 @@ cnr <- args[1]; res <- args[2]; od <- args[3]
 dir.create(od, showWarnings = FALSE, recursive = TRUE)
 days <- c("D15", "D18", "D22")
 
-cs <- fread(file.path(res, "00_diffbind_counts", "counts_raw.tsv"))
+cs <- fread(file.path(cnr, "counts_diffbind.tsv"))
 m <- as.matrix(cs[, -1]); rownames(m) <- cs$name
 smp <- fread(file.path(cnr, "samples.tsv"))
 stopifnot(identical(colnames(m), smp$sample))
-nf <- fread(file.path(res, "00_diffbind_counts", "norm_factors.tsv"))
+nf <- fread(file.path(cnr, "norm_factors.tsv"))[method == "diffbind" & normalization == "background"]
 sf <- nf$norm_factor[match(colnames(m), nf$sample)]
 stopifnot(!anyNA(sf))
 nm <- sweep(m, 2, sf, "/")

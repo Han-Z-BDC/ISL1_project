@@ -6,7 +6,7 @@
 #     cluster3, 4    KO effect emerging from D18, growing -> a site gained in D18 vs D15 or D22 vs D15
 #     cluster5       KO effect late (D22)                 -> a site gained in D22 vs D15
 #     cluster2, 6    KO effect early, fading by D22       -> a site lost in D18 vs D15 or D22 vs D15
-#   Gained / lost: step 27 DiffBind, background normalization, FDR < 0.05 (step 03 site_stats.tsv).
+#   Gained / lost: CUT&RUN step 07 DiffBind, background normalization, FDR < 0.05 (step 03 site_stats.tsv).
 #   Sites link to genes through GREAT domains (step 01).
 #   Also reported per candidate: whether the gene's own KO effect is significant (padj < 0.05) on the day of the
 #   matching binding change (D18 for a D18 vs D15 change, D22 for a D22 vs D15 change).

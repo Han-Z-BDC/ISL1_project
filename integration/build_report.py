@@ -458,13 +458,13 @@ parts.append(("08b", fig_html(fig, False)))
 t8_cen = cen8[(cen8.k == K8) | (cen8.cluster == 0)].copy()
 t8_cen.insert(0, "group", t8_cen.cluster.map(SC_LABEL))
 t8_cen = t8_cen.drop(columns=["k", "cluster"])
-FEAT = {"gained_step27": "Gained in step 27", "lost_step27": "Lost in step 27", "alpha_markers": "Alpha marker sites",
+FEAT = {"gained": "Gained (CUT&RUN step 07)", "lost": "Lost (CUT&RUN step 07)", "alpha_markers": "Alpha marker sites",
         "beta_markers": "Beta marker sites", **{f"KO_cluster{i}": f"KO-effect cluster {i}" for i in range(1, 7)},
         "KO_stays": "KO effect stays", "KO_other_KO": "Other KO effect", "KO_no_KO_effect": "No KO effect"}
 l = lk8[lk8.k == K8].copy()
 for c_ in ["odds_ratio_vs_stable", "p_vs_stable", "fdr_vs_stable"]:
     l[c_] = pd.to_numeric(l[c_].replace({"Inf": "inf"}), errors="coerce")
-l.loc[l.feature.isin(["gained_step27", "lost_step27"]), ["odds_ratio_vs_stable", "p_vs_stable", "fdr_vs_stable"]] = np.nan
+l.loc[l.feature.isin(["gained", "lost"]), ["odds_ratio_vs_stable", "p_vs_stable", "fdr_vs_stable"]] = np.nan
 l["feature"] = l.feature.map(FEAT)
 l["value"] = [f"{int(a):,} ({p:.1f}%)" + ("" if np.isnan(o) else f"; OR {o:.2g}, FDR {q:.2g}")
               for a, p, o, q in zip(l.n_with, l.pct_with, l.odds_ratio_vs_stable, l.fdr_vs_stable)]
@@ -589,7 +589,7 @@ t9_cls = cl9.assign(**{"class": cl9["class"].map(CL_LABEL)}).rename(columns={
     "class": "Called on", "sites": "Sites", "pct_sites": "% of sites", "vst_D15": "VST D15", "vst_D18": "VST D18",
     "vst_D22": "VST D22", "pct_varying": "% LRT p < 0.05", **{f"pct_group{g}": f"% step 08 group {g}" for g in range(1, 5)},
     "log2FC_D18_vs_D15": "log2FC D18 vs D15", "log2FC_D22_vs_D15": "log2FC D22 vs D15",
-    "log2FC_D22_vs_D18": "log2FC D22 vs D18", "pct_gained": "% gained (step 27)", "pct_lost": "% lost (step 27)"})
+    "log2FC_D22_vs_D18": "log2FC D22 vs D18", "pct_gained": "% gained (CUT&RUN step 07)", "pct_lost": "% lost (CUT&RUN step 07)"})
 ab9 = cd9[cd9.called.astype(str).str.upper() == "FALSE"]
 t9_abs = pd.DataFrame({"Called on": ab9["class"].map(CL_LABEL), "Day not called": ab9.day, "Sites": ab9.sites,
                        "% no library calls it": ab9.pct_libs0, "% 1 of 3 libraries": ab9.pct_libs1,
@@ -741,7 +741,7 @@ within 50 kb.</p>
 {table_html(t02)}
 
 <h2>03 Binding change near each KO-effect group</h2>
-<p class="note">Sites near a group's genes (GREAT) against all other sites. Lines: cumulative distribution of the step 27
+<p class="note">Sites near a group's genes (GREAT) against all other sites. Lines: cumulative distribution of the CUT&amp;RUN step 07
 DiffBind log2FC (background normalization); a curve shifted right means binding rises more than at other sites. Test:
 limma voom on the DiffBind counts of the 9 libraries (~ batch + day) and camera per group (competitive; main FDR with limma's default
 inter-site correlation 0.01, est_fdr with the correlation estimated from the data). The Wilcoxon p treats sites as
@@ -753,7 +753,7 @@ independent and is descriptive only. Gained = FDR &lt; 0.05 up in D18 vs D15 or 
 <p class="note">A candidate has a site in its GREAT domain whose binding change matches the timing of its KO effect:
 cluster 1 (KO effect strongest at D18) a site gained D18 vs D15; clusters 3 and 4 (KO effect emerging from D18) a site
 gained D18 or D22 vs D15; cluster 5 (late) a site gained D22 vs D15; clusters 2 and 6 (KO effect fading) a site lost.
-Gained / lost: step 27 DiffBind, background normalization, FDR &lt; 0.05. ko_sig_on_change_day: the gene's own KO
+Gained / lost: CUT&amp;RUN step 07 DiffBind, background normalization, FDR &lt; 0.05. ko_sig_on_change_day: the gene's own KO
 effect is significant (padj &lt; 0.05) on the day of the matching change.</p>
 {table_html(c_sum)}
 <p class="note">Genes with at least one gained site per group against genes without a KO effect (logistic regression with
@@ -764,7 +764,7 @@ domain length and number of sites in the domain).</p>
 
 <h2>05 ISL1 binding signal per day at each cluster's sites</h2>
 <p class="note">Sites linked (GREAT) to the genes of each cluster, and to genes without a KO effect as the reference.
-Signal: DiffBind reads per site divided by the DiffBind background size factors (step 00), mean of the 3 libraries per day; boxes show
+Signal: DiffBind reads per site divided by the DiffBind background size factors (CUT&amp;RUN step 07), mean of the 3 libraries per day; boxes show
 the median and quartiles, whiskers 1.5 x IQR, outliers not drawn. Stars: paired Wilcoxon signed-rank test between days
 within the group (BH; *** FDR &lt; 0.001, ** &lt; 0.01, * &lt; 0.05). Binding rises after D15 at most sites, so these
 tests show that binding changes at a group's sites, not that it changes more than at other sites; that comparison is
@@ -779,7 +779,7 @@ significant with the estimated inter-site correlation).</p>
 cluster 2 holds {n_beta2} beta and {n_alpha2} alpha markers. Site sets (sites linked by GREAT): cluster 4
 ({set_n["cluster4"]:,}) and cluster 2 ({set_n["cluster2"]:,}); all alpha ({set_n["alpha"]}) and all beta
 ({set_n["beta"]}) marker sites; alpha markers in cluster 4 ({set_n["alpha_in_c4"]}) and beta markers in cluster 2
-({set_n["beta_in_c2"]}). For each of the 9 libraries: signal per site = DiffBind reads / background size factor (step 00),
+({set_n["beta_in_c2"]}). For each of the 9 libraries: signal per site = DiffBind reads / background size factor (CUT&amp;RUN step 07),
 summarized per set as the total (depends on the number of sites) or the median per site (does not). log2 ratio
 of the two sets fitted on ~ batch + day with the libraries as replicates (5 residual df): level_&lt;day&gt; tests whether
 one set binds more on that day (between different site sets this also reflects site number and intrinsic site
@@ -799,7 +799,7 @@ and mean normalized expression in control islets (Ctr-H3), both as log2 change f
 {table_html(mk_show)}
 
 <h2>07 Target genes of the differentially bound sites and their KO effect</h2>
-<p class="note">Differentially bound sites: step 27 DiffBind, background normalization, FDR &lt; 0.05 (gained: up in D18 vs
+<p class="note">Differentially bound sites: CUT&amp;RUN step 07 DiffBind, background normalization, FDR &lt; 0.05 (gained: up in D18 vs
 D15 or D22 vs D15; lost: down; no site changes between D18 and D22). Target genes: GREAT, bulk-tested genes only.
 Gene classes: gained site, lost site (no gained site), only stable sites, no site. KO effect per day: KO vs Ctr padj
 &lt; 0.05, lower in the KO (ISL1 activates) or higher (ISL1 represses). Tests compare genes with a gained site to
@@ -825,7 +825,7 @@ between days within the set (sites as units, uncorrected; descriptive).</p>
 {table_html(w07)}
 
 <h2>08 All ISL1 sites grouped by binding pattern across days</h2>
-<p class="note">All 14,431 sites, step 27 DiffBind counts and background size factors. DESeq2 LRT (~ batch + day against
+<p class="note">All 14,431 sites, CUT&amp;RUN step 07 DiffBind counts and background size factors. DESeq2 LRT (~ batch + day against
 ~ batch) picks the sites whose binding varies across days (p &lt; 0.05, a filter against noise, not a significance call);
 the rest are the stable group. Per site: DESeq2 VST, batch 3 effect removed, mean per day, z-score across the 3 days;
 k-means on the varying sites (k = 4, from the elbow: the share of variance between groups is 0.71 / 0.81 / 0.87 / 0.91
@@ -871,7 +871,7 @@ varying site under that link.</p>
 
 <h2>09 Overlap of the per-day peak calls, checked against the counts</h2>
 <p class="note">Each of the 14,431 sites is marked with the days whose consensus peaks contain it (MACS3 q 0.01 peaks in at
-least 2 of the day's 3 libraries; step 18 of the CUT&amp;RUN analysis). Peak presence is a threshold call: it depends on
+least 2 of the day's 3 libraries; step 05 of the CUT&amp;RUN analysis). Peak presence is a threshold call: it depends on
 each library's depth and signal-to-noise as well as on binding, and it carries no test. Below, the overlap classes, how
 often each library calls the sites, and whether presence differences agree with the count-based tests (DiffBind,
 background normalization; step 08 LRT and groups).</p>
