@@ -32,7 +32,8 @@ The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the un
   in LRT_interaction) with at least one ISL1 site (a consensus peak on any day) in its GREAT domain. When the peak
   appears and whether it changes are not considered. **Direct-activated** = lower in the KO, **direct-repressed** =
   higher in the KO, per significant day; overall **mixed** when the days disagree; genes significant only in
-  LRT_interaction take the direction of the day with the largest |shrunk KO log2FC| (flagged).
+  LRT_interaction take the direction of the day with the largest |shrunk KO log2FC| (flagged). ISL1 itself (the
+  knocked-out gene) is excluded.
 - **Counts and signal.** Every step uses the CUT&RUN step 07 DiffBind counts (paired-end fragments per site, duplicates
   kept) and its background size factors (DESeq2 on 15 kb genome bins). Signal per site and library =
   reads / size factor.
@@ -91,19 +92,19 @@ binding pattern, with the held-out check and the gene level; section 09: target 
 
 ### 02 Direct targets among the KO-changed genes
 
-6,033 genes are differential (8 more have no GREAT domain and are left out); 3,814 of them (63%) are direct targets.
+6,032 genes are differential (8 more have no GREAT domain and are left out; ISL1 itself is excluded); 3,813 of them
+(63%) are direct targets.
 A gene counts once per day in the per-day rows.
 
 | Bulk test | Direct-activated (of differential) | Direct-repressed (of differential) |
 |---|---|---|
-| KO vs Ctr, D15 | 540 (863) | 657 (998) |
-| KO vs Ctr, D18 | 1,472 (2,377) | 1,223 (1,938) |
-| KO vs Ctr, D22 | 1,227 (1,864) | 997 (1,578) |
+| KO vs Ctr, D15 | 539 (862) | 657 (998) |
+| KO vs Ctr, D18 | 1,471 (2,376) | 1,223 (1,938) |
+| KO vs Ctr, D22 | 1,226 (1,863) | 997 (1,578) |
 | KO effect changes over time only | 17 (29) | 20 (35) |
-| **Overall** | **1,978 (3,169)** | **1,702 (2,673)**; plus 134 mixed (191) |
+| **Overall** | **1,977 (3,168)** | **1,702 (2,673)**; plus 134 mixed (191) |
 
-- Islet regulators: direct-activated ARX, GCG, MAFA (D22), PDX1 (D18, D22) and ISL1 itself (its transcript is lower in
-  the KO); direct-repressed NEUROG3, NKX6-1, PAX4; MAFB mixed (higher in the KO at D15, lower at D22).
+- Islet regulators: direct-activated ARX, GCG, MAFA (D22), PDX1 (D18, D22); direct-repressed NEUROG3, NKX6-1, PAX4; MAFB mixed (higher in the KO at D15, lower at D22).
 - About 60% of all genes have a site in their GREAT domain, so a site alone separates direct from indirect effects
   weakly; the share is similar for activated and repressed genes and on every day (62-66%).
 

@@ -690,7 +690,8 @@ consensus peak on any day) in its GREAT domain; when the peak appears and whethe
 Label per day: <b>activated</b> = lower in the KO (ISL1 activates it), <b>repressed</b> = higher in the KO. Overall: activated
 or repressed when all significant days agree, <b>mixed</b> when they disagree; genes significant only for the change over
 time take the direction of the day with the largest KO log2FC. A gene counts once per day, so the per-day rows overlap.
-Check: a site whose nearest TSS is the gene's, within 50 kb (column in the list).</p>
+Check: a site whose nearest TSS is the gene's, within 50 kb (column in the list). ISL1 itself is excluded: it is the
+knocked-out gene, so its transcript is lower in the KO by design.</p>
 <p class="note"><b>{n2_dir:,} of the {n2_diff:,} differential genes are direct targets</b>: {n2["activated"]:,} direct-activated,
 {n2["repressed"]:,} direct-repressed and {n2["mixed"]:,} mixed.</p>
 {parts[0][1]}

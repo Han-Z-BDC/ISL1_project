@@ -6,6 +6,8 @@
 #   Direct target  differential and >= 1 ISL1 site (consensus peak on any day; 14,431 sites) in the gene's GREAT
 #                  domain (step 01). When the peak appears and whether it changes are not considered.
 #                  Check: >= 1 site whose nearest TSS is the gene's, within 50 kb.
+#                  ISL1 itself is excluded (the knocked-out gene; its transcript is lower in the KO by design): not
+#                  labelled, not a direct target, not counted in summary.tsv; kept in gene_table.tsv (column excluded).
 #   Label          per day with padj < 0.05: activated = lower in KO (ISL1 activates it), repressed = higher in KO.
 #                  Over the days: activated or repressed if every significant day agrees, mixed if they disagree.
 #                  Significant only in LRT_interaction: the direction of the day with the largest |shrunk KO log2FC|,
@@ -88,6 +90,12 @@ big_lfc <- as.matrix(g[, paste0("ko_lfc_", days), with = FALSE])[cbind(seq_len(n
 g[, label := fifelse(n_act > 0 & n_rep > 0, "mixed", fifelse(n_act > 0, "activated", fifelse(n_rep > 0, "repressed",
              fifelse(interaction_only, fifelse(big_lfc < 0, "activated", "repressed"), ""))))]
 g[, direction_day := fifelse(interaction_only, days[big], "")]
+EXCLUDE <- c(ISL1 = "ISL1 (the knocked-out gene)")
+g[, excluded := fifelse(gene_name %in% names(EXCLUDE), EXCLUDE[gene_name], "")]
+stopifnot(g[excluded != "", .N] == length(EXCLUDE))
+g[excluded != "", c("differential", "label", "direction_day") := list(FALSE, "", "")]
+g[excluded != "", paste0("label_", days) := ""]
+g[excluded != "", sig_days := ""]
 g[, direct := differential & bound]
 g[, direct_label := fifelse(direct, paste0("direct-", label), "")]
 g[, c("n_act", "n_rep") := NULL]
@@ -125,5 +133,5 @@ fwrite(sm, file.path(od, "summary.tsv"), sep = "\t", quote = FALSE)
 
 message(sprintf("%d tested genes without a GREAT domain left out (%d of them differential)", n_no_domain, n_no_domain_diff))
 print(sm)
-print(dt[gene_name %in% c("INS", "GCG", "PAX6", "ARX", "PAX4", "MAFA", "MAFB", "PDX1", "NKX6-1", "ISL1", "NEUROG3"),
+print(dt[gene_name %in% c("INS", "GCG", "PAX6", "ARX", "PAX4", "MAFA", "MAFB", "PDX1", "NKX6-1", "NEUROG3"),
          .(gene_name, direct_label, sig_days, ko_lfc_D15, ko_lfc_D18, ko_lfc_D22)])
