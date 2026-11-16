@@ -7,7 +7,9 @@ rationale):
   - scDblFinder runs first; its own predicted-doublet RATE on this sample
     becomes Scrublet's expected_doublet_rate (kept deliberately dependent,
     per-sample, rather than a fixed loading-chip prior).
-  - A cell is a doublet if EITHER tool flags it (union) -- not only if both
+  - Which cells are removed is set by removal_rule in the config: union
+    (default), consensus, or scdblfinder (Scrublet kept as a diagnostic).
+    Default: a cell is a doublet if EITHER tool flags it (union) -- not only if both
     agree. Matches the lab's own notebook and IGVF-UCSD/CellCommander.
   - CellRanger's own doublet calls are NOT used as a third vote -- the
     lab's own validated two-tool union is used, not a 3-way consensus.
@@ -152,6 +154,17 @@ def main():
     obs["doublet_filter_union"] = obs[["scDblFinder_predicted_doublet", "scrublet_predicted_doublet"]].any(axis=1)
     obs["doublet_filter_consensus"] = obs[["scDblFinder_predicted_doublet", "scrublet_predicted_doublet"]].all(axis=1)
 
+    # Which call removes cells (configs/detect_doublets.yaml: removal_rule).
+    rule = cfg.get("removal_rule", "union")
+    rule_cols = {
+        "union": "doublet_filter_union",
+        "consensus": "doublet_filter_consensus",
+        "scdblfinder": "scDblFinder_predicted_doublet",
+    }
+    if rule not in rule_cols:
+        raise ValueError(f"removal_rule must be one of {sorted(rule_cols)}, got {rule!r}")
+    obs["doublet_removed"] = obs[rule_cols[rule]].astype(bool)
+
     for col in obs.columns:
         adata.obs[col] = obs[col].to_numpy()
 
@@ -163,7 +176,7 @@ def main():
     # scDblFinder/Scrublet from scratch.
     adata.write_h5ad(outdir / "h5ad" / f"{args.sample_id}.doublets_annotated.h5ad")
 
-    adata_filtered = adata[~adata.obs["doublet_filter_union"]].copy()
+    adata_filtered = adata[~adata.obs["doublet_removed"]].copy()
     adata_filtered.write_h5ad(outdir / "h5ad" / f"{args.sample_id}.doublets_removed.h5ad")
 
     n_after = adata_filtered.n_obs
@@ -171,7 +184,9 @@ def main():
         "sample_id": args.sample_id,
         "n_cells_before": n_before,
         "n_cells_after": n_after,
-        "n_doublets_removed_union": int(n_before - n_after),
+        "removal_rule": rule,
+        "n_doublets_removed": int(n_before - n_after),
+        "n_union_doublets_either_tool": int(obs["doublet_filter_union"].sum()),
         "n_scdblfinder_doublets": int(obs["scDblFinder_predicted_doublet"].sum()),
         "n_scrublet_doublets": int(obs["scrublet_predicted_doublet"].sum()),
         "n_consensus_doublets_both_agree": int(obs["doublet_filter_consensus"].sum()),
@@ -182,7 +197,7 @@ def main():
     pd.DataFrame([summary]).to_csv(outdir / "summary" / f"{args.sample_id}.doublets_summary.csv", index=False)
 
     print(f"[{args.sample_id}] {n_before} -> {n_after} cells "
-          f"({n_before - n_after} doublets removed, union rule). "
+          f"({n_before - n_after} doublets removed, removal_rule={rule}). "
           f"scDblFinder rate {doublet_rate:.2%} used as Scrublet's expected_doublet_rate.")
 
 

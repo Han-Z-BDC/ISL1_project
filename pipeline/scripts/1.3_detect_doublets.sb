@@ -21,7 +21,8 @@
 
 # One array task per sample: runs scDblFinder then Scrublet (calibrated off
 # scDblFinder's own call rate) on step 1.2's SoupX-corrected output, and
-# removes any cell either tool flags (union). Requires 1.2_remove_background.sb
+# removes doublets by removal_rule in configs/detect_doublets.yaml (default
+# union: any cell either tool flags). Requires 1.2_remove_background.sb
 # to have already completed for every sample.
 # See scripts/1.3_detect_doublets.py for the detection logic.
 
