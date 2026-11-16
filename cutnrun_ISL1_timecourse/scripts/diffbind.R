@@ -14,7 +14,8 @@
 # FDR < 0.05, with and without |log2FC| >= 1.
 # Output in <dir>: greylist.bed, sites_used.bed, samples.tsv, norm_factors.tsv,
 #   tables/{diffbind,deseq2}_<norm>_<contrast>.tsv, beds/diffbind_<norm>_<contrast>_{up,down}.bed,
-#   summary.tsv, agreement.tsv, pca.tsv, pca_variance.tsv, counts_sites.tsv
+#   summary.tsv, agreement.tsv, pca.tsv, pca_variance.tsv, counts_sites.tsv (featureCounts reads per site),
+#   counts_diffbind.tsv (DiffBind reads per site and library; DiffBind signal = these / the diffbind norm_factor)
 # usage: Rscript diffbind.R <results/diff>
 
 suppressPackageStartupMessages({
@@ -90,6 +91,15 @@ stopifnot(nrow(pk) == length(sites_gr))
 saveRDS(db, file.path(d, "diffbind.counted.rds"))
 key <- function(chr, start) paste(chr, start, sep = ":")
 name_of <- setNames(sites$name, key(sites$chr, sites$start + 1))
+# DiffBind's reads per site and library (paired-end fragments, duplicates kept), taken from each library's count
+# table in the object: re-scoring with dba.count would apply DiffBind's default filter and drop sites with no reads
+raw <- rbindlist(lapply(seq_along(db$peaks), function(i) {
+  p <- as.data.table(db$peaks[[i]])
+  data.table(name = name_of[key(p$Chr, p$Start)], sample = db$samples$SampleID[i], reads = p$Reads)
+}))
+stopifnot(!anyNA(raw$name), raw[, .N, by = sample][, all(N == nrow(sites))])
+raw <- dcast(raw, name ~ sample, value.var = "reads")[match(sites$name, name), c("name", trio$sample), with = FALSE]
+fwrite(raw, file.path(d, "counts_diffbind.tsv"), sep = "\t")
 
 norms <- list(
   background = list(normalize = DBA_NORM_NATIVE, library = DBA_LIBSIZE_BACKGROUND, background = TRUE),
