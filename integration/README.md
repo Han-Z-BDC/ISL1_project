@@ -28,9 +28,11 @@ The CUT&RUN block of `config.sh` moves to `cutnrun_ISL1_timecourse/` once the un
   the TSS, extended to the nearest other basal domain, at most 1 Mb. Domains are built from every gene in the GTF on
   chr1-22/X/Y; tests use the 16,563 genes tested in the bulk analysis. A site belongs to every gene whose domain
   contains its centre. Check: nearest TSS within 50 kb.
-- **Direct target.** A gene with at least one ISL1 site (any day) in its domain. Enrichment per KO-effect group
-  against the no-KO-effect genes: Fisher's exact test, and logistic regression `bound ~ group +
-  log10(domain length)`, since longer domains collect more sites by chance (BH over groups).
+- **Direct target.** A gene the ISL1 KO changes in the bulk RNA-seq (padj < 0.05 in KO vs Ctr at D15, D18 or D22, or
+  in LRT_interaction) with at least one ISL1 site (a consensus peak on any day) in its GREAT domain. When the peak
+  appears and whether it changes are not considered. **Direct-activated** = lower in the KO, **direct-repressed** =
+  higher in the KO, per significant day; overall **mixed** when the days disagree; genes significant only in
+  LRT_interaction take the direction of the day with the largest |shrunk KO log2FC| (flagged).
 - **Counts and signal.** Every step uses the CUT&RUN step 07 DiffBind counts (paired-end fragments per site, duplicates
   kept) and its background size factors (DESeq2 on 15 kb genome bins). Signal per site and library =
   reads / size factor.
@@ -54,7 +56,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | Step | Script | Output |
 |---|---|---|
 | 01 GREAT domains, site -> gene | `scripts/01_great_site_to_gene.sb` (acpu, 2 CPUs, 7 GB) | `results/01_great/`: `gene_regions.bed`, `site_gene.tsv`, `summary.tsv` |
-| 02 Direct targets per KO-effect group | `scripts/02_direct_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/02_direct_targets/`: `gene_table.tsv` (group, KO log2FC per day, sites per gene), `enrichment.tsv` |
+| 02 Direct targets among the KO-changed genes | `scripts/02_direct_targets.sb` (acpu, 2 CPUs, 7 GB) | `results/02_direct_targets/`: `direct_targets.tsv` (differential and bound genes with labels), `gene_table.tsv` (all genes: KO-effect group, KO log2FC per day, sites, labels), `summary.tsv` |
 | 03 Binding change per KO-effect group | `scripts/03_binding_change.sb` (acpu, 2 CPUs, 7 GB) | `results/03_binding_change/`: `camera.tsv`, `site_stats.tsv` (per site: DiffBind and voom log2FC, FDR, gained), `site_groups.tsv` |
 | 04 Candidate time-dependent direct targets | `scripts/04_candidates.sb` (acpu, 2 CPUs, 7 GB) | `results/04_candidates/`: `candidate_genes.tsv`, `candidates.tsv` (every matching site), `summary.tsv`, `gained_enrichment.tsv` |
 | 05 Binding signal per day at each cluster's sites | `scripts/05_binding_signal.sb` (acpu, 2 CPUs, 7 GB) | `results/05_binding_signal/`: `site_signal.tsv`, `group_signal.tsv`, `wilcoxon.tsv` |
@@ -68,7 +70,7 @@ Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report b
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
 
 Report (Mac, from this folder): `bash scripts/fetch_results.sh`, then `~/anaconda3/bin/python3 build_report.py`
--> `results/report_integration.html` (steps 01-05: tables, bound share per group, cumulative distributions of the
+-> `results/report_integration.html` (steps 01-05: tables, direct targets with their labels, cumulative distributions of the
 site log2FC per group, candidate lists, boxplots of the binding signal per day and cluster; section 06: alpha-leaning vs
 beta-leaning sites per day, and binding and expression of their marker genes, using the bulk normalized counts;
 section 07: KO effect of the target genes of the differentially bound sites; section 08: all sites grouped by
@@ -87,28 +89,23 @@ binding pattern, with the held-out check and the gene level; section 09: target 
 - **10,056 of the tested genes (60.8%) have at least one site**, a median of 1. Bound-gene fractions of the
   KO-effect groups are therefore compared with this background, not read on their own.
 
-### 02 Direct targets per KO-effect group
+### 02 Direct targets among the KO-changed genes
 
-Bound = at least one site in the GREAT domain. Adjusted OR and FDR from the logistic regression with domain
-length; all groups compared with no KO effect.
+6,033 genes are differential (8 more have no GREAT domain and are left out); 3,814 of them (63%) are direct targets.
+A gene counts once per day in the per-day rows.
 
-| Group | KO effect (median shrunk log2FC D15 / D18 / D22) | Genes | Bound | % bound | Adjusted OR | FDR | % bound, nearest TSS <= 50 kb (FDR) |
-|---|---|---|---|---|---|---|---|
-| No KO effect | | 10,605 | 6,319 | 59.6 | 1 | | 38.2 |
-| Cluster 1 | down, strongest at D18 (-0.24 / -1.02 / -0.52) | 759 | 463 | 61.0 | 0.91 | 0.40 | 38.3 (0.79) |
-| **Cluster 2** | up early, down by D22 (+0.37 / +0.25 / -0.34) | 383 | 286 | **74.7** | **1.72** | **7.9e-5** | **48.8 (0.0027)** |
-| Cluster 3 | up, emerging from D18 (-0.03 / +0.53 / +0.72) | 358 | 223 | 62.3 | 0.96 | 0.74 | 39.1 (0.91) |
-| Cluster 4 | down, emerging and growing (-0.12 / -0.92 / -2.07) | 357 | 255 | 71.4 | 1.24 | 0.33 | 44.8 (0.26) |
-| Cluster 5 | up, late (-0.16 / -0.23 / +0.48) | 193 | 130 | 67.4 | 1.22 | 0.40 | 46.6 (0.15) |
-| Cluster 6 | like cluster 2 (+0.38 / +0.46 / -0.33) | 175 | 113 | 64.6 | 1.08 | 0.73 | 40.0 (0.91) |
-| Stays | one sign at all days | 3,147 | 1,904 | 60.5 | 0.95 | 0.40 | 40.4 (0.26) |
-| Other KO | sign change, no interaction | 569 | 363 | 63.8 | 1.09 | 0.47 | 40.2 (0.79) |
+| Bulk test | Direct-activated (of differential) | Direct-repressed (of differential) |
+|---|---|---|
+| KO vs Ctr, D15 | 540 (863) | 657 (998) |
+| KO vs Ctr, D18 | 1,472 (2,377) | 1,223 (1,938) |
+| KO vs Ctr, D22 | 1,227 (1,864) | 997 (1,578) |
+| KO effect changes over time only | 17 (29) | 20 (35) |
+| **Overall** | **1,978 (3,169)** | **1,702 (2,673)**; plus 134 mixed (191) |
 
-- Only **cluster 2** is enriched for ISL1 binding after the domain-length adjustment, under both assignments.
-- **Cluster 4** is bound more often (71.4%; Fisher OR 1.70, p 6e-6), but its genes have the longest domains
-  (median 200 kb); with domain length in the model the excess is not significant.
-- The other clusters and the genes with a lasting KO effect are bound no more often than genes without a KO effect.
-  With 60% of genes bound, presence of a site alone separates the groups little.
+- Islet regulators: direct-activated ARX, GCG, MAFA (D22), PDX1 (D18, D22) and ISL1 itself (its transcript is lower in
+  the KO); direct-repressed NEUROG3, NKX6-1, PAX4; MAFB mixed (higher in the KO at D15, lower at D22).
+- About 60% of all genes have a site in their GREAT domain, so a site alone separates direct from indirect effects
+  weakly; the share is similar for activated and repressed genes and on every day (62-66%).
 
 ### 03 Binding change per KO-effect group
 

@@ -95,30 +95,54 @@ def ecdf(x, n=200):
 
 # ---- data
 great = rd(os.path.join(RES, "01_great", "summary.tsv"))
-enr = rd(os.path.join(RES, "02_direct_targets", "enrichment.tsv"))
 cam = rd(os.path.join(RES, "03_binding_change", "camera.tsv"))
 st = rd(os.path.join(RES, "03_binding_change", "site_stats.tsv")).set_index("site")
 sg = rd(os.path.join(RES, "03_binding_change", "site_groups.tsv"))
 members = {g: set(sg.loc[sg.group == g, "site"]) for g in GROUPS}
 parts = []
 
-# ---- step 02: bound fraction per group
-e = enr[enr.assignment == "great"].set_index("group").loc[GROUPS]
-ref = float(e.loc["no_KO_effect", "pct_bound"])
-fig = go.Figure(go.Bar(
-    x=[LABEL[g] for g in GROUPS], y=e.pct_bound, marker_color=[C_OTHER] + [C_GROUP] * (len(GROUPS) - 1),
-    marker_line_width=0, width=0.6,
-    customdata=np.stack([e.n_bound, e.n_genes, e.adj_odds_ratio.fillna(1), e.adj_fdr.fillna(np.nan)], axis=1),
-    hovertemplate="%{x}<br>%{y:.1f}% bound (%{customdata[0]} of %{customdata[1]})"
-                  "<br>adjusted OR %{customdata[2]}, FDR %{customdata[3]}<extra></extra>"))
-fig.add_hline(y=ref, line=dict(color=C_OTHER, dash="dash", width=1),
-              annotation_text=f"no KO effect {ref:.1f}%", annotation_position="top left")
-fig.update_yaxes(title="% of genes with >= 1 ISL1 site (GREAT)", range=[0, 100])
-fig.update_layout(title="Share of genes bound by ISL1, per KO-effect group", showlegend=False)
-fig.update_xaxes(tickangle=-25)
-parts.append(("02", fig_html(style(fig, 460), True)))
-t02 = enr.copy()
-t02["group"] = t02.group.map(LABEL)
+# ---- step 02: direct targets among the bulk-differential genes
+sm2 = rd(os.path.join(RES, "02_direct_targets", "summary.tsv"))
+dt2 = rd(os.path.join(RES, "02_direct_targets", "direct_targets.tsv"))
+SRC2 = ["KO vs Ctr D15", "KO vs Ctr D18", "KO vs Ctr D22", "LRT_interaction only", "any (overall label)"]
+SRC2_LAB = {"KO vs Ctr D15": "KO vs Ctr, D15", "KO vs Ctr D18": "KO vs Ctr, D18", "KO vs Ctr D22": "KO vs Ctr, D22",
+            "LRT_interaction only": "KO effect changes over time only", "any (overall label)": "Any (overall label)"}
+C_LAB2 = {"activated": "#2a78d6", "repressed": "#eb6834", "mixed": "#898781"}
+fig = go.Figure()
+for lab in ["activated", "repressed", "mixed"]:
+    x = sm2[sm2.label == lab].set_index("source").reindex(SRC2)
+    fig.add_trace(go.Bar(y=[SRC2_LAB[s_] for s_ in SRC2], x=x.direct, orientation="h", name=f"Direct-{lab}",
+                         marker=dict(color=C_LAB2[lab], cornerradius=4),
+                         customdata=np.c_[x.differential.fillna(0), x.pct_direct.fillna(0)],
+                         hovertemplate="%{y}: %{x:,} direct-" + lab + " of %{customdata[0]:,} differential "
+                                       "(%{customdata[1]:.1f}%)<extra></extra>"))
+fig.update_yaxes(autorange="reversed")
+fig.update_xaxes(title_text="Direct targets (genes with >= 1 ISL1 site in the GREAT domain)")
+fig.update_layout(title="ISL1 direct targets among the genes the KO changes", barmode="group", bargap=0.25,
+                  legend=dict(orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
+fig = style(fig, 420)
+fig.update_layout(margin=dict(l=230))
+parts.append(("02", fig_html(fig, True)))
+t02 = pd.DataFrame({"Bulk test": sm2.source.map(SRC2_LAB), "Label": sm2.label, "Differential genes": sm2.differential,
+                    "Direct targets": sm2.direct, "% direct": sm2.pct_direct})
+n2 = {lab: int(sm2[(sm2.source == "any (overall label)") & (sm2.label == lab)].direct.iloc[0])
+      for lab in ["activated", "repressed", "mixed"]}
+d2 = sm2[sm2.source == "any (overall label)"]
+n2_diff, n2_dir = int(d2.differential.sum()), int(d2.direct.sum())
+
+
+def lfc_str(r):
+    return " / ".join("–" if pd.isna(r[f"ko_lfc_{d}"]) else f"{r[f'ko_lfc_{d}']:+.2f}" + ("*" if r[f"label_{d}"] else "")
+                      for d in ["D15", "D18", "D22"])
+
+
+t02_list = pd.DataFrame({"Gene": dt2.gene_name, "Label": dt2.direct_label.str.replace("direct-", ""),
+                         "Significant days": dt2.sig_days.replace("", "–"),
+                         "Interaction only (direction from)": np.where(dt2.interaction_only.astype(str).str.upper() == "TRUE",
+                                                                       dt2.direction_day, ""),
+                         "KO log2FC D15 / D18 / D22 (* padj < 0.05)": dt2.apply(lfc_str, axis=1),
+                         "LRT_interaction padj": dt2.padj_interaction, "KO-effect group": dt2.group.map(LABEL),
+                         "Sites (GREAT)": dt2.n_sites, "Sites, nearest TSS ≤ 50 kb": dt2.n_sites_near50})
 
 # ---- step 03: CDF small multiples (one row per group, one column per contrast)
 fig = make_subplots(rows=len(GROUPS), cols=len(CONTRASTS), shared_xaxes=True, vertical_spacing=0.025, horizontal_spacing=0.05,
@@ -659,12 +683,21 @@ ISL1 CUT&amp;RUN: control line, 3 libraries per day, 14,431 sites, linked to gen
 <h2>01 GREAT domains, site to gene</h2>
 {table_html(great)}
 
-<h2>02 Share of genes bound by ISL1 per KO-effect group</h2>
-<p class="note">Bound = at least one site in the gene's GREAT domain. Each group against genes without a KO effect: Fisher's
-exact test and logistic regression with domain length (adjusted OR, FDR). Check: a site whose nearest TSS is the gene's,
-within 50 kb.</p>
+<h2>02 ISL1 direct targets among the genes the KO changes</h2>
+<p class="note">Differential: padj &lt; 0.05 in the bulk RNA-seq KO vs Ctr comparison at D15, D18 or D22, or in the test for a
+KO effect that changes over time (LRT_interaction). Direct target: a differential gene with at least one ISL1 site (a
+consensus peak on any day) in its GREAT domain; when the peak appears and whether it changes are not considered.
+Label per day: <b>activated</b> = lower in the KO (ISL1 activates it), <b>repressed</b> = higher in the KO. Overall: activated
+or repressed when all significant days agree, <b>mixed</b> when they disagree; genes significant only for the change over
+time take the direction of the day with the largest KO log2FC. A gene counts once per day, so the per-day rows overlap.
+Check: a site whose nearest TSS is the gene's, within 50 kb (column in the list).</p>
+<p class="note"><b>{n2_dir:,} of the {n2_diff:,} differential genes are direct targets</b>: {n2["activated"]:,} direct-activated,
+{n2["repressed"]:,} direct-repressed and {n2["mixed"]:,} mixed.</p>
 {parts[0][1]}
 {table_html(t02)}
+<details><summary>Direct targets: {len(t02_list):,} genes (activated, then repressed, then mixed; alphabetical)</summary>
+{table_html(t02_list)}
+</details>
 
 <h2>03 Binding change near each KO-effect group</h2>
 <p class="note">Sites near a group's genes (GREAT) against all other sites. Lines: cumulative distribution of the CUT&amp;RUN step 07
