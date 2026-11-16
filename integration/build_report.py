@@ -702,6 +702,8 @@ t10_sl = pd.DataFrame({"Sites": sl10.link.map({"within_50kb": "±50 kb", "GREAT"
                        "Median log2FC alpha": sl10.median_log2FC_alpha, "Median log2FC beta": sl10.median_log2FC_beta,
                        "Beta − alpha": sl10.difference, "Wilcoxon p": sl10.p_wilcoxon})
 pr10 = ct10[ct10.role == "primary"].iloc[0]
+d1510 = ct10[(ct10.link == "within_50kb") & (ct10.contrast == "D18_vs_D15")].iloc[0]
+sd1510 = sl10[(sl10.link == "within_50kb") & (sl10.contrast == "D18_vs_D15")].iloc[0]
 pw10 = rd(os.path.join(D10, "power.tsv")) if os.path.exists(os.path.join(D10, "power.tsv")) else None
 if pw10 is not None:
     e = pw10[(pw10.link == "within_50kb") & (pw10.sigma_basis == "estimate")].set_index("n_per_day")
@@ -931,7 +933,9 @@ for beta against alpha marker sites, so this run checks the code and shows the s
 pre-specified test. That will be run once on the unified time course. Here the primary contrast is
 {pr10.estimate:+.3f} (SE {pr10.se:.3f}, {int(pr10.df)} df, one-sided p {pr10.p_one_sided:.2g}): no gain of beta on alpha between D18
 and D22 in these libraries. The library-to-library spread within a day (up to 0.8 log2 at D18) is larger than any
-shift between days, and the batch 3 library differs from the earlier ones; the GREAT version reproduces step 06.</p>
+shift between days, and the batch 3 library differs from the earlier ones; the GREAT version reproduces step 06. D18 − D15 (secondary): {d1510.estimate:+.2f} (one-sided p
+{d1510.p_one_sided:.2g}), no library-level gain; at the site level the beta sites rose more than the alpha sites from
+D15 to D18 ({sd1510.difference:+.2f}, Wilcoxon p {sd1510.p_wilcoxon:.2g}, descriptive only).</p>
 {dict(parts)["10a"]}
 {table_html(t10_ct)}
 <p class="note">Site sets. No site is near both an alpha and a beta marker gene.</p>
@@ -945,7 +949,8 @@ per day): the D22 − D18 estimate has SE = σ·√(2/n) with 3n − 3 df; power
 noncentral t. σ is the residual SD of this dry run's primary fit with batch removed, {sg10[0]:.2f} log2, which rests on
 {sg10[2]} df only, so the table also uses the upper end of its 80% interval ({sg10[1]:.2f}). It assumes libraries from one
 differentiation vary as much as libraries within a batch did here. Shift = gain of log2(beta / alpha) from D18 to D22;
-for scale, all sites rose by a median log2FC of about 0.4 from D15 to D18.</p>
+for scale, all sites rose by a median log2FC of about 0.4 from D15 to D18. D18 − D15 has the same design, so the same
+table applies to it.</p>
 <p class="note">With 3 libraries per day only a shift of about 0.5 log2 or more is likely to be detected (0.9 if σ is at its
 upper bound); 4 libraries per day reach about 0.43, and a shift of 0.3 needs about 8 per day. A smaller sample makes a
 negative result uninformative.</p>
