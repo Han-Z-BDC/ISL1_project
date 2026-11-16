@@ -51,10 +51,38 @@ libraries' original names use the electroporation day. Sample sheets: `study_con
 | 08a-c | `scripts/08{a,b,c}_*.sb` | bigWigs (deepTools, fragments, 10 bp): ISL1 scaled to CPM at the mean library size with the DiffBind background size factors, IgG plain CPM; one track per day = mean of its 3 libraries; beds; IGV session |
 | 10a-c | `scripts/10{a,b,c}_*.sb` | HOMER motifs (v5.1) on each day's macs3_ge2 consensus peaks, 200 bp windows centred on the strongest summit, known + de novo (8/10/12 bp), repeats masked (hg38 soft-masked with RepeatMasker); two backgrounds per day: genome (GC-matched random windows) and the other two days' peaks minus those overlapping the target day; 10c: genomic annotation (annotatePeaks.pl) of each day's peaks and of 50,000 random genomic windows |
 | 11a-b | `scripts/11{a,b}_*.sb` | HOMER with backgrounds matched to the peaks' genomic composition (about half the peaks are within 1 kb of a TSS): A, promoter peaks vs windows near random TSSs and distal peaks vs genome windows > 1 kb from a TSS; B, all peaks vs 3 x random windows of each genomic class (promoter, intron, intergenic, exon, TTS) |
-| 09 | `scripts/09_report.sb` | `report.html` and copy of the keepers to `results/` on /pl/active |
+| 12 | `scripts/12_peak_overlap.sb` (acpu, 2 CPUs, 7 GB) | overlap of the per-day peak calls on the step 07 sites: each site's days in the macs3_ge2 consensus (7 overlap classes), each library's own MACS3 calls of the sites, and peak presence checked against the DiffBind counts (background normalization); `peak_overlap/` |
+| 09 | `scripts/09_report.sb` (acpu, 2 CPUs, 7 GB) | `report.html` and copy of the keepers to `results/` on /pl/active |
 
-Analysis jobs run on `amem` (12 CPUs, 240 GB). Tracks for figures: load `results/tracks/igv_session.xml`
+Analysis jobs run on `amem` (12 CPUs, 240 GB), except steps 12 and 09 (small, acpu). Tracks for figures: load `results/tracks/igv_session.xml`
 (hg38); the three day tracks share one autoscale group, so heights compare across days.
+
+## Peak-call overlap (step 12)
+
+Each of the 14,431 sites carries the days whose macs3_ge2 consensus peaks contain it; each site is also overlapped with
+every library's own peaks. Peak presence is a threshold call without a test, so it is compared with the DiffBind counts
+(background normalization).
+
+| Called on | Sites | Median log2FC D18 vs D15 / D22 vs D15 / D22 vs D18 |
+|---|---|---|
+| all three days | 2,450 | 0.38 / 0.24 / -0.07 |
+| D18 + D22 | 4,130 | 0.41 / 0.35 / -0.01 |
+| D18 only | 3,958 | 0.41 / 0.12 / -0.14 |
+| D22 only | 3,153 | 0.12 / 0.34 / 0.13 |
+| D15 + D18 | 368 | 0.17 / -0.20 / -0.22 |
+| D15 only | 230 | -0.19 / -0.28 / -0.05 |
+| D15 + D22 | 142 | 0.02 / 0.17 / 0.08 |
+
+- **The day calls mostly follow the earlier libraries.** The batch 3 libraries call 6.5-34% of the sites (the earlier
+  libraries 28-82%) although they have as many peaks of their own; the earlier D15 libraries are the weakest (7,809 and
+  14,019 peaks), so part of the small D15 set is library strength.
+- **Presence agrees with the direction of the counts, rarely with significance.** Sites called on D18 but not D15: 95%
+  have a positive log2FC, 7.6% FDR < 0.05; sites called on both days rise almost as much (median 0.36 vs 0.41), so most
+  "gained" calls are the overall rise after D15 crossing the threshold. D22 vs D18: direction agrees (85% of D22-not-D18
+  sites up, 12% of D18-not-D22 sites), no site significant; about half of the sites missing on D18 or D22 are called by
+  1 of that day's 3 libraries.
+- The overlap classes describe the same pattern as the counts; they are not independent evidence and carry the batch
+  caveat. Their target genes against the bulk KO effect are in `integration/` (step 09).
 
 ## Run (Alpine)
 
@@ -68,4 +96,4 @@ bash scripts/run_all.sh
 
 On scratch under `results/`; steps 08c and 09 copy the keepers to `results/` in this folder on
 /pl/active (not tracked by git): `report.html`, `consensus/`, `diff/` (all-site tables per method,
-normalization and contrast; up/down beds; summaries), `homer/`, `tracks/`, `qc/`, `tenx_filter/`.
+normalization and contrast; up/down beds; summaries), `homer/`, `peak_overlap/`, `tracks/`, `qc/`, `tenx_filter/`.

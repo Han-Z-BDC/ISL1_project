@@ -35,9 +35,10 @@ S10b=$(sb --array=0-5 $(dep "${S10a}") scripts/10b_homer.sb)
 S10c=$(sb $(dep "${S10a}") scripts/10c_homer_annotate.sb)
 S11a=$(sb $(dep "${S10c}") scripts/11a_homer_matched_prepare.sb)
 S11b=$(sb --array=0-8 $(dep "${S11a}") scripts/11b_homer_matched.sb)
-S09=$(sb $(dep "${S07}" "${S08c}" "${S10b}" "${S11b}") scripts/09_report.sb)
+S12=$(sbatch --parsable $(dep "${S07}") scripts/12_peak_overlap.sb)   # small jobs: resources from the scripts
+S09=$(sbatch --parsable $(dep "${S07}" "${S08c}" "${S10b}" "${S11b}" "${S12}") scripts/09_report.sb)
 cat <<EOF
 01 filter ${S01} | 02 align ${S02} | 03 IgG ${S03} | 04 peaks ${S04} | 05 consensus ${S05}
 06 sites ${S06} | 07 diffbind ${S07} | 08a ${S08a} | 08b ${S08b} | 08c ${S08c}
-10a ${S10a} | 10b ${S10b} | 10c ${S10c} | 11a ${S11a} | 11b ${S11b} | 09 report ${S09}
+10a ${S10a} | 10b ${S10b} | 10c ${S10c} | 11a ${S11a} | 11b ${S11b} | 12 overlap ${S12} | 09 report ${S09}
 EOF

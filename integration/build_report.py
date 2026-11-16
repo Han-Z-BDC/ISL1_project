@@ -515,93 +515,19 @@ t8_ho = ho8.rename(columns={"pct_batch3_nearest_own": "% sites whose batch 3 pro
                             "pct_expected_by_chance": "% expected by chance",
                             "pct_same_as_9lib_best_match": "% same group as the 9-library clustering"})
 
-# ---- section 09: overlap of the per-day peak calls, checked against the counts
+# ---- section 09: target genes of the overlap classes of the per-day peak calls (CUT&RUN step 12)
 D9 = os.path.join(RES, "09_peak_overlap")
-cl9 = rd(os.path.join(D9, "classes.tsv"))
-cd9 = rd(os.path.join(D9, "class_days.tsv"))
-pc9 = rd(os.path.join(D9, "presence_vs_counts.tsv"))
-lb9 = rd(os.path.join(D9, "libraries.tsv"))
-sd9 = rd(os.path.join(D9, "sites_days.tsv"))
+cg9 = rd(os.path.join(D9, "class_groups.tsv"))
 CL_LABEL = {c: ("all three days" if c == "D15,D18,D22" else (c.replace(",", " + ") + ("" if "," in c else " only")))
-            for c in cl9["class"]}
-
-# 09a: overlap classes (bars) with the day matrix below
-xs = [CL_LABEL[c] for c in cl9["class"]]
-fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.72, 0.28], vertical_spacing=0.03)
-fig.add_trace(go.Bar(x=xs, y=cl9.sites, marker=dict(color=C_GROUP, cornerradius=4), width=0.6, showlegend=False,
-                     text=[f"{n:,}" for n in cl9.sites], textposition="outside", textfont=dict(color="#2b2b2b"),
-                     customdata=cl9.pct_sites, hovertemplate="%{x}: %{y:,} sites (%{customdata}%)<extra></extra>"),
-              row=1, col=1)
-for x_, c in zip(xs, cl9["class"]):
-    on = [d for d in DAYS if d in c.split(",")]
-    fig.add_trace(go.Scatter(x=[x_] * 3, y=DAYS, mode="markers", showlegend=False, hoverinfo="skip",
-                             marker=dict(size=11, color=["#2b2b2b" if d in on else GRID for d in DAYS])), row=2, col=1)
-    if len(on) > 1:
-        fig.add_trace(go.Scatter(x=[x_] * len(on), y=on, mode="lines", line=dict(color="#2b2b2b", width=2),
-                                 showlegend=False, hoverinfo="skip"), row=2, col=1)
-fig.update_yaxes(title_text="Sites", row=1, col=1)
-fig.update_yaxes(categoryorder="array", categoryarray=DAYS[::-1], showgrid=False, row=2, col=1)
-fig.update_xaxes(showgrid=False, row=2, col=1)
-fig.update_layout(title="ISL1 sites by the days whose consensus peaks contain them (14,431 sites)")
-fig = style(fig, 460)
-fig.update_yaxes(range=[0, cl9.sites.max() * 1.15], row=1, col=1)
-parts.append(("09a", fig_html(fig, False)))
-
-# 09b: per library, share of the 14,431 sites called
-lbp = lb9.assign(lab=lb9["sample"].str.replace("_Ctr_", " ").str.replace("_ISL1", ""))
-fig = go.Figure()
-for b, name, col in [("batch3", "Batch 3 library", C_B3), ("earlier", "Earlier library", C_GROUP)]:
-    x = lbp[lbp.batch == b]
-    fig.add_trace(go.Bar(x=x.lab, y=x.pct_sites_called, name=name, marker=dict(color=col, cornerradius=4),
-                         customdata=np.c_[x.peaks, x.sites_called, x.pct_reads_in_sites],
-                         hovertemplate="%{x}: %{y:.1f}% of sites (%{customdata[1]:,}); %{customdata[0]:,} peaks; "
-                                       "%{customdata[2]:.2f}% of reads in sites<extra>" + name + "</extra>"))
-fig.update_xaxes(categoryorder="array", categoryarray=list(lbp.lab))
-fig.update_yaxes(title_text="% of the 14,431 sites called", range=[0, 100])
-fig.update_layout(title="Sites called by each library's own MACS3 peaks", bargap=0.35,
-                  legend=dict(orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
-fig = style(fig, 380)
-parts.append(("09b", fig_html(fig, False)))
-
-# 09c: DiffBind log2FC by presence category, per contrast
-CT9 = [("D15", "D18"), ("D15", "D22"), ("D18", "D22")]
-fig = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.04,
-                    subplot_titles=[f"{b} vs {a}" for a, b in CT9])
-for i, (a, b) in enumerate(CT9, 1):
-    inA, inB = sd9.days_called.str.contains(a), sd9.days_called.str.contains(b)
-    cats = [(f"{b}, not {a}", inB & ~inA), (f"{a}, not {b}", inA & ~inB), ("both", inA & inB), ("neither", ~inA & ~inB)]
-    for lab, m in cats:
-        fig.add_trace(go.Box(y=sd9.loc[m, f"db_log2FC_{b}_vs_{a}"], name=lab, marker=dict(color=C_GROUP),
-                             line=dict(width=1.5), boxpoints=False, showlegend=False,
-                             hovertemplate=f"{b} vs {a}, called on {lab}<br>%{{y:.2f}}<extra></extra>"), row=1, col=i)
-fig.add_hline(y=0, line=dict(color=AXIS, width=1))
-fig.update_yaxes(title_text="DiffBind log2FC (background normalization)", col=1)
-fig.update_xaxes(title_text="Sites called on", row=1)
-fig.update_layout(title="Binding change in the counts by peak presence on the two days")
-fig = style(fig, 420)
-parts.append(("09c", fig_html(fig, False)))
-
-t9_lib = lb9.rename(columns={"sample": "Library", "day": "Day", "batch": "Batch", "lib_size": "Reads",
-                             "norm_factor": "DiffBind size factor", "peaks": "MACS3 peaks",
-                             "sites_called": "Sites called", "pct_sites_called": "% of sites called",
-                             "reads_in_sites": "Reads in sites", "pct_reads_in_sites": "% reads in sites"})
-t9_cls = cl9.assign(**{"class": cl9["class"].map(CL_LABEL)}).rename(columns={
-    "class": "Called on", "sites": "Sites", "pct_sites": "% of sites", "vst_D15": "VST D15", "vst_D18": "VST D18",
-    "vst_D22": "VST D22", "pct_varying": "% LRT p < 0.05", **{f"pct_group{g}": f"% step 08 group {g}" for g in range(1, 5)},
-    "log2FC_D18_vs_D15": "log2FC D18 vs D15", "log2FC_D22_vs_D15": "log2FC D22 vs D15",
-    "log2FC_D22_vs_D18": "log2FC D22 vs D18", "pct_gained": "% gained (CUT&RUN step 07)", "pct_lost": "% lost (CUT&RUN step 07)"})
-ab9 = cd9[cd9.called.astype(str).str.upper() == "FALSE"]
-t9_abs = pd.DataFrame({"Called on": ab9["class"].map(CL_LABEL), "Day not called": ab9.day, "Sites": ab9.sites,
-                       "% no library calls it": ab9.pct_libs0, "% 1 of 3 libraries": ab9.pct_libs1,
-                       "% batch 3 library calls it": ab9.pct_batch3_lib, "Median VST on that day": ab9.median_vst})
-t9_pc = pc9.assign(contrast=pc9.contrast.str.replace("_vs_", " vs ")).rename(columns={
-    "contrast": "Contrast", "presence": "Peak presence", "sites": "Sites", "median_log2FC": "Median log2FC",
-    "pct_log2FC_positive": "% log2FC > 0", "pct_up_fdr": "% up, FDR < 0.05", "pct_down_fdr": "% down, FDR < 0.05"})
+            for c in cg9["class"]}
+t9_cg = cg9.assign(**{"class": cg9["class"].map(CL_LABEL)}).rename(columns={
+    "class": "Called on", "sites": "Sites", "vst_D15": "VST D15", "vst_D18": "VST D18", "vst_D22": "VST D22",
+    "pct_varying": "% LRT p < 0.05", **{f"pct_group{g}": f"% step 08 group {g}" for g in range(1, 5)}})
 
 # 09d: genes linked to each class against the KO-effect groups (adjusted odds ratio heatmap, one panel per link)
 gl9 = rd(os.path.join(D9, "gene_class_links.tsv"))
 KG9 = [f"cluster{i}" for i in range(1, 7)] + ["stays", "other_KO", "no_KO_effect"]
-CLS9 = list(cl9["class"])
+CLS9 = list(cg9["class"])
 fig = make_subplots(rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.03, subplot_titles=list(LINK8.values()))
 for i, ln in enumerate(LINK8, 1):
     x = gl9[gl9.link == ln].set_index(["ko_group", "class"])
@@ -869,36 +795,16 @@ varying site under that link.</p>
 {table_html(t8_list)}
 </details>
 
-<h2>09 Overlap of the per-day peak calls, checked against the counts</h2>
-<p class="note">Each of the 14,431 sites is marked with the days whose consensus peaks contain it (MACS3 q 0.01 peaks in at
-least 2 of the day's 3 libraries; step 05 of the CUT&amp;RUN analysis). Peak presence is a threshold call: it depends on
-each library's depth and signal-to-noise as well as on binding, and it carries no test. Below, the overlap classes, how
-often each library calls the sites, and whether presence differences agree with the count-based tests (DiffBind,
-background normalization; step 08 LRT and groups).</p>
-{dict(parts)["09a"]}
-{table_html(t9_cls)}
-<p class="note"><b>The day calls mostly follow the earlier libraries.</b> Each batch 3 library calls far fewer of the sites
-(6.5-34%) than the earlier libraries (28-82%), although it has as many peaks of its own (22,022-36,694) and a lower share
-of reads in the sites, so a site is usually called on a day when both earlier libraries call it.
-The earlier D15 libraries are the weakest of the earlier ones (7,809 and 14,019 peaks against 18,286-41,779), so part of
-the small D15 set is library strength.</p>
-{dict(parts)["09b"]}
-{table_html(t9_lib)}
-<p class="note"><b>Presence differences agree with the direction of the counts, rarely with significance, and track the
-overall rise after D15.</b> Sites called on D18 but not D15 have a positive D18-vs-D15 log2FC in 95% of cases, but only
-7.6% reach FDR &lt; 0.05, and sites called on both days rise almost as much (median log2FC 0.36 against 0.41): most of the
-"gained" calls are the general rise after D15 crossing the threshold. Between D18 and D22 the direction agrees (85% of
-D22-not-D18 sites up, 12% of D18-not-D22 sites up) but no site is significant, and about half of the sites missing on one
-of these days are called by 1 of that day's 3 libraries, just short of the consensus. The classes match the step 08
-groups: D18-only sites are enriched in group 2 (peaks at D18), D22-only sites in group 3 (late rise), and the D15 + D18 and
-D15-only sites in group 4 (falls at D22). The overlap is a description of the same pattern as the counts,
-not independent evidence, and it carries the batch caveat of section 08.</p>
-{dict(parts)["09c"]}
-{table_html(t9_pc)}
-<p class="note">Library support on the days a site is not called: share of sites called by none or by 1 of the day's 3
-libraries (2 are needed for the consensus), share called by the batch 3 library, and median batch-corrected VST on that
-day (compare the VST columns of the class table above).</p>
-{table_html(t9_abs)}
+<h2>09 Target genes of the overlap classes of the per-day peak calls</h2>
+<p class="note">The overlap classes come from step 12 of the CUT&amp;RUN analysis (<code>cutnrun_ISL1_timecourse</code>; its
+report has the class sizes, the library call rates and the check of peak presence against the DiffBind counts). Each of
+the 14,431 sites is marked with the days whose consensus peaks contain it (MACS3 q 0.01 peaks in at least 2 of the day's
+3 libraries). Peak presence is a threshold call, so it describes the same pattern as the counts rather than adding
+independent evidence, and it carries the batch caveat of section 08: the batch 3 libraries call far fewer sites than the
+earlier ones, so the day calls mostly follow the earlier libraries.</p>
+<p class="note">The classes match the step 08 groups: D18-only sites are enriched in group 2 (peaks at D18), D22-only
+sites in group 3 (late rise), and the D15 + D18 and D15-only sites in group 4 (falls at D22).</p>
+{table_html(t9_cg)}
 <h3>Target genes of each overlap class and their KO effect</h3>
 <p class="note">Bulk-tested genes linked to the sites of each class, by GREAT domains (main) and, as a check, every gene
 whose TSS lies within ±50 kb of the site. A gene counts in every class in which it has at least one site (GREAT:

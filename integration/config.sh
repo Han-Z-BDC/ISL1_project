@@ -17,6 +17,7 @@ CNR_NORM=${CNR_DIFF}/norm_factors.tsv         # size factors; the integration us
 CNR_SAMPLES=${CNR_DIFF}/samples.tsv           # library -> day, batch
 CNR_TABLES=${CNR_DIFF}/tables                 # per-site differential binding tables
 CHROM_SIZES=${CNR_RESULTS}/genome.txt
+CNR_OVERLAP=${CNR_RESULTS}/peak_overlap      # step 12: overlap classes of the per-day peak calls (step 09)
 
 # ---- Bulk RNA-seq: Ctr vs ISL1 KO, D15 / D18 / D22 (run YJZ5LS) ---------------------------------
 BULK_DE=${PROJECT}/bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2

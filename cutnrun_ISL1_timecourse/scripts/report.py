@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Step 09: HTML report of the ISL1 time course: library QC (steps 01-04), consensus peaks (05),
-differential binding (06-07), HOMER motifs (10-11). Standard library only; plots are inline SVG.
+differential binding (06-07), HOMER motifs (10-11), peak-call overlap (12). Standard library only; plots are inline SVG.
   python report.py <results> <sample_metadata.tsv> <out.html>
 """
 import csv
@@ -218,6 +218,131 @@ for n in NORMS:
               num(r["log2FC"], 2), f'{float(r["FDR"]):.1e}'] for r in top], num_cols=(3, 4, 5)))
     S.append((f"Top sites, DiffBind {n}", "".join(parts)))
 
+PO = os.path.join(OUT, "peak_overlap")
+if os.path.isdir(PO):
+    DAYS = ["D15", "D18", "D22"]
+    cls = tsv(os.path.join(PO, "classes.tsv"))
+    lab = {r["class"]: ("all three days" if r["class"] == "D15,D18,D22" else
+                        r["class"].replace(",", " + ") + ("" if "," in r["class"] else " only")) for r in cls}
+    nsite = sum(int(r["sites"]) for r in cls)
+
+    def upset_svg(w=560, h=300):
+        top, mid, bot, left = 30, 200, 270, 50
+        mx = max(int(r["sites"]) for r in cls) * 1.12
+        bw = (w - left - 10) / len(cls)
+        sy = scale(0, mx, mid, top)
+        out = [f'<svg viewBox="0 0 {w} {h}" class="plot wide" role="img" aria-label="Overlap classes">',
+               f'<text x="{w/2}" y="14" class="pt">Sites by the days whose consensus peaks contain them ({nsite:,})</text>',
+               f'<line x1="{left}" x2="{w-10}" y1="{mid}" y2="{mid}" class="ax"/>']
+        for i, r in enumerate(cls):
+            x = left + i * bw + bw * 0.2; n = int(r["sites"])
+            out.append(f'<rect x="{x:.1f}" y="{sy(n):.1f}" width="{bw*0.6:.1f}" height="{mid-sy(n):.1f}" rx="3" class="bar">'
+                       f'<title>{html.escape(lab[r["class"]])}: {n:,} sites ({r["pct_sites"]}%)</title></rect>')
+            out.append(f'<text x="{x+bw*0.3:.1f}" y="{sy(n)-4:.1f}" class="tk" text-anchor="middle">{n:,}</text>')
+            on = [j for j, d in enumerate(DAYS) if d in r["class"].split(",")]
+            cy = lambda j: mid + 18 + j * 22
+            if len(on) > 1:
+                out.append(f'<line x1="{x+bw*0.3:.1f}" x2="{x+bw*0.3:.1f}" y1="{cy(on[0])}" y2="{cy(on[-1])}" class="lnk"/>')
+            for j in range(3):
+                out.append(f'<circle cx="{x+bw*0.3:.1f}" cy="{cy(j)}" r="6" class="{"don" if j in on else "doff"}"/>')
+        for j, d in enumerate(DAYS):
+            out.append(f'<text x="{left-8}" y="{mid+22+j*22}" class="tk" text-anchor="end">{d}</text>')
+        out.append(f'<text x="12" y="{(top+mid)/2}" class="al" transform="rotate(-90 12 {(top+mid)/2})">sites</text>')
+        out.append("</svg>")
+        return "".join(out)
+
+    libs = tsv(os.path.join(PO, "libraries.tsv"))
+
+    def libs_svg(w=560, h=260):
+        top, base, left = 30, 200, 50
+        bw = (w - left - 10) / len(libs)
+        sy = scale(0, 100, base, top)
+        out = [f'<svg viewBox="0 0 {w} {h}" class="plot wide" role="img" aria-label="Sites called per library">',
+               f'<text x="{w/2}" y="14" class="pt">Sites called by each library\'s own MACS3 peaks (% of {nsite:,})</text>',
+               f'<line x1="{left}" x2="{w-10}" y1="{base}" y2="{base}" class="ax"/>']
+        for v in (0, 50, 100):
+            out.append(f'<text x="{left-6}" y="{sy(v)+3:.1f}" class="tk" text-anchor="end">{v}</text>')
+        for i, r in enumerate(libs):
+            x = left + i * bw + bw * 0.2; p = float(r["pct_sites_called"])
+            b3 = r["batch"] == "batch3"
+            out.append(f'<rect x="{x:.1f}" y="{sy(p):.1f}" width="{bw*0.6:.1f}" height="{base-sy(p):.1f}" rx="3" '
+                       f'fill="{DAY_COL[r["day"]]}" fill-opacity="{0.45 if b3 else 1}"><title>{html.escape(r["sample"])}: '
+                       f'{p:.1f}% of sites, {int(r["peaks"]):,} peaks, {float(r["pct_reads_in_sites"]):.2f}% of reads in sites'
+                       f'</title></rect>')
+            out.append(f'<text x="{x+bw*0.3:.1f}" y="{sy(p)-4:.1f}" class="tk" text-anchor="middle">{p:.0f}</text>')
+            l = r["sample"].replace("_Ctr_", " ").replace("_ISL1", "")
+            out.append(f'<text x="{x+bw*0.3:.1f}" y="{base+14}" class="tk" text-anchor="middle">{html.escape(l)}</text>')
+            out.append(f'<text x="{x+bw*0.3:.1f}" y="{base+26}" class="tk" text-anchor="middle">{"batch 3" if b3 else "earlier"}</text>')
+        out.append("</svg>")
+        return "".join(out)
+
+    pc = tsv(os.path.join(PO, "presence_vs_counts.tsv"))
+
+    def presence_svg(ct, w=360, h=280):
+        rows = [r for r in pc if r["contrast"] == ct]
+        b, a = ct.split("_vs_")
+        vals = [float(r[k]) for r in rows for k in ("p10_log2FC", "p90_log2FC")]
+        lo, hi = min(vals + [0]) - 0.1, max(vals + [0]) + 0.1
+        top, base, left = 26, h - 48, 44
+        bw = (w - left - 10) / len(rows)
+        sy = scale(lo, hi, base, top)
+        out = [f'<svg viewBox="0 0 {w} {h}" class="plot" role="img" aria-label="log2FC by peak presence {b} vs {a}">',
+               f'<text x="{w/2}" y="14" class="pt">{b} vs {a}: DiffBind log2FC by peak presence</text>',
+               f'<line x1="{left}" x2="{w-10}" y1="{sy(0):.1f}" y2="{sy(0):.1f}" class="ax"/>']
+        for v in (lo + 0.1, 0, hi - 0.1):
+            out.append(f'<text x="{left-6}" y="{sy(v)+3:.1f}" class="tk" text-anchor="end">{v:.1f}</text>')
+        for i, r in enumerate(rows):
+            cx = left + (i + 0.5) * bw
+            q1, q3, md = float(r["q1_log2FC"]), float(r["q3_log2FC"]), float(r["median_log2FC"])
+            out.append(f'<line x1="{cx:.1f}" x2="{cx:.1f}" y1="{sy(float(r["p10_log2FC"])):.1f}" '
+                       f'y2="{sy(float(r["p90_log2FC"])):.1f}" class="lnk"/>')
+            out.append(f'<rect x="{cx-bw*0.22:.1f}" y="{sy(q3):.1f}" width="{bw*0.44:.1f}" height="{sy(q1)-sy(q3):.1f}" rx="2" '
+                       f'class="bar"><title>{html.escape(r["presence"])}: {int(r["sites"]):,} sites, median {md:.2f}, '
+                       f'{r["pct_log2FC_positive"]}% &gt; 0, {r["pct_up_fdr"]}% up at FDR &lt; 0.05</title></rect>')
+            out.append(f'<line x1="{cx-bw*0.22:.1f}" x2="{cx+bw*0.22:.1f}" y1="{sy(md):.1f}" y2="{sy(md):.1f}" class="med"/>')
+            short = r["presence"].replace("called on ", "").replace(" (third day only)", "")
+            for k, part in enumerate(short.split(", ")):
+                out.append(f'<text x="{cx:.1f}" y="{base+14+k*11}" class="tk" text-anchor="middle">{html.escape(part)}</text>')
+        out.append(f'<text x="10" y="{(top+base)/2}" class="al" transform="rotate(-90 10 {(top+base)/2})">log2FC</text>')
+        out.append("</svg>")
+        return "".join(out)
+
+    cd = tsv(os.path.join(PO, "class_days.tsv"))
+    ab = [r for r in cd if r["called"].upper() == "FALSE"]
+    S.append(("Overlap of the per-day peak calls (step 12)",
+        "<p>Each site is marked with the days whose consensus peaks contain it (macs3_ge2: MACS3 q 0.01 peaks in at least "
+        "2 of the day's 3 libraries, step 05); the 7 combinations of days are the overlap classes. Peak presence is a "
+        "threshold call: it depends on each library's depth and signal-to-noise as well as on binding, and carries no "
+        "test, so it is checked against the DiffBind counts (background normalization). Gained / lost = FDR &lt; 0.05 up / "
+        "down in D18 vs D15 or D22 vs D15.</p>"
+        f'<div class="figs">{upset_svg()}</div>' +
+        table(["Called on", "Sites", "% of sites", "Median log2FC D18 vs D15", "D22 vs D15", "D22 vs D18", "% gained", "% lost"],
+              [[lab[r["class"]], num(r["sites"]), num(r["pct_sites"], 1), num(r["log2FC_D18_vs_D15"], 2),
+                num(r["log2FC_D22_vs_D15"], 2), num(r["log2FC_D22_vs_D18"], 2), num(r["pct_gained"], 1), num(r["pct_lost"], 1)]
+               for r in cls], num_cols=(1, 2, 3, 4, 5, 6, 7)) +
+        "<h3>Library call rates</h3><p>Each library's own MACS3 peaks (step 04) against the sites; lighter bars = batch 3 "
+        "libraries. A site is called on a day when 2 of the day's 3 libraries call it, so the day calls follow the "
+        "libraries that call most sites.</p>"
+        f'<div class="figs">{libs_svg()}</div>' +
+        table(["Library", "Day", "Batch", "Reads", "DiffBind size factor", "MACS3 peaks", "Sites called", "% of sites",
+               "Reads in sites", "% reads in sites"],
+              [[html.escape(r["sample"]), r["day"], r["batch"], num(r["lib_size"]), num(r["norm_factor"], 3), num(r["peaks"]),
+                num(r["sites_called"]), num(r["pct_sites_called"], 1), num(r["reads_in_sites"]), num(r["pct_reads_in_sites"], 2)]
+               for r in libs], num_cols=(3, 4, 5, 6, 7, 8, 9)) +
+        "<h3>Peak presence against the counts</h3><p>Per contrast, the sites called on the later day only, on the earlier "
+        "day only, on both and on neither: DiffBind log2FC (box = quartiles, line = median, whiskers = 10th-90th "
+        "percentile). If presence differences reflect binding changes, the sites that appear should mostly go up.</p>"
+        f'<div class="figs">{"".join(presence_svg(c) for c in ["D18_vs_D15", "D22_vs_D15", "D22_vs_D18"])}</div>' +
+        table(["Contrast", "Peak presence", "Sites", "Median log2FC", "% log2FC > 0", "% up, FDR < 0.05", "% down, FDR < 0.05"],
+              [[r["contrast"].replace("_vs_", " vs "), html.escape(r["presence"]), num(r["sites"]), num(r["median_log2FC"], 2),
+                num(r["pct_log2FC_positive"], 1), num(r["pct_up_fdr"], 1), num(r["pct_down_fdr"], 1)] for r in pc],
+              num_cols=(2, 3, 4, 5, 6)) +
+        "<p>Library support on the days a site is not called: share of sites called by none or by 1 of the day's 3 "
+        "libraries (2 are needed for the consensus), and share called by the batch 3 library.</p>" +
+        table(["Called on", "Day not called", "Sites", "% no library calls it", "% 1 of 3 libraries", "% batch 3 library calls it"],
+              [[lab[r["class"]], r["day"], num(r["sites"]), num(r["pct_libs0"], 1), num(r["pct_libs1"], 1),
+                num(r["pct_batch3_lib"], 1)] for r in ab], num_cols=(2, 3, 4, 5))))
+
 H = os.path.join(OUT, "homer")
 if os.path.isdir(H):
     q = {r["item"]: r["n"] for r in tsv(os.path.join(H, "inputs", "qc.tsv"))}
@@ -301,7 +426,9 @@ S.append(("Files", "<p>Under <code>results/</code> (scratch; keepers copied to t
           "<code>diff/</code>: <code>sites_used.bed</code>, "
           "<code>tables/{diffbind,deseq2}_&lt;norm&gt;_&lt;contrast&gt;.tsv</code> (all sites), "
           "<code>beds/diffbind_&lt;norm&gt;_&lt;contrast&gt;_{up,down}.bed</code>, <code>summary.tsv</code>, "
-          "<code>agreement.tsv</code>, <code>norm_factors.tsv</code>, <code>counts_sites.tsv</code>; "
+          "<code>agreement.tsv</code>, <code>norm_factors.tsv</code>, <code>counts_sites.tsv</code>, <code>counts_diffbind.tsv</code>; "
+          "<code>peak_overlap/</code> (step 12: <code>sites_days.tsv</code>, <code>classes.tsv</code>, "
+          "<code>class_days.tsv</code>, <code>libraries.tsv</code>, <code>presence_vs_counts.tsv</code>); "
           "<code>homer/inputs/</code> (target and background beds) and <code>homer/&lt;day&gt;_{vs_genome,vs_other_days}/</code>, <code>homer/annotation/</code>, "
           "<code>homer/matched/</code>.</p>"))
 
@@ -314,9 +441,10 @@ p{margin:6px 0 10px}.sub{color:var(--mut);margin-bottom:16px}.tw{overflow-x:auto
 table{border-collapse:collapse;margin:8px 0 4px;font-size:13px}
 th,td{border-bottom:1px solid var(--line);padding:5px 10px;text-align:left;white-space:nowrap}
 th{background:var(--head);font-weight:600}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-code{font-size:12px}.figs{display:flex;flex-wrap:wrap;gap:12px}.plot{width:360px;max-width:100%;height:auto}
+code{font-size:12px}.figs{display:flex;flex-wrap:wrap;gap:12px}.plot{width:360px;max-width:100%;height:auto}.plot.wide{width:560px}
 .plot .pt{font-size:12px;text-anchor:middle;fill:var(--fg)}.plot .al{font-size:10px;text-anchor:middle;fill:var(--mut)}
 .plot .tk{font-size:9px;fill:var(--mut)}.plot .ax{stroke:var(--line)}.ns{fill:var(--ns)}.up{fill:var(--up)}.dn{fill:var(--dn)}
+.bar{fill:var(--acc)}.med{stroke:var(--bg);stroke-width:2}.lnk{stroke:var(--fg);stroke-width:2}.don{fill:var(--fg)}.doff{fill:var(--line)}
 """
 body = "".join(f"<h2>{html.escape(t)}</h2>{c}" for t, c in S)
 os.makedirs(os.path.dirname(HTML_OUT), exist_ok=True)

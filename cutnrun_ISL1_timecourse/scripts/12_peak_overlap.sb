@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=tc_peak_overlap
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/peak_overlap.%j.out
+
+# Step 12: overlap of the per-day peak calls (step 05 consensus, step 04 per-library MACS3) on the step 07 sites,
+# checked against the step 07 DiffBind results. scripts/peak_overlap.R does the analysis.
+# Output: peak_overlap/ (see peak_overlap.R); step 09 adds it to the report and copies it to results/.
+#   sbatch --dependency=afterok:<07 job> scripts/12_peak_overlap.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+"${DIFFBIND_TOOLS}/Rscript" "${STUDY_DIR}/scripts/peak_overlap.R" "${OUT_DIR}"
