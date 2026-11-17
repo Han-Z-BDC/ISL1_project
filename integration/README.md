@@ -394,11 +394,11 @@ padj < 0.05), 1,224 not shown to change between stages. k = 4 (77% of the varian
 
 | Cluster | Genes | Median KO log2FC D15 / D18 / D22 | Endocrine genes |
 |---|---|---|---|
-| 1 | 164 | +0.04 / +0.73 / +0.88 | NKX6-1 |
-| 2 | 147 | +0.82 / +0.50 / -0.03 | ASCL2, CHGB, CRYBA2, KCNJ6, MNX1, NEUROD1, NEUROG3, NKX2-2, PAX4 |
-| 3 | 103 | -0.15 / -0.03 / +0.53 | |
-| 4 | 64 | +0.23 / +0.70 / -0.05 | |
+| 1 Sustained, from D18 | 164 | +0.04 / +0.73 / +0.88 | NKX6-1 |
+| 2 Early, transient | 147 | +0.82 / +0.50 / -0.03 | ASCL2, CHGB, CRYBA2, KCNJ6, MNX1, NEUROD1, NEUROG3, NKX2-2, PAX4 |
+| 3 Late, D22 only | 103 | -0.15 / -0.03 / +0.53 | |
+| 4 Transient, D18 only | 64 | +0.23 / +0.70 / -0.05 | |
 
-- Cluster 1: gain from D18 on, still there at D22; cluster 2: gain at D15, fading by D22 (the endocrine progenitor
-  genes); cluster 3: gain at D22 only; cluster 4: gain at D18 only. Unlike the activated genes, an early effect is common
+- Sustained, from D18: gain from D18 on, still there at D22; Early, transient: gain at D15, fading by D22 (the
+  endocrine progenitor genes); Late, D22 only: gain at D22 only; Transient, D18 only: gain at D18 only. Unlike the activated genes, an early effect is common
   here (132 stage-specific genes gain most at D15).

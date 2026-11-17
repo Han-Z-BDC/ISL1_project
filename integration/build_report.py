@@ -672,7 +672,7 @@ S11 = {
                       names={1: "Sustained, from D18", 2: "Transient, D18 only", 3: "Late, D22 only", 4: "Early, transient"},
                       genes=["INS", "MAFA", "ABCC8", "PCSK2", "CD36", "PFKFB2", "GCG", "ARX", "SST", "PDX1", "HHEX", "TTR"]),
     "repressed": dict(dir="11_repressed_stage", color=C_B3, band="rgba(235,104,52,0.18)", way="Higher",
-                      names={},
+                      names={1: "Sustained, from D18", 2: "Early, transient", 3: "Late, D22 only", 4: "Transient, D18 only"},
                       genes=["NEUROG3", "PAX4", "NKX2-2", "NEUROD1", "NKX6-1", "MNX1", "ASCL2", "CHGB", "KCNJ6", "CRYBA2",
                              "INSM1", "LMX1A", "MAFB", "IRX1"]),
 }
