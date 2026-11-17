@@ -185,6 +185,25 @@ def main():
         scatter(ax, u, v, lab, vmax=vmax)
     fig.tight_layout(); fig.savefig(RES_DIR / "umap_qc.png", dpi=110); plt.close(fig)
 
+    # ---- nuclear fraction on the UMAP: where are the high-NF cells?
+    nfv = a.obs["nuclear_fraction"].to_numpy(float)
+    geno = a.obs["genotype"].astype(str).to_numpy()
+    fig, axs = plt.subplots(1, 3, figsize=(21, 6.8))
+    o_ = np.argsort(nfv)
+    s_ = axs[0].scatter(u[o_, 0], u[o_, 1], c=nfv[o_], s=1.5, cmap="viridis", vmin=0.1, vmax=0.8, linewidths=0, rasterized=True)
+    plt.colorbar(s_, ax=axs[0], fraction=0.04); axs[0].set_title("nuclear fraction", fontsize=11)
+    for ax, t in zip(axs[1:], (0.6, 0.65)):
+        m = nfv > t
+        ax.scatter(u[:, 0], u[:, 1], c="#e3e3e3", s=1, linewidths=0, rasterized=True)
+        ax.scatter(u[m, 0], u[m, 1], c="#c0392b", s=3, linewidths=0, rasterized=True)
+        nc, nk = int((m & (geno == "ctr")).sum()), int((m & (geno == "KO")).sum())
+        ax.set_title(f"nuclear fraction > {t}: {int(m.sum())} cells "
+                     f"(ctr {nc}, {100 * nc / (geno == 'ctr').sum():.1f}%; KO {nk}, {100 * nk / (geno == 'KO').sum():.1f}%)", fontsize=10)
+    for ax in axs:
+        ax.set_xticks([]); ax.set_yticks([])
+    fig.suptitle(f"{DAY}: nuclear fraction (no batch correction)")
+    fig.tight_layout(); fig.savefig(RES_DIR / "umap_nuclear_fraction.png", dpi=110); plt.close(fig)
+
     # ---- cell cycle: UMAPs + tables (scores only; nothing regressed)
     PHASE_PAL = {"G1": "#c9c9c9", "S": "#3a8fc1", "G2M": "#d1495b"}
     fig, axs = plt.subplots(2, 3, figsize=(16, 10))
@@ -295,6 +314,8 @@ score_genes_cell_cycle on log1p data. % of each sample's cells per phase:</p>
 <div class=tw>{table(pd.read_csv(RES_DIR / 'cellcycle_by_sample.csv', index_col=0))}</div>
 <img src="data:image/png;base64,{b64(RES_DIR / 'umap_cellcycle.png')}" alt="UMAP coloured by cell-cycle phase and scores">
 <h3>Phase by cluster, resolution 0.4</h3><div class=tw>{table(pd.read_csv(RES_DIR / 'cellcycle_by_cluster_r0.4.csv', index_col=0))}</div>
+<h2>Nuclear fraction on the UMAP</h2><p class=sub>Cells above 0.6 and 0.65 in red. Nothing is removed.</p>
+<img src="data:image/png;base64,{b64(RES_DIR / 'umap_nuclear_fraction.png')}" alt="UMAP coloured by nuclear fraction, high cells highlighted">
 <h2>Clusters</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_clusters.png')}" alt="Leiden clusters at six resolutions">
 <h2>Cluster composition</h2><p class=sub>Bars: % of each sample's cells in each cluster. Tables: cells per sample;
 % of all ctr / KO cells in the cluster; KO_over_ctr = ratio of those two.</p>
