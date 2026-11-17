@@ -79,6 +79,7 @@ def load_config(config_path: str, sample_id: str) -> dict:
             sample_id, cfg.get("mt_pct_max")
         ),
         "ribo_pct_max": cfg.get("ribo_pct_max"),
+        "min_genes": cfg.get("min_genes"),
     }
 
     if strategy == "manual":
@@ -174,6 +175,14 @@ def compute_pass_mask(adata, cfg: dict) -> tuple[np.ndarray, dict]:
         step1_fail = low_counts | low_genes
         removed["step1_out_of_manual_bounds_counts"] = int(low_counts.sum())
         removed["step1_out_of_manual_bounds_genes"] = int(low_genes.sum())
+
+    # Optional fixed floor on genes per cell, applied on top of the MAD/manual
+    # rule (a cell must pass both). Same number for every sample.
+    if cfg.get("min_genes") is not None:
+        below_min = adata.obs["n_genes_by_counts"].to_numpy() < cfg["min_genes"]
+        removed["step1_below_min_genes"] = int(below_min.sum())
+        removed["step1_below_min_genes_only"] = int((below_min & ~step1_fail).sum())
+        step1_fail = step1_fail | below_min
 
     # --- step 2 ---
     mt_fail = np.zeros(n, dtype=bool)
@@ -281,6 +290,7 @@ def main():
         "sample_id": args.sample_id,
         "filtering_strategy": cfg["filtering_strategy"],
         "n_mads": cfg["n_mads"] if cfg["filtering_strategy"] == "mad" else "n/a",
+        "min_genes": cfg["min_genes"],
         "mt_pct_strategy": cfg["mt_pct_strategy"],
         "mt_pct_n_mads": cfg["mt_pct_n_mads"] if cfg["mt_pct_strategy"] == "mad" else "n/a",
         "mt_pct_floor": cfg["mt_pct_floor"] if cfg["mt_pct_strategy"] == "mad" else "n/a",

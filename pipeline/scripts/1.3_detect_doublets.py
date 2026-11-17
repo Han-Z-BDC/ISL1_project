@@ -7,6 +7,7 @@ rationale):
   - scDblFinder runs first; its own predicted-doublet RATE on this sample
     becomes Scrublet's expected_doublet_rate (kept deliberately dependent,
     per-sample, rather than a fixed loading-chip prior).
+  - Scrublet can be switched off (run_scrublet: false, needs removal_rule: scdblfinder).
   - Which cells are removed is set by removal_rule in the config: union
     (default), consensus, or scdblfinder (Scrublet kept as a diagnostic).
     Default: a cell is a doublet if EITHER tool flags it (union) -- not only if both
@@ -102,6 +103,19 @@ def plot_diagnostics(obs: pd.DataFrame, sample_id: str, out_png: Path):
     axes[0].set_ylabel("n cells")
     axes[0].set_title("scDblFinder score distribution")
 
+    if "scrublet_predicted_doublet" not in obs:
+        d = obs["scDblFinder_predicted_doublet"].astype(bool)
+        counts = pd.Series({"singlet": (~d).sum(), "scDblFinder\ndoublet": d.sum()})
+        axes[1].bar(counts.index, counts.values, color=["#999999", "#4299e1"])
+        axes[1].set_ylabel("n cells")
+        axes[1].set_title("scDblFinder calls (Scrublet not run)")
+        fig.suptitle(f"{sample_id}: doublet detection")
+        fig.tight_layout()
+        out_png.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_png, dpi=150)
+        plt.close(fig)
+        return
+
     counts = pd.Series(
         {
             "singlet\n(both)": (~obs["scDblFinder_predicted_doublet"] & ~obs["scrublet_predicted_doublet"]).sum(),
@@ -148,14 +162,20 @@ def main():
     scdbl = run_scdblfinder(adata, cfg["random_state"], dbr)
     doublet_rate = float(scdbl["scDblFinder_predicted_doublet"].mean())
 
-    scrub = run_scrublet(adata, doublet_rate, cfg["scrublet"], cfg["random_state"])
+    run_scrub = cfg.get("run_scrublet", True)
+    rule = cfg.get("removal_rule", "union")
+    if not run_scrub and rule != "scdblfinder":
+        raise ValueError("run_scrublet: false needs removal_rule: scdblfinder")
 
-    obs = scdbl.join(scrub)
-    obs["doublet_filter_union"] = obs[["scDblFinder_predicted_doublet", "scrublet_predicted_doublet"]].any(axis=1)
-    obs["doublet_filter_consensus"] = obs[["scDblFinder_predicted_doublet", "scrublet_predicted_doublet"]].all(axis=1)
+    if run_scrub:
+        scrub = run_scrublet(adata, doublet_rate, cfg["scrublet"], cfg["random_state"])
+        obs = scdbl.join(scrub)
+        obs["doublet_filter_union"] = obs[["scDblFinder_predicted_doublet", "scrublet_predicted_doublet"]].any(axis=1)
+        obs["doublet_filter_consensus"] = obs[["scDblFinder_predicted_doublet", "scrublet_predicted_doublet"]].all(axis=1)
+    else:
+        obs = scdbl.copy()
 
     # Which call removes cells (configs/detect_doublets.yaml: removal_rule).
-    rule = cfg.get("removal_rule", "union")
     rule_cols = {
         "union": "doublet_filter_union",
         "consensus": "doublet_filter_consensus",
@@ -186,19 +206,19 @@ def main():
         "n_cells_after": n_after,
         "removal_rule": rule,
         "n_doublets_removed": int(n_before - n_after),
-        "n_union_doublets_either_tool": int(obs["doublet_filter_union"].sum()),
+        "n_union_doublets_either_tool": int(obs["doublet_filter_union"].sum()) if run_scrub else "scrublet not run",
         "n_scdblfinder_doublets": int(obs["scDblFinder_predicted_doublet"].sum()),
-        "n_scrublet_doublets": int(obs["scrublet_predicted_doublet"].sum()),
-        "n_consensus_doublets_both_agree": int(obs["doublet_filter_consensus"].sum()),
+        "n_scrublet_doublets": int(obs["scrublet_predicted_doublet"].sum()) if run_scrub else "scrublet not run",
+        "n_consensus_doublets_both_agree": int(obs["doublet_filter_consensus"].sum()) if run_scrub else "scrublet not run",
         "scdblfinder_dbr_prior": "default (1% per 1k cells)" if dbr is None else round(dbr, 4),
         "scdblfinder_doublet_rate": round(doublet_rate, 4),
-        "scrublet_expected_doublet_rate_used": round(doublet_rate, 4),
+        "scrublet_expected_doublet_rate_used": round(doublet_rate, 4) if run_scrub else "scrublet not run",
     }
     pd.DataFrame([summary]).to_csv(outdir / "summary" / f"{args.sample_id}.doublets_summary.csv", index=False)
 
     print(f"[{args.sample_id}] {n_before} -> {n_after} cells "
           f"({n_before - n_after} doublets removed, removal_rule={rule}). "
-          f"scDblFinder rate {doublet_rate:.2%} used as Scrublet's expected_doublet_rate.")
+          f"scDblFinder rate {doublet_rate:.2%}" + (" used as Scrublet's expected_doublet_rate." if run_scrub else "; Scrublet not run."))
 
 
 if __name__ == "__main__":

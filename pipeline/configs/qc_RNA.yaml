@@ -43,6 +43,14 @@ filtering_strategy_by_sample: {}
 # filtering_strategy_by_sample:
 #   D22_rep1: manual
 
+# Optional fixed minimum genes per cell, applied on top of the step-1 rule
+# (a cell must pass both; one number for every sample). null = off.
+# ISL1_scRNAseq (user decision 2026-11-17): 2000, with 4 MAD, for all samples. The
+# second sequencing batch (~2x depth) makes Cell Ranger call a low-gene population
+# (~1,000-1,800 genes) in D15 and the D22 controls that per-sample MAD keeps; 3 MAD was
+# still uneven and cut clean D40 cells. Genes, not counts: depth differs between days.
+min_genes: 2000
+
 # --- Step 2: MT% cutoff ---
 # "mad" (default): one-sided (upper only) adaptive threshold --
 # median(pct_counts_mt) + mt_pct_n_mads * MAD(pct_counts_mt), clamped to

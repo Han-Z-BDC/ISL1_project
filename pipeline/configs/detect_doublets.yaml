@@ -38,6 +38,11 @@ random_state: 1
 # on D40), so Scrublet is kept as a diagnostic only.
 removal_rule: scdblfinder
 
+# Run Scrublet at all? false = scDblFinder only (needs removal_rule: scdblfinder);
+# the Scrublet columns are then absent from doublets_annotated.h5ad.
+# ISL1_scRNAseq (user decision 2026-11-17): false -- no Scrublet.
+run_scrublet: false
+
 # scDblFinder's expected doublet rate (its `dbr` prior), in % per 1,000 cells.
 # null (default) = scDblFinder's own default, 1% per 1,000 cells, which fits
 # standard 10x 3'/5' loading. Set it for chemistries with a different
