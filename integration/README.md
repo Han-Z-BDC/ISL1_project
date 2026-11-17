@@ -66,6 +66,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `gene_links.tsv` and `gene_site_groups.tsv` (gene level, GREAT and ±50 kb links), `vst_libraries.tsv` |
 | 09 Target genes of the peak-call overlap classes | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB; needs CUT&RUN step 12) | `results/09_peak_overlap/`: `class_groups.tsv` (per class: step 08 VST and groups), `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb) |
 | 10 Pre-specified beta − alpha binding contrast | `scripts/10_beta_alpha_contrast.sb` (acpu, 1 CPU, 3 GB; `MODE=dry_run` now, `primary` for the unified time course) | `results/10_beta_alpha_contrast/`: `sets.tsv`, `set_sites.tsv`, `library_values.tsv`, `contrasts.tsv`, `site_level.tsv` |
+| 11 Direct-activated genes with a stage-specific KO effect | `scripts/11_activated_stage.sb` (acpu, 2 CPUs, 7 GB; needs step 02) | `results/11_activated_stage/`: `genes.tsv` (per direct-activated gene: pattern, LRT_interaction padj, scaled profile, clusters k2-k8), `elbow.tsv`, `centers.tsv`, `patterns.tsv` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -365,3 +366,23 @@ Replicates needed (planning, `power.tsv`): residual SD of the dry-run primary fi
 In a one-batch design with n libraries per day, the D22 − D18 shift detectable with 80% power (one-sided, α = 0.05) is
 0.52 log2 for n = 3, 0.43 for n = 4, 0.38 for n = 5, 0.34 for n = 6 and 0.29 for n = 8 (0.92 / 0.76 / 0.67 / 0.60 / 0.51 at
 the upper SD bound). A 0.3 shift needs about 8 libraries per day.
+
+### 11 Direct-activated genes with a stage-specific KO effect
+
+- Genes: the 1,977 direct-activated genes of step 02 (lower in the KO on at least one day, never higher, bound).
+- Stage-specific: LRT_interaction padj < 0.05 (the KO effect differs between stages): 857 genes. The other 1,120 have
+  a KO effect not shown to change between stages (e.g. G6PC2, SLC30A8). The per-day significance pattern is
+  descriptive only.
+- Clusters: k-means (seed 1, 25 starts) on each stage-specific gene's shrunk KO log2FC at D15 / D18 / D22 divided by its
+  largest |log2FC| (timing, not size); k = 4, chosen from k = 2-8 (78% of the variance between clusters; 71% at k = 3).
+
+| Cluster | Genes | Median KO log2FC D15 / D18 / D22 | Islet genes |
+|---|---|---|---|
+| 1 | 345 | -0.21 / -1.04 / -1.66 | ARX, GCG, HHEX, PDX1, PFKFB2, SST, TTR |
+| 2 | 223 | -0.28 / -1.25 / -0.21 | |
+| 3 | 199 | +0.11 / -0.05 / -1.00 | ABCC8, CD36, MAFA, PCSK2 |
+| 4 | 90 | -0.29 / -0.44 / +0.20 | |
+
+- Cluster 1: loss from D18 on, still there at D22; cluster 2: loss at D18 only; cluster 3: loss at D22 only; cluster 4:
+  small early loss (D15-D18), none at D22. A loss mainly at D15 is rare (22 stage-specific genes lose most at D15).
+- INS is not here: it is lower in the KO but has no ISL1 site in its GREAT domain.

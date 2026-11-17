@@ -3,7 +3,7 @@
 
 Run on the Mac from integration/ after `bash scripts/fetch_results.sh`:
   ~/anaconda3/bin/python3 build_report.py
-Reads the step 01-09 tables in results/ and, for section 06, the bulk normalized counts
+Reads the step 01-11 tables in results/ and, for section 06, the bulk normalized counts
 (../bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/normalized_counts.tsv).
 Output: results/report_integration.html
 """
@@ -665,6 +665,63 @@ if pw10 is not None:
                            "Power for a 0.5 shift (SD estimate)": e["power_0.5"].values})
     sg10 = (float(e.sigma.iloc[0]), float(u.sigma.iloc[0]), int(e.sigma_df.iloc[0]))
 
+# ---- section 11: direct-activated genes with a stage-specific KO effect, k-means on the timing (k = 4)
+D11 = os.path.join(RES, "11_activated_stage")
+K11 = 4
+g11 = rd(os.path.join(D11, "genes.tsv"))
+for c_ in [f"ko_lfc_{d}" for d in DAYS] + [f"ko_padj_{d}" for d in DAYS] + ["padj_interaction", f"k{K11}"]:
+    g11[c_] = pd.to_numeric(g11[c_], errors="coerce")
+g11["stage_specific"] = g11.stage_specific.astype(str).str.upper() == "TRUE"
+cen11 = rd(os.path.join(D11, "centers.tsv"))
+cen11 = cen11[cen11.k.astype(int) == K11]
+elb11 = rd(os.path.join(D11, "elbow.tsv"))
+pat11 = rd(os.path.join(D11, "patterns.tsv"))
+ss11 = g11[g11.stage_specific]
+n11 = {c: int((ss11[f"k{K11}"] == c).sum()) for c in range(1, K11 + 1)}
+lc11 = [f"ko_lfc_{d}" for d in DAYS]
+fig = make_subplots(rows=1, cols=K11, shared_yaxes=True, horizontal_spacing=0.04,
+                    subplot_titles=[f"Cluster {c}<br>n = {n11[c]:,}" for c in range(1, K11 + 1)])
+for c in range(1, K11 + 1):
+    z = ss11.loc[ss11[f"k{K11}"] == c, lc11].to_numpy()
+    q1, med, q3 = np.percentile(z, [25, 50, 75], axis=0)
+    fig.add_trace(go.Scatter(x=DAYS + DAYS[::-1], y=np.r_[q3, q1[::-1]], mode="lines", fill="toself",
+                             fillcolor="rgba(42,120,214,0.18)", line=dict(width=0), hoverinfo="skip", showlegend=False),
+                  row=1, col=c)
+    fig.add_trace(go.Scatter(x=DAYS, y=med, mode="lines+markers", line=dict(color=C_GROUP, width=2), marker=dict(size=8),
+                             showlegend=False, customdata=np.c_[q1, q3],
+                             hovertemplate="%{x}: median KO log2FC %{y:.2f} (IQR %{customdata[0]:.2f} to %{customdata[1]:.2f})"
+                                           "<extra></extra>"), row=1, col=c)
+    fig.add_hline(y=0, line=dict(color="#898781", width=1, dash="dot"), row=1, col=c)
+fig.update_yaxes(title_text="KO vs Ctr log2FC (shrunk)", col=1)
+fig.update_layout(title=f"Direct-activated genes with a stage-specific KO effect ({len(ss11):,} genes; k-means, k = {K11})")
+fig = style(fig, 400)
+fig.update_layout(margin=dict(t=100))
+parts.append(("11a", fig_html(fig, False)))
+
+t11_pat = pd.DataFrame({"Lower in KO (padj < 0.05) on": pat11.sig_days, "Genes": pat11.total,
+                        "Stage-specific (LRT_interaction padj < 0.05)": pat11.stage_specific,
+                        "Not stage-specific": pat11.not_stage_specific})
+t11_cen = pd.DataFrame({"Cluster": cen11.cluster, "Genes": cen11.genes,
+                        **{f"Median KO log2FC {d}": cen11[f"lfc_{d}"] for d in DAYS},
+                        **{f"Mean scaled profile {d}": cen11[f"scaled_{d}"] for d in DAYS}})
+t11_elb = pd.DataFrame({"k": elb11.k, "Within-cluster sum of squares": elb11.tot_withinss,
+                        "% of variance between clusters": elb11.pct_between})
+
+
+def _l11(x):
+    out = pd.DataFrame({"Gene": x.gene_name, "Lower in KO on": x.sig_days.replace("", "none (interaction only)"),
+                        **{f"KO log2FC {d}": x[f"ko_lfc_{d}"].round(2) for d in DAYS},
+                        "LRT_interaction padj": x.padj_interaction.map(lambda v: f"{v:.1e}"),
+                        "ISL1 sites (GREAT)": x.n_sites})
+    return out
+
+
+ss11s = ss11.sort_values([f"k{K11}", "gene_name", "gene_id"], kind="stable")
+t11_lists = {c: _l11(ss11s[ss11s[f"k{K11}"] == c]) for c in range(1, K11 + 1)}
+t11_rest = _l11(g11[~g11.stage_specific].sort_values(["gene_name", "gene_id"], kind="stable"))
+MK11 = ["INS", "MAFA", "ABCC8", "PCSK2", "CD36", "PFKFB2", "GCG", "ARX", "SST", "PDX1", "HHEX", "TTR"]
+ex11 = {c: ", ".join(sorted(ss11.loc[(ss11[f"k{K11}"] == c) & ss11.gene_name.isin(MK11), "gene_name"])) for c in range(1, K11 + 1)}
+
 # ---- page
 doc = f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISL1 integration</title>
@@ -895,6 +952,38 @@ table applies to it.</p>
 upper bound); 4 libraries per day reach about 0.43, and a shift of 0.3 needs about 8 per day. A smaller sample makes a
 negative result uninformative.</p>
 {table_html(t10_pw)}
+<h2>11 Direct-activated genes with a stage-specific KO effect</h2>
+<p class="note">Genes: the {len(g11):,} direct-activated genes of step 02 (lower in the KO, padj &lt; 0.05, on at least one of
+D15 / D18 / D22 and never higher; at least one ISL1 site in the GREAT domain; ISL1 itself excluded). <b>Stage-specific</b>:
+LRT_interaction padj &lt; 0.05, i.e. the KO effect differs between stages ({len(ss11):,} genes); for the other
+{len(g11) - len(ss11):,} the KO effect is not shown to change between stages. The per-day significance pattern is shown
+for description only: with 2 replicates, "not significant" on a day often means just under the threshold.
+<b>Clusters</b>: k-means on each stage-specific gene's shrunk KO log2FC at D15, D18 and D22, divided by its largest
+|log2FC| so that genes group by the timing of the effect, not its size (seed 1, 25 starts; clusters numbered by size;
+k = 4 chosen from k = 2-8, scripts/11_activated_stage.R). The figure shows the unscaled log2FC: median and
+25th-75th percentile band.</p>
+{dict(parts)["11a"]}
+{table_html(t11_cen)}
+<p class="note">Islet genes per cluster: {"; ".join(f"cluster {c}: {ex11[c] or '-'}" for c in range(1, K11 + 1))}.</p>
+{table_html(t11_pat)}
+<details><summary>Elbow: k = 2-8</summary>
+{table_html(t11_elb)}
+</details>
+<details><summary>Cluster 1: {n11[1]:,} genes</summary>
+{table_html(t11_lists[1])}
+</details>
+<details><summary>Cluster 2: {n11[2]:,} genes</summary>
+{table_html(t11_lists[2])}
+</details>
+<details><summary>Cluster 3: {n11[3]:,} genes</summary>
+{table_html(t11_lists[3])}
+</details>
+<details><summary>Cluster 4: {n11[4]:,} genes</summary>
+{table_html(t11_lists[4])}
+</details>
+<details><summary>Not stage-specific: {len(t11_rest):,} direct-activated genes</summary>
+{table_html(t11_rest)}
+</details>
 </body></html>"""
 with open(OUT, "w") as f:
     f.write(doc)
