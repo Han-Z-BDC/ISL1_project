@@ -367,7 +367,9 @@ In a one-batch design with n libraries per day, the D22 − D18 shift detectable
 0.52 log2 for n = 3, 0.43 for n = 4, 0.38 for n = 5, 0.34 for n = 6 and 0.29 for n = 8 (0.92 / 0.76 / 0.67 / 0.60 / 0.51 at
 the upper SD bound). A 0.3 shift needs about 8 libraries per day.
 
-### 11 Direct-activated genes with a stage-specific KO effect
+### 11 Direct targets with a stage-specific KO effect
+
+Same method for each label; genes labelled mixed are left out. Direct-activated:
 
 - Genes: the 1,977 direct-activated genes of step 02 (lower in the KO on at least one day, never higher, bound).
 - Stage-specific: LRT_interaction padj < 0.05 (the KO effect differs between stages): 857 genes. The other 1,120 have
@@ -386,3 +388,17 @@ the upper SD bound). A 0.3 shift needs about 8 libraries per day.
 - Sustained, from D18: loss from D18 on, still there at D22; Transient, D18 only: loss at D18, gone by D22; Late,
   D22 only: loss at D22 only; Early, transient: small loss at D15-D18, none at D22. A loss mainly at D15 is rare (22 stage-specific genes lose most at D15).
 - INS is not here: it is lower in the KO but has no ISL1 site in its GREAT domain.
+
+Direct-repressed: 1,702 genes (higher in the KO on at least one day, never lower, bound); 478 stage-specific (LRT_interaction
+padj < 0.05), 1,224 not shown to change between stages. k = 4 (77% of the variance between clusters; 71% at k = 3).
+
+| Cluster | Genes | Median KO log2FC D15 / D18 / D22 | Endocrine genes |
+|---|---|---|---|
+| 1 | 164 | +0.04 / +0.73 / +0.88 | NKX6-1 |
+| 2 | 147 | +0.82 / +0.50 / -0.03 | ASCL2, CHGB, CRYBA2, KCNJ6, MNX1, NEUROD1, NEUROG3, NKX2-2, PAX4 |
+| 3 | 103 | -0.15 / -0.03 / +0.53 | |
+| 4 | 64 | +0.23 / +0.70 / -0.05 | |
+
+- Cluster 1: gain from D18 on, still there at D22; cluster 2: gain at D15, fading by D22 (the endocrine progenitor
+  genes); cluster 3: gain at D22 only; cluster 4: gain at D18 only. Unlike the activated genes, an early effect is common
+  here (132 stage-specific genes gain most at D15).
