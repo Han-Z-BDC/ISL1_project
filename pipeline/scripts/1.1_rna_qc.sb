@@ -56,4 +56,5 @@ filtered_h5_path="${IN_DIR}/${outs_dir}/filtered_feature_bc_matrix.h5"
   --sample-id "${sample_id}" \
   --h5-path "${filtered_h5_path}" \
   --config "${CONFIG_DIR}/qc_RNA.yaml" \
+  --nuclear-fraction-tsv "${OUT_DIR}/nuclear_fraction/${sample_id}.nuclear_fraction.tsv" \
   --outdir "${OUT_DIR}/rna_qc"

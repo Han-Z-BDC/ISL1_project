@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=5
+#SBATCH --mem=18G
+#SBATCH --time=02:00:00
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --job-name=nuclear_fraction
+#SBATCH --output=logs/nuclear_fraction.%A_%a.out
+
+# --array is set at submission time by scripts/submit_1.0_nuclear_fraction.sh.
+# One array task per sample: reads the sample's Cell Ranger BAM and writes the
+# nuclear fraction of every called cell (see scripts/1.0_nuclear_fraction.py).
+# Measured on ISL1_scRNAseq (10-20 GB BAMs, 140-310 M reads): 3-8 min each.
+# Step 1.1 uses the result only if min_nuclear_fraction is set in qc_RNA.yaml.
+
+set -euo pipefail
+P="${SLURM_SUBMIT_DIR:?ERROR: submit via scripts/submit_1.0_nuclear_fraction.sh from the repo root}"
+source "${P}/config.sh"
+: "${SLURM_ARRAY_TASK_ID:?ERROR: this script is meant to run as an array -- use scripts/submit_1.0_nuclear_fraction.sh}"
+mkdir -p "${OUT_DIR}/nuclear_fraction" "${P}/logs"
+
+mapfile -t ROWS < <(tail -n +2 "${SAMPLE_SHEET}")
+row="${ROWS[${SLURM_ARRAY_TASK_ID}]:-}"
+[[ -n "${row}" ]] || { echo "ERROR: no sample at array index ${SLURM_ARRAY_TASK_ID}" >&2; exit 1; }
+IFS=$'\t' read -r sample_id h5_rel <<< "${row}"
+filtered_h5_path="${IN_DIR}/$(dirname "${h5_rel}")/filtered_feature_bc_matrix.h5"
+[[ -s "${filtered_h5_path}" ]] || { echo "ERROR: ${filtered_h5_path} not found" >&2; exit 1; }
+
+"${TOOLS}/python" "${P}/scripts/1.0_nuclear_fraction.py" \
+  --sample-id "${sample_id}" \
+  --h5-path "${filtered_h5_path}" \
+  --threads "${SLURM_CPUS_PER_TASK}" \
+  --outdir "${OUT_DIR}/nuclear_fraction"

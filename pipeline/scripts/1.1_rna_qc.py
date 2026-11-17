@@ -80,6 +80,7 @@ def load_config(config_path: str, sample_id: str) -> dict:
         ),
         "ribo_pct_max": cfg.get("ribo_pct_max"),
         "min_genes": cfg.get("min_genes"),
+        "min_nuclear_fraction": cfg.get("min_nuclear_fraction"),
     }
 
     if strategy == "manual":
@@ -184,6 +185,14 @@ def compute_pass_mask(adata, cfg: dict) -> tuple[np.ndarray, dict]:
         removed["step1_below_min_genes_only"] = int((below_min & ~step1_fail).sum())
         step1_fail = step1_fail | below_min
 
+    # Optional minimum nuclear fraction (step 1.0): drops droplets holding cytoplasm
+    # without a nucleus. Same number for every sample.
+    if cfg.get("min_nuclear_fraction") is not None:
+        below_nf = adata.obs["nuclear_fraction"].to_numpy() < cfg["min_nuclear_fraction"]
+        removed["step1_below_min_nuclear_fraction"] = int(below_nf.sum())
+        removed["step1_below_min_nuclear_fraction_only"] = int((below_nf & ~step1_fail).sum())
+        step1_fail = step1_fail | below_nf
+
     # --- step 2 ---
     mt_fail = np.zeros(n, dtype=bool)
     mt_values = adata.obs["pct_counts_mt"].to_numpy()
@@ -245,6 +254,7 @@ def main():
     ap.add_argument("--sample-id", required=True)
     ap.add_argument("--h5-path", required=True, help="Path to CellRanger's filtered_feature_bc_matrix.h5 (called cells) -- NOT the raw matrix, which would dominate the MAD threshold with empty droplets")
     ap.add_argument("--config", required=True, help="Path to configs/qc_RNA.yaml")
+    ap.add_argument("--nuclear-fraction-tsv", help="Step 1.0 output; needed when min_nuclear_fraction is set")
     ap.add_argument("--outdir", required=True)
     args = ap.parse_args()
 
@@ -269,6 +279,14 @@ def main():
         adata, qc_vars=["mt", "ribo"], percent_top=None, log1p=True, inplace=True
     )
 
+    if args.nuclear_fraction_tsv and Path(args.nuclear_fraction_tsv).exists():
+        nf = pd.read_csv(args.nuclear_fraction_tsv, sep="\t", index_col="barcode")
+        adata.obs["nuclear_fraction"] = nf["nuclear_fraction"].reindex(adata.obs_names).to_numpy()
+    if cfg.get("min_nuclear_fraction") is not None:
+        if "nuclear_fraction" not in adata.obs or adata.obs["nuclear_fraction"].isna().any():
+            sys.exit(f"ERROR: min_nuclear_fraction is set but {args.nuclear_fraction_tsv} is missing or does "
+                     f"not cover every cell -- run step 1.0 (scripts/submit_1.0_nuclear_fraction.sh) first.")
+
     n_before = adata.n_obs
     keep, removed = compute_pass_mask(adata, cfg)
     n_after = int(keep.sum())
@@ -291,6 +309,7 @@ def main():
         "filtering_strategy": cfg["filtering_strategy"],
         "n_mads": cfg["n_mads"] if cfg["filtering_strategy"] == "mad" else "n/a",
         "min_genes": cfg["min_genes"],
+        "min_nuclear_fraction": cfg["min_nuclear_fraction"],
         "mt_pct_strategy": cfg["mt_pct_strategy"],
         "mt_pct_n_mads": cfg["mt_pct_n_mads"] if cfg["mt_pct_strategy"] == "mad" else "n/a",
         "mt_pct_floor": cfg["mt_pct_floor"] if cfg["mt_pct_strategy"] == "mad" else "n/a",
