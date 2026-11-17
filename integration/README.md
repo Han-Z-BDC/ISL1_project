@@ -66,7 +66,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 08 All ISL1 sites grouped by binding pattern across days | `scripts/08_site_clusters.sb` (acpu, 4 CPUs, 15 GB) | `results/08_site_clusters/`: `site_clusters.tsv` (per site: LRT, VST and z per day, group for k = 2-10), `centers.tsv`, `elbow.tsv`, `heldout.tsv`, `heldout_clusters.tsv`, `links.tsv`, `gene_links.tsv` and `gene_site_groups.tsv` (gene level, GREAT and ±50 kb links), `vst_libraries.tsv` |
 | 09 Target genes of the peak-call overlap classes | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB; needs CUT&RUN step 12) | `results/09_peak_overlap/`: `class_groups.tsv` (per class: step 08 VST and groups), `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb) |
 | 10 Pre-specified beta − alpha binding contrast | `scripts/10_beta_alpha_contrast.sb` (acpu, 1 CPU, 3 GB; `MODE=dry_run` now, `primary` for the unified time course) | `results/10_beta_alpha_contrast/`: `sets.tsv`, `set_sites.tsv`, `library_values.tsv`, `contrasts.tsv`, `site_level.tsv` |
-| 11 Direct-activated and direct-repressed genes with a stage-specific KO effect | `scripts/11_direct_stage.sb` (acpu, 2 CPUs, 7 GB; needs step 02; runs `11_direct_stage.R` for each label) | `results/11_activated_stage/`, `results/11_repressed_stage/`: `genes.tsv` (per gene of the label: pattern, LRT_interaction padj, scaled profile, clusters k2-k8), `elbow.tsv`, `centers.tsv`, `patterns.tsv` |
+| 11 Direct-activated and direct-repressed genes with a stage-specific KO effect | `scripts/11_direct_stage.sb` (acpu, 2 CPUs, 7 GB; needs step 02; runs `11_direct_stage.R` for each label) | `results/11_activated_stage/`, `results/11_repressed_stage/`: `genes.tsv` (per gene of the label: pattern, LRT_interaction padj, scaled profile, clusters k2-k8, group: the k = 4 cluster or constant), `elbow.tsv`, `centers.tsv`, `patterns.tsv`, `groups.tsv` (per group: genes, median log2FC, significant on all days) |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -377,27 +377,33 @@ Same method for each label; genes labelled mixed are left out. Direct-activated:
   descriptive only.
 - Clusters: k-means (seed 1, 25 starts) on each stage-specific gene's shrunk KO log2FC at D15 / D18 / D22 divided by its
   largest |log2FC| (timing, not size); k = 4, chosen from k = 2-8 (78% of the variance between clusters; 71% at k = 3).
+- Constant group: all genes that are not stage-specific, kept as a fifth group.
 
-| Cluster | Genes | Median KO log2FC D15 / D18 / D22 | Islet genes |
-|---|---|---|---|
-| 1 Sustained, from D18 | 345 | -0.21 / -1.04 / -1.66 | ARX, GCG, HHEX, PDX1, PFKFB2, SST, TTR |
-| 2 Transient, D18 only | 223 | -0.28 / -1.25 / -0.21 | |
-| 3 Late, D22 only | 199 | +0.11 / -0.05 / -1.00 | ABCC8, CD36, MAFA, PCSK2 |
-| 4 Early, transient | 90 | -0.29 / -0.44 / +0.20 | |
+| Group | Genes | Median KO log2FC D15 / D18 / D22 | Significant on all 3 days | Islet genes |
+|---|---|---|---|---|
+| 1 Sustained, from D18 | 345 | -0.21 / -1.04 / -1.66 | 109 (32%) | ARX, GCG, HHEX, PDX1, PFKFB2, SST, TTR |
+| 2 Transient, D18 only | 223 | -0.28 / -1.25 / -0.21 | 42 (19%) | |
+| 3 Late, D22 only | 199 | +0.11 / -0.05 / -1.00 | 0 | ABCC8, CD36, MAFA, PCSK2 |
+| 4 Early, transient | 90 | -0.29 / -0.44 / +0.20 | 0 | |
+| Constant (not stage-specific) | 1,120 | -0.18 / -0.49 / -0.39 | 112 (10%) | G6PC2, SLC30A8 |
 
 - Sustained, from D18: loss from D18 on, still there at D22; Transient, D18 only: loss at D18, gone by D22; Late,
   D22 only: loss at D22 only; Early, transient: small loss at D15-D18, none at D22. A loss mainly at D15 is rare (22 stage-specific genes lose most at D15).
+- Constant: on average not flat (largest loss at D18), but only 112 genes are significant on all three days; the
+  others are significant on one or two days, with a KO effect not shown to differ between stages.
 - INS is not here: it is lower in the KO but has no ISL1 site in its GREAT domain.
 
 Direct-repressed: 1,702 genes (higher in the KO on at least one day, never lower, bound); 478 stage-specific (LRT_interaction
-padj < 0.05), 1,224 not shown to change between stages. k = 4 (77% of the variance between clusters; 71% at k = 3).
+padj < 0.05), 1,224 not shown to change between stages (constant group). k = 4 (77% of the variance between clusters;
+71% at k = 3).
 
-| Cluster | Genes | Median KO log2FC D15 / D18 / D22 | Endocrine genes |
-|---|---|---|---|
-| 1 Sustained, from D18 | 164 | +0.04 / +0.73 / +0.88 | NKX6-1 |
-| 2 Early, transient | 147 | +0.82 / +0.50 / -0.03 | ASCL2, CHGB, CRYBA2, KCNJ6, MNX1, NEUROD1, NEUROG3, NKX2-2, PAX4 |
-| 3 Late, D22 only | 103 | -0.15 / -0.03 / +0.53 | |
-| 4 Transient, D18 only | 64 | +0.23 / +0.70 / -0.05 | |
+| Group | Genes | Median KO log2FC D15 / D18 / D22 | Significant on all 3 days | Endocrine genes |
+|---|---|---|---|---|
+| 1 Sustained, from D18 | 164 | +0.04 / +0.73 / +0.88 | 31 (19%) | NKX6-1 |
+| 2 Early, transient | 147 | +0.82 / +0.50 / -0.03 | 21 (14%) | ASCL2, CHGB, CRYBA2, KCNJ6, MNX1, NEUROD1, NEUROG3, NKX2-2, PAX4 |
+| 3 Late, D22 only | 103 | -0.15 / -0.03 / +0.53 | 0 | |
+| 4 Transient, D18 only | 64 | +0.23 / +0.70 / -0.05 | 2 (3%) | |
+| Constant (not stage-specific) | 1,224 | +0.21 / +0.47 / +0.36 | 212 (17%) | DDC, INSM1, LMX1A |
 
 - Sustained, from D18: gain from D18 on, still there at D22; Early, transient: gain at D15, fading by D22 (the
   endocrine progenitor genes); Late, D22 only: gain at D22 only; Transient, D18 only: gain at D18 only. Unlike the activated genes, an early effect is common

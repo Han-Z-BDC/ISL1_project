@@ -9,13 +9,12 @@
 #   Clusters        k-means on the profiles of the stage-specific genes, k = 2-8 (seed 1, 25 starts, 100 iterations);
 #                   clusters numbered by size within each k (ties by the order of the first gene). The user picks k.
 #   Also            max_effect_day: the day with the largest shrunk KO log2FC in the label's direction.
-#   Option A        group_A: the k = 4 cluster (user's choice) for stage-specific genes, "constant" for the others
-#                   (KO effect not shown to change between stages); all_days = significant on D15, D18 and D22.
-#   Option B        the same k-means on the profiles of all genes of the label, stage-specific or not (kall2-kall8).
+#   group           the k = 4 cluster (user's choice) for stage-specific genes, "constant" for the others (KO effect
+#                   not shown to change between stages); all_days = significant on D15, D18 and D22 (descriptive).
 # usage: Rscript 11_direct_stage.R <integration results dir> <activated|repressed> <out_dir>
-# Output in <out_dir>: genes.tsv (one row per gene of the label; k2-k8 for the stage-specific ones, group_A, kall2-kall8),
-#   elbow.tsv, centers.tsv (per k and cluster: genes, mean scaled profile, median shrunk log2FC), patterns.tsv;
-#   elbow_all.tsv, centers_all.tsv (option B; centers also give the share of stage-specific and all-days genes)
+# Output in <out_dir>: genes.tsv (one row per gene of the label; k2-k8 for the stage-specific ones, all_days, group),
+#   elbow.tsv, centers.tsv (per k and cluster: genes, mean scaled profile, median shrunk log2FC), patterns.tsv,
+#   groups.tsv (the 4 clusters and the constant group: genes, median shrunk log2FC, share significant on all days)
 
 suppressPackageStartupMessages(library(data.table))
 args <- commandArgs(trailingOnly = TRUE)
@@ -55,8 +54,7 @@ run_km <- function(idx, pre) {
       centers[[length(centers) + 1]] <- data.table(k = k, cluster = c, genes = length(i),
         scaled_D15 = round(mean(prof[i, 1]), 3), scaled_D18 = round(mean(prof[i, 2]), 3), scaled_D22 = round(mean(prof[i, 3]), 3),
         lfc_D15 = round(median(g$ko_lfc_D15[i]), 3), lfc_D18 = round(median(g$ko_lfc_D18[i]), 3),
-        lfc_D22 = round(median(g$ko_lfc_D22[i]), 3),
-        pct_stage_specific = round(100 * mean(g$stage_specific[i]), 1), pct_all_days = round(100 * mean(g$all_days[i]), 1))
+        lfc_D22 = round(median(g$ko_lfc_D22[i]), 3))
     }
   }
   list(elbow = rbindlist(elbow), centers = rbindlist(centers))
@@ -64,9 +62,12 @@ run_km <- function(idx, pre) {
 g[, all_days := sig_days == "D15,D18,D22"]
 ss <- which(g$stage_specific)
 A <- run_km(ss, "k")
-elbow <- A$elbow; centers <- A$centers[, !c("pct_stage_specific", "pct_all_days")]
-g[, group_A := fifelse(stage_specific, paste0("cluster", k4), "constant")]
-B <- run_km(seq_len(nrow(g)), "kall")
+elbow <- A$elbow; centers <- A$centers
+g[, group := fifelse(stage_specific, paste0("cluster", k4), "constant")]
+grp <- g[, .(genes = .N, lfc_D15 = round(median(ko_lfc_D15), 3), lfc_D18 = round(median(ko_lfc_D18), 3),
+             lfc_D22 = round(median(ko_lfc_D22), 3), all_days = sum(all_days),
+             pct_all_days = round(100 * mean(all_days), 1)), by = group]
+setorder(grp, group)
 
 pat <- g[, .N, by = .(sig_days, stage_specific)]
 pat <- dcast(pat, sig_days ~ stage_specific, value.var = "N", fill = 0)
@@ -77,18 +78,16 @@ setorder(pat, -total, sig_days)
 
 cols <- c("gene_id", "gene_name", "gene_type", "stage_specific", "padj_interaction", "sig_days",
           paste0("ko_lfc_", days), paste0("ko_padj_", days), paste0("scaled_", days), "max_effect_day",
-          paste0("k", K), "all_days", "group_A", paste0("kall", K), "n_sites", "bound_near50")
+          paste0("k", K), "all_days", "group", "n_sites", "bound_near50")
 out <- g[, cols, with = FALSE]
 setorder(out, -stage_specific, gene_name, gene_id)
 fwrite(out, file.path(od, "genes.tsv"), sep = "\t", na = "NA", quote = FALSE)
 fwrite(elbow, file.path(od, "elbow.tsv"), sep = "\t", quote = FALSE)
 fwrite(centers, file.path(od, "centers.tsv"), sep = "\t", quote = FALSE)
 fwrite(pat, file.path(od, "patterns.tsv"), sep = "\t", quote = FALSE)
-fwrite(B$elbow, file.path(od, "elbow_all.tsv"), sep = "\t", quote = FALSE)
-fwrite(B$centers, file.path(od, "centers_all.tsv"), sep = "\t", quote = FALSE)
+fwrite(grp, file.path(od, "groups.tsv"), sep = "\t", quote = FALSE)
 
 message(sprintf("%d direct-%s genes, %d stage-specific", nrow(g), lab, length(ss)))
 print(pat); print(elbow); print(centers)
 print(g[ss, .N, by = max_effect_day][order(max_effect_day)])
-message("option B: all genes"); print(B$elbow); print(B$centers[k %in% 4:6])
-print(dcast(g[, .N, by = .(group_A, kall5)], group_A ~ kall5, value.var = "N", fill = 0))
+print(grp)

@@ -665,16 +665,18 @@ if pw10 is not None:
                            "Power for a 0.5 shift (SD estimate)": e["power_0.5"].values})
     sg10 = (float(e.sigma.iloc[0]), float(u.sigma.iloc[0]), int(e.sigma_df.iloc[0]))
 
-# ---- section 11: direct targets with a stage-specific KO effect, k-means on the timing (k = 4 for each label)
+# ---- section 11: direct targets by timing of the KO effect: k-means on the stage-specific genes (k = 4 for each
+# label) plus one constant group (not stage-specific)
 K11 = 4
 S11 = {
     "activated": dict(dir="11_activated_stage", color=C_GROUP, band="rgba(42,120,214,0.18)", way="Lower",
                       names={1: "Sustained, from D18", 2: "Transient, D18 only", 3: "Late, D22 only", 4: "Early, transient"},
-                      genes=["INS", "MAFA", "ABCC8", "PCSK2", "CD36", "PFKFB2", "GCG", "ARX", "SST", "PDX1", "HHEX", "TTR"]),
+                      genes=["INS", "MAFA", "ABCC8", "PCSK2", "CD36", "PFKFB2", "GCG", "ARX", "SST", "PDX1", "HHEX", "TTR",
+                             "G6PC2", "SLC30A8"]),
     "repressed": dict(dir="11_repressed_stage", color=C_B3, band="rgba(235,104,52,0.18)", way="Higher",
                       names={1: "Sustained, from D18", 2: "Early, transient", 3: "Late, D22 only", 4: "Transient, D18 only"},
                       genes=["NEUROG3", "PAX4", "NKX2-2", "NEUROD1", "NKX6-1", "MNX1", "ASCL2", "CHGB", "KCNJ6", "CRYBA2",
-                             "INSM1", "LMX1A", "MAFB", "IRX1"]),
+                             "INSM1", "LMX1A", "MAFB", "IRX1", "DDC"]),
 }
 
 
@@ -690,20 +692,24 @@ def section11(lab, cfg):
     g = rd(os.path.join(d11, "genes.tsv"))
     for c_ in [f"ko_lfc_{d}" for d in DAYS] + [f"ko_padj_{d}" for d in DAYS] + ["padj_interaction", f"k{K11}"]:
         g[c_] = pd.to_numeric(g[c_], errors="coerce")
-    g["stage_specific"] = g.stage_specific.astype(str).str.upper() == "TRUE"
-    cen = rd(os.path.join(d11, "centers.tsv"))
-    cen = cen[cen.k.astype(int) == K11]
+    for b in ["stage_specific", "all_days"]:
+        g[b] = g[b].astype(str).str.upper() == "TRUE"
+    grp = rd(os.path.join(d11, "groups.tsv")).set_index("group")
     elb = rd(os.path.join(d11, "elbow.tsv"))
     pat = rd(os.path.join(d11, "patterns.tsv"))
     ss = g[g.stage_specific]
     cl = range(1, K11 + 1)
-    name = {c: (f"{c}: {cfg['names'][c]}" if c in cfg["names"] else f"Cluster {c}") for c in cl}
-    n = {c: int((ss[f"k{K11}"] == c).sum()) for c in cl}
+    gs = [f"cluster{c}" for c in cl] + ["constant"]
+    name = {f"cluster{c}": (f"{c}: {cfg['names'][c]}" if c in cfg["names"] else f"Cluster {c}") for c in cl}
+    name["constant"] = "Constant (not stage-specific)"
+    n = {x: int((g.group == x).sum()) for x in gs}
+    assert all(n[x] == int(grp.loc[x, "genes"]) for x in gs)
     lc = [f"ko_lfc_{d}" for d in DAYS]
-    fig = make_subplots(rows=1, cols=K11, shared_yaxes=True, horizontal_spacing=0.04,
-                        subplot_titles=[f"{name[c]}<br>n = {n[c]:,}" for c in cl])
-    for c in cl:
-        z = ss.loc[ss[f"k{K11}"] == c, lc].to_numpy()
+    sc = [f"scaled_{d}" for d in DAYS]
+    fig = make_subplots(rows=1, cols=len(gs), shared_yaxes=True, horizontal_spacing=0.03,
+                        subplot_titles=[f"{name[x]}<br>n = {n[x]:,}" for x in gs])
+    for c, x in enumerate(gs, 1):
+        z = g.loc[g.group == x, lc].to_numpy()
         q1, med, q3 = np.percentile(z, [25, 50, 75], axis=0)
         fig.add_trace(go.Scatter(x=DAYS + DAYS[::-1], y=np.r_[q3, q1[::-1]], mode="lines", fill="toself",
                                  fillcolor=cfg["band"], line=dict(width=0), hoverinfo="skip", showlegend=False), row=1, col=c)
@@ -713,36 +719,43 @@ def section11(lab, cfg):
                                                "%{customdata[1]:.2f})<extra></extra>"), row=1, col=c)
         fig.add_hline(y=0, line=dict(color="#898781", width=1, dash="dot"), row=1, col=c)
     fig.update_yaxes(title_text="KO vs Ctr log2FC (shrunk)", col=1)
-    fig.update_layout(title=f"Direct-{lab} genes with a stage-specific KO effect ({len(ss):,} genes; k-means, k = {K11})")
+    for a in fig.layout.annotations:
+        a.font = dict(size=11)
+    fig.update_layout(title=f"Direct-{lab} genes ({len(g):,}): {len(ss):,} stage-specific in k = {K11} clusters, "
+                            f"{n['constant']:,} constant")
     fig = style(fig, 400)
     fig.update_layout(margin=dict(t=100))
     t_pat = pd.DataFrame({f"{cfg['way']} in KO (padj < 0.05) on": pat.sig_days, "Genes": pat.total,
                           "Stage-specific (LRT_interaction padj < 0.05)": pat.stage_specific,
                           "Not stage-specific": pat.not_stage_specific})
-    t_cen = pd.DataFrame({"Cluster": [name[int(c)] for c in cen.cluster], "Genes": cen.genes,
-                          **{f"Median KO log2FC {d}": cen[f"lfc_{d}"] for d in DAYS},
-                          **{f"Mean scaled profile {d}": cen[f"scaled_{d}"] for d in DAYS}})
+    t_cen = pd.DataFrame({"Group": [name[x] for x in gs], "Genes": [n[x] for x in gs],
+                          **{f"Median KO log2FC {d}": [round(g.loc[g.group == x, f"ko_lfc_{d}"].median(), 3) for x in gs]
+                             for d in DAYS},
+                          **{f"Mean scaled profile {d}": [round(pd.to_numeric(g.loc[g.group == x, s_]).mean(), 3)
+                                                          for x in gs] for d, s_ in zip(DAYS, sc)},
+                          "Significant on all 3 days": [f"{int(grp.loc[x, 'all_days']):,} ({grp.loc[x, 'pct_all_days']}%)"
+                                                        for x in gs]})
     t_elb = pd.DataFrame({"k": elb.k, "Within-cluster sum of squares": elb.tot_withinss,
                           "% of variance between clusters": elb.pct_between})
-    sss = ss.sort_values([f"k{K11}", "gene_name", "gene_id"], kind="stable")
-    ex = {c: ", ".join(sorted(ss.loc[(ss[f"k{K11}"] == c) & ss.gene_name.isin(cfg["genes"]), "gene_name"])) for c in cl}
-    rest = _l11(g[~g.stage_specific].sort_values(["gene_name", "gene_id"], kind="stable"), cfg["way"])
-    lists = "".join(f"<details><summary>{name[c]}: {n[c]:,} genes</summary>\n"
-                    f"{table_html(_l11(sss[sss[f'k{K11}'] == c], cfg['way']))}\n</details>\n" for c in cl)
+    gsrt = g.sort_values(["gene_name", "gene_id"], kind="stable")
+    ex = {x: ", ".join(sorted(g.loc[(g.group == x) & g.gene_name.isin(cfg["genes"]), "gene_name"])) for x in gs}
+    lists = "".join(f"<details><summary>{name[x]}: {n[x]:,} genes</summary>\n"
+                    f"{table_html(_l11(gsrt[gsrt.group == x], cfg['way']))}\n</details>\n" for x in gs)
+    con = g[g.group == "constant"]
     return f"""<h3>Direct-{lab} genes</h3>
 <p class="note">{len(g):,} direct-{lab} genes ({cfg['way'].lower()} in the KO on at least one day, never the other way);
-<b>{len(ss):,} stage-specific</b>, {len(g) - len(ss):,} not shown to change between stages.</p>
+<b>{len(ss):,} stage-specific</b> (4 clusters), {n['constant']:,} in the constant group. The constant group is not flat on
+average (median KO log2FC {" / ".join(f"{con[c_].median():+.2f}" for c_ in lc)}): {int(con.all_days.sum()):,} of its genes
+are significant on all three days; the others are significant on one or two days, with a KO effect not shown to differ
+between stages.</p>
 {fig_html(fig, False)}
 {table_html(t_cen)}
-<p class="note">Islet and endocrine genes per cluster: {"; ".join(f"{name[c]}: {ex[c] or '-'}" for c in cl)}.</p>
+<p class="note">Islet and endocrine genes per group: {"; ".join(f"{name[x]}: {ex[x] or '-'}" for x in gs)}.</p>
 {table_html(t_pat)}
 <details><summary>Elbow: k = 2-8</summary>
 {table_html(t_elb)}
 </details>
-{lists}<details><summary>Not stage-specific: {len(rest):,} direct-{lab} genes</summary>
-{table_html(rest)}
-</details>
-"""
+{lists}"""
 
 
 html11 = {lab: section11(lab, cfg) for lab, cfg in S11.items()}
@@ -985,7 +998,8 @@ KO effect differs between stages; for the others the KO effect is not shown to c
 significance pattern is shown for description only: with 2 replicates, "not significant" on a day often means just under
 the threshold. <b>Clusters</b>, separately for each label: k-means on each stage-specific gene's shrunk KO log2FC at
 D15, D18 and D22, divided by its largest |log2FC| so that genes group by the timing of the effect, not its size (seed 1,
-25 starts; clusters numbered by size; k = 4 chosen from k = 2-8 for each label, scripts/11_direct_stage.R). The figures
+25 starts; clusters numbered by size; k = 4 chosen from k = 2-8 for each label, scripts/11_direct_stage.R). <b>Constant
+group</b>: all genes of the label that are not stage-specific, kept as their own group. The figures
 show the unscaled log2FC: median and 25th-75th percentile band.</p>
 {html11["activated"]}
 {html11["repressed"]}
