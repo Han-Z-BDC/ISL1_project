@@ -10,6 +10,9 @@ Processing (pipeline 5.3 log path + 6.1 graph conventions, on this day's cells o
   concat -> normalize_total (1e4) -> log1p -> 2,000 HVGs (flavor seurat) -> PCA (50 comps)
   -> neighbours on 30 PCs (n_neighbors 15) -> UMAP -> Leiden (igraph, n_iterations 2) at RESOLUTIONS.
   Seed 1234 throughout.
+  Cell cycle (user, 2026-11-17: score only, no regression): sc.tl.score_genes_cell_cycle on the
+  log1p data with Seurat's cc.genes (Tirosh 2016; same lists as pipeline 5.3) -> obs S_score,
+  G2M_score, phase. Does not change the embedding or clusters.
 Writes ${OUT_DIR}/day_analysis/{day}/ (reruns overwrite):
   {day}_merged.h5ad        cells x genes; X = log1p-normalized, layers counts / soupx_counts,
                            obsm X_pca + X_umap, obs leiden_r* for every resolution
@@ -17,7 +20,8 @@ Writes ${OUT_DIR}/day_analysis/{day}/ (reruns overwrite):
   clusters.csv             barcode -> cluster at every resolution;  n_clusters.csv
   composition_r*.csv       per cluster: cells per sample, % of ctr and of KO cells
   markers_r*.csv           top 10 Wilcoxon markers per cluster
-  umap_samples.png, umap_qc.png, umap_clusters.png, composition.png, dotplot_r*.png,
+  cellcycle_by_sample.csv, cellcycle_by_cluster_r*.csv (phase % per cluster, per genotype)
+  umap_samples.png, umap_qc.png, umap_cellcycle.png, umap_clusters.png, composition.png, dotplot_r*.png,
   {day}_summary.html
 Run: sbatch analysis/scripts/7.1_day_merged.sb D15
 """
@@ -49,6 +53,13 @@ GENES = ["PDX1", "PTF1A", "NKX6-1", "ARX", "GCG", "PAX4", "PAX6", "INS", "SLC18A
 SAMPLE_ORDER = ["ctr_rep1", "ctr_rep2", "KO_rep1", "KO_rep2"]
 SAMPLE_PAL = {"ctr_rep1": "#2f5d9e", "ctr_rep2": "#7fa7dd", "KO_rep1": "#b23b2a", "KO_rep2": "#eb9a84"}
 GENO_PAL = {"ctr": "#3b6fb6", "KO": "#d0573f"}
+
+
+def cc_genes():
+    import rpy2.robjects as ro
+    from rpy2.robjects.packages import importr
+    importr("Seurat")
+    return list(ro.r("Seurat::cc.genes$s.genes")), list(ro.r("Seurat::cc.genes$g2m.genes"))
 
 
 def key(res):
@@ -117,6 +128,11 @@ def main():
 
     sc.pp.normalize_total(a, target_sum=1e4)
     sc.pp.log1p(a)
+    s_genes, g2m_genes = cc_genes()
+    s_use, g2m_use = [g for g in s_genes if g in a.var_names], [g for g in g2m_genes if g in a.var_names]
+    print(f"cell cycle genes found: S {len(s_use)}/{len(s_genes)}, G2M {len(g2m_use)}/{len(g2m_genes)}")
+    sc.tl.score_genes_cell_cycle(a, s_genes=s_use, g2m_genes=g2m_use, random_state=SEED)
+    a.obs["phase"] = pd.Categorical(a.obs["phase"], ["G1", "S", "G2M"])
     sc.pp.highly_variable_genes(a, n_top_genes=N_HVG, flavor="seurat")
     hv = a[:, a.var["highly_variable"]].copy()
     sc.tl.pca(hv, n_comps=N_PCS_STORE, random_state=SEED)
@@ -162,6 +178,22 @@ def main():
     axs[1, 2].axis("off")
     fig.tight_layout(); fig.savefig(RES_DIR / "umap_qc.png", dpi=110); plt.close(fig)
 
+    # ---- cell cycle: UMAPs + tables (scores only; nothing regressed)
+    PHASE_PAL = {"G1": "#c9c9c9", "S": "#3a8fc1", "G2M": "#d1495b"}
+    fig, axs = plt.subplots(2, 3, figsize=(16, 10))
+    scatter(axs[0, 0], u, a.obs["phase"], "phase", pal=PHASE_PAL)
+    scatter(axs[0, 1], u, a.obs["S_score"], "S score", cmap="magma")
+    scatter(axs[0, 2], u, a.obs["G2M_score"], "G2M score", cmap="magma")
+    for ax, g in zip([axs[1, 0], axs[1, 1], axs[1, 2]], ["MKI67", "TOP2A", "PCNA"]):
+        x = a[:, g].X
+        scatter(ax, u, np.asarray(x.todense()).ravel() if hasattr(x, "todense") else np.ravel(x), f"{g} (log1p)", cmap="magma")
+    fig.suptitle(f"{DAY}: cell-cycle phase (scored, not regressed)")
+    fig.tight_layout(); fig.savefig(RES_DIR / "umap_cellcycle.png", dpi=110); plt.close(fig)
+    ccs = pd.crosstab(a.obs["sample"], a.obs["phase"], normalize="index").mul(100).round(1)
+    ccs.loc["ctr (both reps)"] = pd.crosstab(a.obs["genotype"], a.obs["phase"], normalize="index").mul(100).round(1).loc["ctr"]
+    ccs.loc["KO (both reps)"] = pd.crosstab(a.obs["genotype"], a.obs["phase"], normalize="index").mul(100).round(1).loc["KO"]
+    ccs.to_csv(RES_DIR / "cellcycle_by_sample.csv")
+
     # ---- UMAPs: clusters at every resolution
     n_cl = {r: a.obs[key(r)].nunique() for r in RESOLUTIONS}
     pd.Series(n_cl, name="n_clusters").rename_axis("resolution").to_csv(RES_DIR / "n_clusters.csv")
@@ -194,6 +226,15 @@ def main():
         comp["pct_of_KO_cells"] = (100 * ct[["KO_rep1", "KO_rep2"]].sum(axis=1) / n_geno["KO"]).round(2)
         comp["KO_over_ctr"] = (comp["pct_of_KO_cells"] / comp["pct_of_ctr_cells"]).round(2)
         comp.to_csv(RES_DIR / f"composition_r{r}.csv")
+        cc = {}
+        for g in ["ctr", "KO"]:
+            m = a.obs["genotype"] == g
+            t_ = pd.crosstab(a.obs.loc[m, k], a.obs.loc[m, "phase"]).reindex(columns=["G1", "S", "G2M"], fill_value=0)
+            cc[f"{g}_cells"] = t_.sum(axis=1)
+            cc[f"{g}_pct_S"] = (100 * t_["S"] / t_.sum(axis=1)).round(1)
+            cc[f"{g}_pct_G2M"] = (100 * t_["G2M"] / t_.sum(axis=1)).round(1)
+        cc = pd.DataFrame(cc); cc.index = cc.index.astype(int)
+        cc.sort_index().to_csv(RES_DIR / f"cellcycle_by_cluster_r{r}.csv")
         # bars: % of each sample's cells in each cluster (replicates side by side)
         pct = 100 * ct / ct.sum(axis=0)
         x = np.arange(len(pct)); w = 0.2
@@ -239,6 +280,11 @@ normalize_total (10,000) &rarr; log1p &rarr; 2,000 HVGs &rarr; PCA &rarr; 30 PCs
 <h2>Cells per sample</h2><div class=tw>{table(ps)}</div>
 <h2>Samples on the UMAP</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_samples.png')}" alt="UMAP by sample and genotype">
 <h2>QC metrics on the UMAP</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_qc.png')}" alt="UMAP coloured by QC metrics">
+<h2>Cell cycle (scored, not regressed)</h2><p class=sub>Seurat cc.genes (Tirosh 2016), scanpy
+score_genes_cell_cycle on log1p data. % of each sample's cells per phase:</p>
+<div class=tw>{table(pd.read_csv(RES_DIR / 'cellcycle_by_sample.csv', index_col=0))}</div>
+<img src="data:image/png;base64,{b64(RES_DIR / 'umap_cellcycle.png')}" alt="UMAP coloured by cell-cycle phase and scores">
+<h3>Phase by cluster, resolution 0.4</h3><div class=tw>{table(pd.read_csv(RES_DIR / 'cellcycle_by_cluster_r0.4.csv', index_col=0))}</div>
 <h2>Clusters</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_clusters.png')}" alt="Leiden clusters at six resolutions">
 <h2>Cluster composition</h2><p class=sub>Bars: % of each sample's cells in each cluster. Tables: cells per sample;
 % of all ctr / KO cells in the cluster; KO_over_ctr = ratio of those two.</p>
