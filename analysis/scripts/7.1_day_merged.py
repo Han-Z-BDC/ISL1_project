@@ -10,6 +10,8 @@ Processing (pipeline 5.3 log path + 6.1 graph conventions, on this day's cells o
   concat -> normalize_total (1e4) -> log1p -> 2,000 HVGs (flavor seurat) -> PCA (50 comps)
   -> neighbours on 30 PCs (n_neighbors 15) -> UMAP -> Leiden (igraph, n_iterations 2) at RESOLUTIONS.
   Seed 1234 throughout.
+  Nuclear fraction (step 1.0) is kept in obs; cells above HIGH_NF are flagged high_nuclear_fraction
+  (user, 2026-11-17: keep them, flag them -- low cytoplasmic mRNA, not nuclei). Nothing is removed.
   Cell cycle (user, 2026-11-17: score only, no regression): sc.tl.score_genes_cell_cycle on the
   log1p data with Seurat's cc.genes (Tirosh 2016; same lists as pipeline 5.3) -> obs S_score,
   G2M_score, phase. Does not change the embedding or clusters.
@@ -46,6 +48,7 @@ OUT_DIR = Path(os.environ["OUT_DIR"])
 DAY = sys.argv[1]
 RES_DIR = OUT_DIR / "day_analysis" / DAY
 SEED = 1234
+HIGH_NF = 0.6        # flag only; D40's main peak sits at ~0.43, D15/D22 at ~0.28
 N_HVG, N_PCS_STORE, N_PCS, N_NEIGHBORS = 2000, 50, 30, 15
 RESOLUTIONS = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2]
 GENES = ["PDX1", "PTF1A", "NKX6-1", "ARX", "GCG", "PAX4", "PAX6", "INS", "SLC18A1", "FEV", "SST",
@@ -83,10 +86,12 @@ def load_day():
         a.obs["replicate"] = tag.split("_")[1]
         a.obs_names = [f"{new}#{b}" for b in a.obs_names]
         keep_obs = ["sample", "genotype", "replicate", "total_counts", "n_genes_by_counts", "pct_counts_mt",
-                    "pct_counts_ribo", "scDblFinder_doublet_score"]
+                    "pct_counts_ribo", "scDblFinder_doublet_score", "nuclear_fraction"]
         a.obs = a.obs[keep_obs]
         a.obsm, a.uns, a.obsp = {}, {}, {}
         parts.append(a)
+    for p in parts:
+        p.obs["high_nuclear_fraction"] = p.obs["nuclear_fraction"] > HIGH_NF
     var = parts[0].var[["gene_ids", "feature_types"]].copy()
     for p in parts:
         assert (p.var_names == var.index).all()
@@ -146,7 +151,9 @@ def main():
     u = a.obsm["X_umap"]
 
     # ---- per-sample table
-    ps = a.obs.groupby("sample", observed=True).agg(
+    ps = a.obs.assign(hnf=a.obs["high_nuclear_fraction"].astype(float)).groupby("sample", observed=True).agg(
+        pct_high_nuclear_fraction=("hnf", lambda v: round(100 * v.mean(), 1)),
+        median_nuclear_fraction=("nuclear_fraction", "median"),
         cells=("total_counts", "size"), median_counts=("total_counts", "median"),
         median_genes=("n_genes_by_counts", "median"), median_pct_mt=("pct_counts_mt", "median"),
         median_pct_ribo=("pct_counts_ribo", "median")).round(1)
@@ -170,12 +177,12 @@ def main():
     fig, axs = plt.subplots(2, 3, figsize=(16, 10))
     for ax, (col, lab, vmax) in zip(axs.flat, [("total_counts", "log10 counts", None), ("n_genes_by_counts", "log10 genes", None),
                                              ("pct_counts_mt", "% MT", 10), ("pct_counts_ribo", "% ribo", None),
-                                             ("scDblFinder_doublet_score", "scDblFinder score", None)]):
+                                             ("scDblFinder_doublet_score", "scDblFinder score", None),
+                                             ("nuclear_fraction", f"nuclear fraction (flag > {HIGH_NF})", 0.7)]):
         v = a.obs[col].to_numpy(float)
         if lab.startswith("log10"):
             v = np.log10(v)
         scatter(ax, u, v, lab, vmax=vmax)
-    axs[1, 2].axis("off")
     fig.tight_layout(); fig.savefig(RES_DIR / "umap_qc.png", dpi=110); plt.close(fig)
 
     # ---- cell cycle: UMAPs + tables (scores only; nothing regressed)
@@ -225,6 +232,9 @@ def main():
         comp["pct_of_ctr_cells"] = (100 * ct[["ctr_rep1", "ctr_rep2"]].sum(axis=1) / n_geno["ctr"]).round(2)
         comp["pct_of_KO_cells"] = (100 * ct[["KO_rep1", "KO_rep2"]].sum(axis=1) / n_geno["KO"]).round(2)
         comp["KO_over_ctr"] = (comp["pct_of_KO_cells"] / comp["pct_of_ctr_cells"]).round(2)
+        hf = pd.crosstab(a.obs[k], a.obs["high_nuclear_fraction"]).reindex(columns=[False, True], fill_value=0)
+        hf.index = hf.index.astype(int)
+        comp["pct_high_nuclear_fraction"] = (100 * hf[True] / hf.sum(axis=1)).reindex(comp.index).round(1)
         comp.to_csv(RES_DIR / f"composition_r{r}.csv")
         cc = {}
         for g in ["ctr", "KO"]:
