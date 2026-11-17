@@ -668,6 +668,7 @@ if pw10 is not None:
 # ---- section 11: direct-activated genes with a stage-specific KO effect, k-means on the timing (k = 4)
 D11 = os.path.join(RES, "11_activated_stage")
 K11 = 4
+N11 = {1: "Sustained, from D18", 2: "Transient, D18 only", 3: "Late, D22 only", 4: "Early, transient"}
 g11 = rd(os.path.join(D11, "genes.tsv"))
 for c_ in [f"ko_lfc_{d}" for d in DAYS] + [f"ko_padj_{d}" for d in DAYS] + ["padj_interaction", f"k{K11}"]:
     g11[c_] = pd.to_numeric(g11[c_], errors="coerce")
@@ -680,7 +681,7 @@ ss11 = g11[g11.stage_specific]
 n11 = {c: int((ss11[f"k{K11}"] == c).sum()) for c in range(1, K11 + 1)}
 lc11 = [f"ko_lfc_{d}" for d in DAYS]
 fig = make_subplots(rows=1, cols=K11, shared_yaxes=True, horizontal_spacing=0.04,
-                    subplot_titles=[f"Cluster {c}<br>n = {n11[c]:,}" for c in range(1, K11 + 1)])
+                    subplot_titles=[f"{c}: {N11[c]}<br>n = {n11[c]:,}" for c in range(1, K11 + 1)])
 for c in range(1, K11 + 1):
     z = ss11.loc[ss11[f"k{K11}"] == c, lc11].to_numpy()
     q1, med, q3 = np.percentile(z, [25, 50, 75], axis=0)
@@ -701,7 +702,7 @@ parts.append(("11a", fig_html(fig, False)))
 t11_pat = pd.DataFrame({"Lower in KO (padj < 0.05) on": pat11.sig_days, "Genes": pat11.total,
                         "Stage-specific (LRT_interaction padj < 0.05)": pat11.stage_specific,
                         "Not stage-specific": pat11.not_stage_specific})
-t11_cen = pd.DataFrame({"Cluster": cen11.cluster, "Genes": cen11.genes,
+t11_cen = pd.DataFrame({"Cluster": [f"{int(c)}: {N11[int(c)]}" for c in cen11.cluster], "Genes": cen11.genes,
                         **{f"Median KO log2FC {d}": cen11[f"lfc_{d}"] for d in DAYS},
                         **{f"Mean scaled profile {d}": cen11[f"scaled_{d}"] for d in DAYS}})
 t11_elb = pd.DataFrame({"k": elb11.k, "Within-cluster sum of squares": elb11.tot_withinss,
@@ -964,21 +965,21 @@ k = 4 chosen from k = 2-8, scripts/11_activated_stage.R). The figure shows the u
 25th-75th percentile band.</p>
 {dict(parts)["11a"]}
 {table_html(t11_cen)}
-<p class="note">Islet genes per cluster: {"; ".join(f"cluster {c}: {ex11[c] or '-'}" for c in range(1, K11 + 1))}.</p>
+<p class="note">Islet genes per cluster: {"; ".join(f"{c} ({N11[c]}): {ex11[c] or '-'}" for c in range(1, K11 + 1))}.</p>
 {table_html(t11_pat)}
 <details><summary>Elbow: k = 2-8</summary>
 {table_html(t11_elb)}
 </details>
-<details><summary>Cluster 1: {n11[1]:,} genes</summary>
+<details><summary>Cluster 1, {N11[1]}: {n11[1]:,} genes</summary>
 {table_html(t11_lists[1])}
 </details>
-<details><summary>Cluster 2: {n11[2]:,} genes</summary>
+<details><summary>Cluster 2, {N11[2]}: {n11[2]:,} genes</summary>
 {table_html(t11_lists[2])}
 </details>
-<details><summary>Cluster 3: {n11[3]:,} genes</summary>
+<details><summary>Cluster 3, {N11[3]}: {n11[3]:,} genes</summary>
 {table_html(t11_lists[3])}
 </details>
-<details><summary>Cluster 4: {n11[4]:,} genes</summary>
+<details><summary>Cluster 4, {N11[4]}: {n11[4]:,} genes</summary>
 {table_html(t11_lists[4])}
 </details>
 <details><summary>Not stage-specific: {len(t11_rest):,} direct-activated genes</summary>

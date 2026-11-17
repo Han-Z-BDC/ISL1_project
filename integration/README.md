@@ -378,11 +378,11 @@ the upper SD bound). A 0.3 shift needs about 8 libraries per day.
 
 | Cluster | Genes | Median KO log2FC D15 / D18 / D22 | Islet genes |
 |---|---|---|---|
-| 1 | 345 | -0.21 / -1.04 / -1.66 | ARX, GCG, HHEX, PDX1, PFKFB2, SST, TTR |
-| 2 | 223 | -0.28 / -1.25 / -0.21 | |
-| 3 | 199 | +0.11 / -0.05 / -1.00 | ABCC8, CD36, MAFA, PCSK2 |
-| 4 | 90 | -0.29 / -0.44 / +0.20 | |
+| 1 Sustained, from D18 | 345 | -0.21 / -1.04 / -1.66 | ARX, GCG, HHEX, PDX1, PFKFB2, SST, TTR |
+| 2 Transient, D18 only | 223 | -0.28 / -1.25 / -0.21 | |
+| 3 Late, D22 only | 199 | +0.11 / -0.05 / -1.00 | ABCC8, CD36, MAFA, PCSK2 |
+| 4 Early, transient | 90 | -0.29 / -0.44 / +0.20 | |
 
-- Cluster 1: loss from D18 on, still there at D22; cluster 2: loss at D18 only; cluster 3: loss at D22 only; cluster 4:
-  small early loss (D15-D18), none at D22. A loss mainly at D15 is rare (22 stage-specific genes lose most at D15).
+- Sustained, from D18: loss from D18 on, still there at D22; Transient, D18 only: loss at D18, gone by D22; Late,
+  D22 only: loss at D22 only; Early, transient: small loss at D15-D18, none at D22. A loss mainly at D15 is rare (22 stage-specific genes lose most at D15).
 - INS is not here: it is lower in the KO but has no ISL1 site in its GREAT domain.
