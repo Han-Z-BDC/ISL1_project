@@ -1,9 +1,10 @@
 """Step 1.4: per-sample cell accounting across the QC steps (1.1 -> 1.3 -> 5.2 merge).
 
 Each removed cell is counted once, at the first step that removes it:
-  Cell Ranger cells -> 1.1 low counts/genes (4 MAD, either) -> 1.1 high %MT (> cutoff, among cells
-  that passed counts/genes) -> 1.2 SoupX (removes ambient UMIs, not cells) -> 1.3 doublets
-  (scDblFinder or Scrublet; split into scDblFinder only / Scrublet only / both) -> 5.2 merged.
+  Cell Ranger cells -> 1.1 low counts/genes (4 MAD, either) -> 1.1 below min_genes (fixed floor,
+  among cells that passed 4 MAD) -> 1.1 high %MT (> cutoff, among cells that passed both) ->
+  1.2 SoupX (removes ambient UMIs, not cells) -> 1.3 doublets (scDblFinder; Scrublet columns are
+  used only if 1.3 ran Scrublet) -> 5.2 merged (only if the merged object is newer than 1.3).
 The 1.1 flags are recomputed with the pipeline's own is_mad_outlier() and qc_RNA.yaml and checked
 against the saved passed_qc_step1_2 column, so the split matches what was actually removed.
 
@@ -42,9 +43,14 @@ def main():
     q = load_qc_module()
     cfg_all = yaml.safe_load((REPO / "pipeline" / "configs" / "qc_RNA.yaml").read_text())
     samples = pd.read_csv(os.environ["SAMPLE_SHEET"], sep="\t")["sample_id"].tolist()
-    merged = ad.read_h5ad(OUT_DIR / "integration" / "merged_rna_raw.h5ad", backed="r")
     rename = pd.read_csv(REPO / "study_config" / "rename_manifest.csv").set_index("old_name")["new_name"]
-    n_merged = merged.obs["sample_id"].astype(str).value_counts()
+    # The merged object counts only if it was built from the current 1.3 outputs.
+    merged_path = OUT_DIR / "integration" / "merged_rna_raw.h5ad"
+    newest_dbl = max(p.stat().st_mtime for p in (OUT_DIR / "detect_doublets" / "h5ad").glob("*.doublets_removed.h5ad"))
+    use_merged = merged_path.exists() and merged_path.stat().st_mtime > newest_dbl
+    n_merged = (ad.read_h5ad(merged_path, backed="r").obs["sample_id"].astype(str).value_counts()
+                if use_merged else None)
+    min_genes = cfg_all.get("min_genes")
 
     rows = []
     for s in samples:
@@ -53,43 +59,46 @@ def main():
         n_mads = cfg_all["n_mads"]
         low = q.is_mad_outlier(obs["log1p_total_counts"].to_numpy(), n_mads) | \
             q.is_mad_outlier(obs["log1p_n_genes_by_counts"].to_numpy(), n_mads)
+        below = (obs["n_genes_by_counts"].to_numpy() < min_genes) if min_genes is not None else np.zeros(a.n_obs, bool)
         mt_cut = cfg_all["mt_pct_max_by_sample"][s]
         mt = obs["pct_counts_mt"].to_numpy() > mt_cut
-        keep = ~(low | mt)
+        keep = ~(low | below | mt)
         assert (keep == obs["passed_qc_step1_2"].to_numpy()).all(), f"{s}: recomputed 1.1 flags differ"
         umis_in = float(obs.loc[keep, "total_counts"].sum())
 
         soup = json.loads((OUT_DIR / "remove_background" / "summary" / f"{s}.soupx_summary.json").read_text())
         d = ad.read_h5ad(OUT_DIR / "detect_doublets" / "h5ad" / f"{s}.doublets_annotated.h5ad", backed="r").obs
-        sd, sr = d["scDblFinder_predicted_doublet"].astype(bool), d["scrublet_predicted_doublet"].astype(bool)
-        n_after_dbl = int((~(sd | sr)).sum())
+        sd = d["scDblFinder_predicted_doublet"].astype(bool)
+        has_scrub = "scrublet_predicted_doublet" in d
+        sr = d["scrublet_predicted_doublet"].astype(bool) if has_scrub else pd.Series(False, index=d.index)
+        n_after = ad.read_h5ad(OUT_DIR / "detect_doublets" / "h5ad" / f"{s}.doublets_removed.h5ad", backed="r").n_obs
         rows.append({
             "sample": rename[s],
             "cellranger_cells": a.n_obs,
             "qc_low_counts_genes": int(low.sum()),
-            "qc_high_mt": int((mt & ~low).sum()),
+            "qc_below_min_genes": int((below & ~low).sum()),
+            "qc_high_mt": int((mt & ~(low | below)).sum()),
             "after_qc": int(keep.sum()),
             "soupx_cells_removed": soup.get("n_cells_excluded_by_precluster_override", 0),
             "soupx_pct_umis_removed": round(100 * soup["total_counts_removed"] / umis_in, 1),
             "soupx_tfidfMin": soup["tfidf_min_used"],
-            "doublet_scDblFinder_only": int((sd & ~sr).sum()),
-            "doublet_Scrublet_only": int((~sd & sr).sum()),
-            "doublet_both": int((sd & sr).sum()),
-            "doublets_removed": int((sd | sr).sum()),
-            "after_doublets": n_after_dbl,
-            "in_merged_object": int(n_merged.get(rename[s], 0)),
+            "doublets_scDblFinder": int(sd.sum()),
+            "scrublet_run": has_scrub,
+            "doublets_removed": int(keep.sum()) - n_after,
+            "after_doublets": n_after,
+            "in_merged_object": int(n_merged.get(rename[s], 0)) if use_merged else "not merged yet",
             "mt_cutoff_pct": mt_cut,
         })
     t = pd.DataFrame(rows)
-    t["pct_retained"] = (100 * t["in_merged_object"] / t["cellranger_cells"]).round(1)
+    t["pct_retained"] = (100 * t["after_doublets"] / t["cellranger_cells"]).round(1)
     tot = t.select_dtypes("number").sum()
     t.to_csv(RES / "qc_cell_accounting.tsv", sep="\t", index=False)
     print(t.to_string(index=False))
 
     # stacked bars: where each Cell Ranger cell ended up
-    parts = [("in_merged_object", "kept", "#4c9a6a"), ("qc_low_counts_genes", "low counts/genes (4 MAD)", "#9aa3ad"),
-             ("qc_high_mt", "%MT > 10", "#e3a72f"), ("doublet_scDblFinder_only", "doublet: scDblFinder only", "#c97b84"),
-             ("doublet_Scrublet_only", "doublet: Scrublet only", "#8e6bbf"), ("doublet_both", "doublet: both tools", "#b2364a")]
+    parts = [("after_doublets", "kept", "#4c9a6a"), ("qc_low_counts_genes", "low counts/genes (4 MAD)", "#9aa3ad"),
+             ("qc_below_min_genes", f"< {min_genes:,} genes" if min_genes else "< min genes", "#6f7f94"),
+             ("qc_high_mt", "%MT > 10", "#e3a72f"), ("doublets_removed", "doublet (scDblFinder)", "#b2364a")]
     fig, axs = plt.subplots(1, 2, figsize=(13, 4.6))
     for ax, frac in zip(axs, (False, True)):
         bottom = np.zeros(len(t))
@@ -113,17 +122,19 @@ def main():
     def fmt(v):
         return f"{v:,}" if isinstance(v, (int, np.integer)) else str(v)
 
-    cols = [("sample", "Sample"), ("cellranger_cells", "Cell Ranger cells"), ("qc_low_counts_genes", "Low counts/genes"),
+    cols = [("sample", "Sample"), ("cellranger_cells", "Cell Ranger cells"), ("qc_low_counts_genes", "Low counts/genes (4 MAD)"),
+            ("qc_below_min_genes", f"&lt; {min_genes:,} genes" if min_genes else "&lt; min genes"),
             ("qc_high_mt", "%MT &gt; 10"), ("after_qc", "After QC 1.1"), ("soupx_cells_removed", "SoupX cells"),
-            ("soupx_pct_umis_removed", "SoupX % UMIs removed"), ("doublet_scDblFinder_only", "scDblFinder only"),
-            ("doublet_Scrublet_only", "Scrublet only"), ("doublet_both", "Both"), ("doublets_removed", "Doublets removed"),
-            ("after_doublets", "After doublets"), ("in_merged_object", "In merged object"), ("pct_retained", "% retained")]
+            ("soupx_pct_umis_removed", "SoupX % UMIs removed"), ("doublets_removed", "Doublets removed (scDblFinder)"),
+            ("after_doublets", "After doublets"), ("pct_retained", "% retained")]
+    if use_merged:
+        cols.insert(-1, ("in_merged_object", "In merged object"))
     head = "".join(f"<th>{h}</th>" for _, h in cols)
     body = "".join("<tr>" + "".join(f"<td>{fmt(r[c])}</td>" for c, _ in cols) + "</tr>" for r in t.to_dict("records"))
-    total = {c: (fmt(int(tot[c])) if c in tot and c not in ("pct_retained", "soupx_pct_umis_removed", "mt_cutoff_pct") else "")
+    total = {c: (fmt(int(tot[c])) if c in tot and c not in ("pct_retained", "soupx_pct_umis_removed", "mt_cutoff_pct", "scrublet_run") else "")
              for c, _ in cols}
     total["sample"] = "Total"
-    total["pct_retained"] = f"{100 * tot['in_merged_object'] / tot['cellranger_cells']:.1f}"
+    total["pct_retained"] = f"{100 * tot['after_doublets'] / tot['cellranger_cells']:.1f}"
     body += "<tr class=tot>" + "".join(f"<td>{total[c]}</td>" for c, _ in cols) + "</tr>"
     tf = ", ".join(f"{r['sample']} ({r['soupx_tfidfMin']})" for r in rows if r["soupx_tfidfMin"] != "default(1)")
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -149,15 +160,16 @@ ul{{padding-left:20px}}
 <img src="data:image/png;base64,{img}" alt="stacked bar of cells kept and removed per sample">
 <h2>How to read this</h2>
 <ul>
-<li>Each removed cell is counted once, at the first step that removed it. Cells failing both the
-counts/genes and %MT filters are counted under low counts/genes.</li>
+<li>Each removed cell is counted once, at the first step that removed it, in the order 4 MAD,
+minimum genes, %MT.</li>
 <li><b>QC 1.1</b>: low counts or low genes = more than 4 MADs below the sample's own median (log scale);
-%MT cutoff fixed at 10% for every sample. No ribosomal filter.</li>
+plus a fixed minimum of {min_genes:,} genes per cell for every sample; %MT cutoff fixed at 10% for every
+sample. No ribosomal filter, no upper cutoff.</li>
 <li><b>SoupX 1.2</b> removes ambient UMIs from each cell, not cells. The percent is UMIs removed out of all
 UMIs in the post-QC cells. Fallback tfidfMin used: {tf or "none"}; all other samples used SoupX defaults.</li>
-<li><b>Doublets 1.3</b>: a cell is removed if scDblFinder or Scrublet calls it a doublet. scDblFinder prior
-1.5% per 1,000 cells (10x OCM); Scrublet's expected rate = scDblFinder's observed rate in that sample.</li>
-<li><b>Merge 5.2</b>: cells in the merged object, which should equal "after doublets".</li>
+<li><b>Doublets 1.3</b>: a cell is removed if scDblFinder calls it a doublet (prior 1.5% per 1,000 cells,
+10x OCM). Scrublet {"was not run" if not any(r["scrublet_run"] for r in rows) else "was run as a diagnostic only"}.</li>
+<li>% retained = cells after doublet removal out of Cell Ranger cells.{" The merged-object column checks step 5.2." if use_merged else ""}</li>
 </ul>
 </main></body></html>"""
     (RES / "qc_cell_accounting.html").write_text(html)

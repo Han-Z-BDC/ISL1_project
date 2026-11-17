@@ -8,7 +8,7 @@ cells + QC metrics) and writes, to ${OUT_DIR}/rna_qc_review/:
   - qc_cutoff_scenarios.csv   cells removed per sample under several cutoff choices
   - qc_quantiles.csv          per-sample quantiles of each metric
   - qc_removed_markers.csv    marker-gene detection in cells kept vs removed by the
-                              default (5-MAD) filter, to check whether the filter
+                              filter applied in step 1.1, to check whether the filter
                               hits a specific cell type rather than junk
 
 No model fitting or dimensionality reduction (login-node safe: reads 4 small h5ad).
@@ -72,6 +72,13 @@ for i, s in enumerate(samples):
                           "min_genes": round(g_lo), "max_pct_mt": round(mt_t, 2), "n_cells": n,
                           "removed_low": int(low.sum()), "removed_mt": int(hmt.sum()),
                           "removed_total": int((low | hmt).sum()), "pct_removed": round(100 * (low | hmt).mean(), 1)})
+    # the rule applied in step 1.1 (qc_RNA.yaml): 4 MAD + min 2,000 genes + %MT <= 10
+    low = (lc < mad_low(lc, 4)) | (lg < mad_low(lg, 4)) | (o["n_genes_by_counts"].to_numpy() < 2000)
+    hmt = mt > 10
+    scen_rows.append({"sample": s, "scenario": "applied: 4-MAD + genes>=2000, %MT<=10",
+                      "min_counts": round(np.expm1(mad_low(lc, 4))), "min_genes": max(2000, round(np.expm1(mad_low(lg, 4)))),
+                      "max_pct_mt": 10, "n_cells": n, "removed_low": int(low.sum()), "removed_mt": int(hmt.sum()),
+                      "removed_total": int((low | hmt).sum()), "pct_removed": round(100 * (low | hmt).mean(), 1)})
     for mc, mg, mm in [(1000, 500, 10), (2000, 1000, 10), (3000, 1500, 5)]:
         low = (o["total_counts"] < mc) | (o["n_genes_by_counts"] < mg)
         hmt = o["pct_counts_mt"] > mm
@@ -103,6 +110,8 @@ for i, s in enumerate(samples):
                 ax[k].axvline(np.log10(np.expm1(mad_low(lc, nm))), color=colr, ls="--", label=f"{nm} MAD")
             elif k == 1:
                 ax[k].axvline(np.log10(np.expm1(mad_low(lg, nm))), color=colr, ls="--", label=f"{nm} MAD")
+                if nm == 5:
+                    ax[k].axvline(np.log10(2000), color="k", lw=1.2, label="2,000 genes")
             elif k == 2:
                 ax[k].axvline(mt_thresh(mt, nm), color=colr, ls="--", label=f"{nm} MAD")
         if k < 3:
