@@ -1,33 +1,34 @@
 #!/usr/bin/env Rscript
-# Step 11: ISL1 direct-activated genes with a stage-specific KO effect, clustered by the timing of the effect.
-#   Genes           direct-activated in step 02: lower in KO (padj < 0.05) on >= 1 of D15 / D18 / D22, never higher,
-#                   >= 1 ISL1 site in the GREAT domain; ISL1 itself excluded (step 02).
+# Step 11: ISL1 direct targets with a stage-specific KO effect, clustered by the timing of the effect; run once for
+# the direct-activated and once for the direct-repressed genes.
+#   Genes           direct-<label> in step 02: activated = lower in KO (padj < 0.05) on >= 1 of D15 / D18 / D22, never
+#                   higher; repressed = higher in KO, never lower; >= 1 ISL1 site in the GREAT domain; ISL1 excluded.
 #   Stage-specific  LRT_interaction padj < 0.05 (the KO effect differs between stages). The others: KO effect not
 #                   shown to change between stages. The per-day significance pattern (sig_days) is descriptive.
 #   Profile         shrunk KO log2FC at D15, D18, D22, divided by the gene's largest |log2FC| (timing, not size).
 #   Clusters        k-means on the profiles of the stage-specific genes, k = 2-8 (seed 1, 25 starts, 100 iterations);
 #                   clusters numbered by size within each k (ties by the order of the first gene). The user picks k.
-#   Also            max_loss_day: the day with the most negative shrunk KO log2FC.
-# usage: Rscript 11_activated_stage.R <integration results dir> <out_dir>
-# Output in <out_dir>: genes.tsv (one row per direct-activated gene; k2-k8 for the stage-specific ones),
+#   Also            max_effect_day: the day with the largest shrunk KO log2FC in the label's direction.
+# usage: Rscript 11_direct_stage.R <integration results dir> <activated|repressed> <out_dir>
+# Output in <out_dir>: genes.tsv (one row per gene of the label; k2-k8 for the stage-specific ones),
 #   elbow.tsv, centers.tsv (per k and cluster: genes, mean scaled profile, median shrunk log2FC), patterns.tsv
 
 suppressPackageStartupMessages(library(data.table))
 args <- commandArgs(trailingOnly = TRUE)
-stopifnot(length(args) == 2)
-res <- args[1]; od <- args[2]
+stopifnot(length(args) == 3, args[2] %in% c("activated", "repressed"))
+res <- args[1]; lab <- args[2]; od <- args[3]
 dir.create(od, showWarnings = FALSE, recursive = TRUE)
 days <- c("D15", "D18", "D22"); K <- 2:8
 
 g <- fread(file.path(res, "02_direct_targets", "gene_table.tsv"), sep = "\t", na.strings = "NA", quote = "")
-g <- g[direct_label == "direct-activated"]
+g <- g[direct_label == paste0("direct-", lab)]
 g[, stage_specific := !is.na(padj_interaction) & padj_interaction < 0.05]
 lfc <- as.matrix(g[, paste0("ko_lfc_", days), with = FALSE])
 stopifnot(!anyNA(lfc))
 mx <- apply(abs(lfc), 1, max)
 prof <- lfc / mx
 for (j in seq_along(days)) g[, (paste0("scaled_", days[j])) := round(prof[, j], 4)]
-g[, max_loss_day := days[apply(lfc, 1, which.min)]]
+g[, max_effect_day := days[apply(lfc, 1, if (lab == "activated") which.min else which.max)]]
 setorder(g, gene_id)   # fixed input order for k-means
 prof <- as.matrix(g[, paste0("scaled_", days), with = FALSE])
 
@@ -63,7 +64,7 @@ pat[, total := not_stage_specific + stage_specific]
 setorder(pat, -total, sig_days)
 
 cols <- c("gene_id", "gene_name", "gene_type", "stage_specific", "padj_interaction", "sig_days",
-          paste0("ko_lfc_", days), paste0("ko_padj_", days), paste0("scaled_", days), "max_loss_day",
+          paste0("ko_lfc_", days), paste0("ko_padj_", days), paste0("scaled_", days), "max_effect_day",
           paste0("k", K), "n_sites", "bound_near50")
 out <- g[, cols, with = FALSE]
 setorder(out, -stage_specific, gene_name, gene_id)
@@ -72,6 +73,6 @@ fwrite(elbow, file.path(od, "elbow.tsv"), sep = "\t", quote = FALSE)
 fwrite(centers, file.path(od, "centers.tsv"), sep = "\t", quote = FALSE)
 fwrite(pat, file.path(od, "patterns.tsv"), sep = "\t", quote = FALSE)
 
-message(sprintf("%d direct-activated genes, %d stage-specific", nrow(g), length(ss)))
+message(sprintf("%d direct-%s genes, %d stage-specific", nrow(g), lab, length(ss)))
 print(pat); print(elbow); print(centers)
-print(g[ss, .N, by = max_loss_day][order(max_loss_day)])
+print(g[ss, .N, by = max_effect_day][order(max_effect_day)])

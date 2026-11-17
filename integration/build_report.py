@@ -961,7 +961,7 @@ LRT_interaction padj &lt; 0.05, i.e. the KO effect differs between stages ({len(
 for description only: with 2 replicates, "not significant" on a day often means just under the threshold.
 <b>Clusters</b>: k-means on each stage-specific gene's shrunk KO log2FC at D15, D18 and D22, divided by its largest
 |log2FC| so that genes group by the timing of the effect, not its size (seed 1, 25 starts; clusters numbered by size;
-k = 4 chosen from k = 2-8, scripts/11_activated_stage.R). The figure shows the unscaled log2FC: median and
+k = 4 chosen from k = 2-8, scripts/11_direct_stage.R). The figure shows the unscaled log2FC: median and
 25th-75th percentile band.</p>
 {dict(parts)["11a"]}
 {table_html(t11_cen)}
