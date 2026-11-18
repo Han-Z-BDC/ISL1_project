@@ -48,7 +48,12 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
 - 7.1b clustering on SCT B done for D15, D22 and D40.
 - D15: overview resolution 0.2; endocrine subclustering (7.1d) done. Report with interactive 3D UMAP (7.1e) at
   subcluster resolution 0.6 with **draft** labels (`study_config/annotation/D15_endocrine_r0.6.tsv`; status column
-  = draft until confirmed). Next: confirm the resolution and labels.
+  = draft until confirmed). The report has interactive 2D (all / control / KO) and 3D UMAPs.
+- D15 is **paused** here (2026-11-18, user: complicated, come back later). Not decided yet: the subcluster
+  resolution (0.6 is a working choice), the endocrine labels (all draft), and whether to subcluster the other D15
+  compartments. Summary so far: hormone+ cells (beta-, alpha-, delta-like) are almost control-only; KO cells sit in
+  FEV+, EC-like (LMX1A+) and two KO-only states.
+- Next: D22 (overview clustering report first).
 
 ## Open items
 
