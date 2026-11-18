@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_day_sct
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=10
+#SBATCH --mem=37G
+#SBATCH --time=01:30:00
+#SBATCH --array=0-8
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/day_sct.%A_%a.out
+
+# Step 7.1c part 1: SCTransform v2 per day and variant (array index = day x 3 + variant).
+#   days D15, D22, D40; variants SCT (S-G2M), SCT_A (S-G2M + %MT), SCT_B (S-G2M, MT- genes out of the HVGs)
+# Then part 2 (7.1c_day_sct_compare.sb, array 0-2) once all of a day's variants are done.
+# Submit from the repo root:
+#   j=$(sbatch --parsable analysis/scripts/7.1c_day_sct.sb)
+#   sbatch --dependency=afterok:$j --kill-on-invalid-dep=yes analysis/scripts/7.1c_day_sct_compare.sb
+
+set -euo pipefail
+DAYS=(D15 D22 D40); VARIANTS=(SCT SCT_A SCT_B)
+DAY="${DAYS[$((SLURM_ARRAY_TASK_ID / 3))]}"; VARIANT="${VARIANTS[$((SLURM_ARRAY_TASK_ID % 3))]}"
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+export OUT_DIR
+echo "day ${DAY} variant ${VARIANT}"
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.1c_day_sct.R" "${DAY}" "${VARIANT}"
