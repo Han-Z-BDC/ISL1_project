@@ -4,11 +4,12 @@ Request (user, 2026-11-18): build the 3D UMAP and a report for the D15 endocrine
 
 Inputs (7.1d, ${OUT_DIR}/day_analysis/{day}/subcluster_{name}/):
   {day}_{name}.h5ad (obs: parent, genotype, sample, sub_r*; obsm X_umap_3d; X = unregressed log1p),
-  composition_r{res}.csv, markers_r{res}.csv, umap_r{res}_large.png, dotplot_genes_r{res}.png
+  composition_r{res}.csv, markers_r{res}.csv, dotplot_genes_r{res}.png; obsm X_umap_2d for the 2D panels
   + labels: study_config/annotation/{day}_{name}_r{res}.tsv (subcluster, label, group, status) -- optional;
     without it the page shows subcluster numbers only.
 Writes: {day}_{name}_r{res}_report.html in the same folder (self-contained except plotly.js from cdnjs).
-The 3D coordinates are stored once and recoloured in the browser (7.1d's umap3d.html repeats them per gene).
+The 3D and 2D coordinates are stored once and recoloured in the browser (7.1d's umap3d.html repeats them per gene).
+2D UMAP (user, 2026-11-18): interactive, larger points, panels all / control / KO with the other genotype in grey.
 Run: sbatch analysis/scripts/7.1e_subcluster_report.sb D15 endocrine 0.6
 """
 import base64
@@ -58,13 +59,14 @@ def main():
     groups = list(dict.fromkeys(lab.loc[[c for c in lab.index], "group"]))   # file order = colour order
 
     # ---- per-cell data, stored once
-    u = a.obsm["X_umap_3d"]
+    u = a.obsm["X_umap_3d"]; u2 = a.obsm["X_umap_2d"]
     sub = a.obs[rk].astype(int).to_numpy()
     genes = [g for g in GENES if g in a.var_names]
     X = a[:, genes].X
     X = X.toarray() if sp.issparse(X) else np.asarray(X)
     data = {
         "x": np.round(u[:, 0], 2).tolist(), "y": np.round(u[:, 1], 2).tolist(), "z": np.round(u[:, 2], 2).tolist(),
+        "u": np.round(u2[:, 0], 2).tolist(), "v": np.round(u2[:, 1], 2).tolist(),
         "sub": sub.tolist(),
         "geno": (a.obs["genotype"].astype(str) == "KO").astype(int).tolist(),
         "sample": [SAMPLE_ORDER.index(s) for s in a.obs["sample"].astype(str)],
@@ -117,7 +119,7 @@ def main():
         "@@CELLS@@": kpi["cells"], "@@NCTR@@": kpi["ctr"], "@@NKO@@": kpi["ko"],
         "@@HCTR@@": str(kpi["hormone_ctr"]), "@@HKO@@": str(kpi["hormone_ko"]),
         "@@KCTR@@": str(kpi["koonly_ctr"]), "@@KKO@@": str(kpi["koonly_ko"]),
-        "@@UMAP2D@@": b64(out / f"umap_r{res}_large.png"), "@@DOT@@": b64(out / f"dotplot_genes_r{res}.png"),
+        "@@DOT@@": b64(out / f"dotplot_genes_r{res}.png"),
         "@@DATA@@": json.dumps(data, separators=(",", ":")),
     }.items():
         page = page.replace(k, v)
@@ -156,6 +158,7 @@ p{margin:6px 0} .sub{color:var(--fg2)} .mut{color:var(--mut);font-size:13px}
 .seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
 #u3{width:100%;height:640px}
 #comp{width:100%;height:440px}
+#u2{width:100%;height:480px}
 .tw{overflow-x:auto} table{border-collapse:collapse;font-size:13px;width:100%}
 th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 th{color:var(--fg2);font-weight:600} td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -197,7 +200,9 @@ img{max-width:100%;height:auto;background:#fff;border-radius:6px;display:block}
 <tbody>@@TRS@@</tbody></table></div>
 
 <h2>2D UMAP, split by genotype</h2>
-<div class=card><img src="data:image/png;base64,@@UMAP2D@@" alt="2D UMAP of the subclusters, all cells, control only and KO only"></div>
+<p class=mut>Same graph as the 3D UMAP, in two dimensions. Colours follow &ldquo;Colour by&rdquo; above; in the control and KO
+panels the other genotype is drawn in grey underneath. Hover a cell for its subcluster, drag to zoom, double-click to reset.</p>
+<div class=card><div id=u2></div></div>
 
 <h2>Endocrine genes by subcluster</h2>
 <div class=card><img src="data:image/png;base64,@@DOT@@" alt="Dot plot of endocrine genes across subclusters"></div>
@@ -288,6 +293,66 @@ function draw() {
   }, { responsive: true, displaylogo: false });
 }
 
+function catSpec() {
+  const nm = {}, co = {};
+  if (mode === 'group') { D.groups.forEach((g, i) => { nm[i] = g; co[i] = gcol(i); }); return { key: i => subGroup[D.sub[i]], nm, co }; }
+  if (mode === 'sub') { D.clusters.forEach(c => { nm[c.id] = c.id + ' ' + c.label; co[c.id] = gcol(subGroup[c.id]); }); return { key: i => D.sub[i], nm, co }; }
+  if (mode === 'geno') return { key: i => D.geno[i], nm: { 0: 'control', 1: 'ISL1 KO' }, co: { 0: css('--ctr'), 1: css('--ko') } };
+  if (mode === 'sample') return { key: i => D.sample[i], nm: Object.fromEntries(D.samples.map((s, i) => [i, s])),
+    co: { 0: css('--ctr'), 1: css('--ctr2'), 2: css('--ko'), 3: css('--ko2') } };
+  if (mode === 'parent') { D.parents.forEach((p, i) => { nm[p] = 'overview cluster ' + p; co[p] = gcol(i); }); return { key: i => D.parent[i], nm, co }; }
+  return null;
+}
+
+function draw2d() {
+  const el = document.getElementById('u2'), stack = el.clientWidth < 760, MS = 5;
+  const panels = [['all', 'All cells'], [0, 'Control (KO in grey)'], [1, 'ISL1 KO (control in grey)']];
+  const lo = a => Math.min(...a), hi = a => Math.max(...a), pad = (a, b) => [a - .03 * (b - a), b + .03 * (b - a)];
+  const xr = pad(lo(D.u), hi(D.u)), yr = pad(lo(D.v), hi(D.v));
+  const spec = catSpec(), tr = [], ann = [], lay = {};
+  const hov = i => 'subcluster ' + D.sub[i] + ': ' + subLabel[D.sub[i]] + '<br>' + D.samples[D.sample[i]];
+  panels.forEach(([f, t], p) => {
+    const n = p === 0 ? '' : String(p + 1), xa = 'x' + n, ya = 'y' + n;
+    const fg = [], bg = [];
+    for (let i = 0; i < N; i++) (f === 'all' || D.geno[i] == f ? fg : bg).push(i);
+    if (bg.length) tr.push({ type: 'scattergl', mode: 'markers', x: pick(D.u, bg), y: pick(D.v, bg), xaxis: xa, yaxis: ya,
+      showlegend: false, hoverinfo: 'skip', marker: { size: MS - 1, color: css('--line') } });
+    if (spec) {
+      const by = {}; fg.forEach(i => { const k = spec.key(i); (by[k] = by[k] || []).push(i); });
+      Object.keys(spec.nm).filter(k => by[k]).forEach(k => tr.push({ type: 'scattergl', mode: 'markers',
+        name: spec.nm[k], legendgroup: 'g' + k, showlegend: p === 0, x: pick(D.u, by[k]), y: pick(D.v, by[k]),
+        xaxis: xa, yaxis: ya, text: by[k].map(hov), hovertemplate: '%{text}<extra></extra>',
+        marker: { size: MS, color: spec.co[k], opacity: .85 } }));
+    } else {
+      const g = mode.slice(5), e = D.expr[g], vmax = pct(e, .99) || 1, ord = [...fg].sort((a, b) => e[a] - e[b]);
+      tr.push({ type: 'scattergl', mode: 'markers', showlegend: false, x: pick(D.u, ord), y: pick(D.v, ord),
+        xaxis: xa, yaxis: ya, text: ord.map(i => g + ' ' + e[i] + '<br>' + hov(i)), hovertemplate: '%{text}<extra></extra>',
+        marker: { size: MS, opacity: .9, color: pick(e, ord), cmin: 0, cmax: vmax, showscale: p === 2,
+          colorscale: [[0, css('--seq0')], [1, css('--seq1')]],
+          colorbar: { title: { text: g, font: { color: css('--fg2') } }, thickness: 12, len: stack ? .25 : .7, tickfont: { color: css('--fg2') } } } });
+    }
+    if (document.getElementById('lbl').checked) {
+      const acc = {}; fg.forEach(i => { (acc[D.sub[i]] = acc[D.sub[i]] || [[], []]); acc[D.sub[i]][0].push(D.u[i]); acc[D.sub[i]][1].push(D.v[i]); });
+      const med = a => { const s = [...a].sort((q, r) => q - r); return s[Math.floor(s.length / 2)]; };
+      const ks = Object.keys(acc).filter(k => acc[k][0].length >= 10);
+      tr.push({ type: 'scatter', mode: 'text', showlegend: false, hoverinfo: 'skip', xaxis: xa, yaxis: ya,
+        x: ks.map(k => med(acc[k][0])), y: ks.map(k => med(acc[k][1])), text: ks.map(k => '<b>' + k + '</b>'),
+        textfont: { size: 13, color: css('--fg') } });
+    }
+    const axis = { range: null, showgrid: false, zeroline: false, showticklabels: false, ticks: '', showline: false };
+    lay['xaxis' + n] = { ...axis, range: xr }; lay['yaxis' + n] = { ...axis, range: yr };
+    ann.push({ text: t + ' (' + fg.length.toLocaleString() + ')', xref: xa + ' domain', yref: ya + ' domain', x: .5, y: 1.0,
+      yanchor: 'bottom', showarrow: false, font: { size: 13, color: css('--fg2') } });
+  });
+  Plotly.react('u2', tr, Object.assign(lay, {
+    grid: { rows: stack ? 3 : 1, columns: stack ? 1 : 3, pattern: 'independent', xgap: .04, ygap: .08 },
+    height: stack ? 1150 : 480, annotations: ann, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { family: 'system-ui, sans-serif', color: css('--fg') }, margin: { l: 4, r: 4, t: 24, b: 4 },
+    legend: { orientation: 'h', x: 0, y: -.02, yanchor: 'top', itemsizing: 'constant', font: { size: 12 }, bgcolor: 'rgba(0,0,0,0)' },
+    uirevision: 'keep2d'
+  }), { responsive: true, displaylogo: false });
+}
+
 function comp() {
   const c = D.comp, y = c.map(d => d.id + '  ' + d.label);
   const mk = (k, nm, col) => ({ type: 'bar', orientation: 'h', name: nm, y: y, x: c.map(d => d[k]),
@@ -304,13 +369,14 @@ function comp() {
 }
 
 document.querySelectorAll('.sw').forEach(s => s.style.background = gcol(+s.dataset.g));
-sel.onchange = () => { mode = sel.value; draw(); };
-document.getElementById('lbl').onchange = draw;
+sel.onchange = () => { mode = sel.value; draw(); draw2d(); };
+document.getElementById('lbl').onchange = () => { draw(); draw2d(); };
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
   filt = b.dataset.f; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b)); draw();
 });
-draw(); comp();
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { draw(); comp(); });
+draw(); draw2d(); comp();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { draw(); draw2d(); comp(); });
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(draw2d, 200); });
 </script></body></html>"""
 
 
