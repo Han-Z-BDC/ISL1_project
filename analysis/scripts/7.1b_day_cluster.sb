@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_day_cluster
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=30G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/day_cluster.%j.out
+
+# Step 7.1b: Leiden resolution sweep for one day -- see the .py docstring. Needs 7.1_day_merged first.
+# Submit from the repo root: sbatch analysis/scripts/7.1b_day_cluster.sb D15
+
+set -euo pipefail
+DAY="${1:?usage: sbatch analysis/scripts/7.1b_day_cluster.sb <D15|D22|D40>}"
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+export OUT_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1b_day_cluster.py" "${DAY}"
