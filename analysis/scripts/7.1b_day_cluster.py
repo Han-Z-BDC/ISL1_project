@@ -1,8 +1,9 @@
 """Step 7.1b: cluster one day (after 7.1_day_merged), Leiden resolution sweep.
 
-Decision (user, 2026-11-17): cluster day by day, starting with D15, on the per-day merge from 7.1
-(no batch correction; damaged cells removed; 3,000 HVGs by sample; S-G2M regressed + scaled for PCA).
-Uses 7.1's neighbour graph as is (30 PCs, 15 neighbours, seed 1234), so clusters and UMAP agree.
+Decisions (user): cluster day by day, starting with D15, on the per-day merge from 7.1 (no batch correction;
+damaged cells removed) (2026-11-17). The graph is built from SCT B (2026-11-18): SCTransform v2 on the merged
+day, S-G2M regressed, 3,000 variable features without MT- genes (7.1c, sct/SCT_B_pca.csv.gz); 30 PCs,
+15 neighbours, seed 1234. The UMAP is 7.1c's SCT B UMAP (sct/sct_umaps.csv.gz), made from the same graph.
 Leiden: igraph, n_iterations 2, undirected, seed 1234, at RESOLUTIONS (6.1 / earlier 7.1 convention).
 Markers: Wilcoxon on the unregressed log1p data (X), each cluster vs the rest.
 
@@ -16,7 +17,8 @@ Writes ${OUT_DIR}/day_analysis/{day}/clustering/ (reruns overwrite):
   composition_r*.png         % of each sample's cells per cluster
   dotplot_genes_r*.png       fixed gene list by cluster;  dotplot_markers_r*.png  top 3 markers per cluster
   {day}_clusters.html
-and adds leiden_r* to obs of {day}_merged.h5ad (overwritten in place).
+and adds leiden_r* to obs, obsm X_pca_SCT_B / X_umap_SCT_B and the SCT_B graph to {day}_merged.h5ad
+(overwritten in place; X_pca / X_umap from the 7.1 log1p route are kept).
 Run: sbatch analysis/scripts/7.1b_day_cluster.sb D15
 """
 import base64
@@ -41,8 +43,9 @@ DAY_DIR = OUT_DIR / "day_analysis" / DAY
 RES_DIR = DAY_DIR / "clustering"
 SEED = 1234
 RESOLUTIONS = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2]
+N_PCS, N_NEIGHBORS = 30, 15
 GENES = ["PDX1", "PTF1A", "NKX6-1", "SOX9", "ONECUT1", "ARX", "GCG", "PAX4", "PAX6", "INS", "SLC18A1", "FEV",
-         "SST", "GHRL", "NKX2-2", "NEUROG3", "CHGA", "RFX6", "ISL1", "AFP", "COL1A2", "MKI67"]
+         "LMX1A", "SST", "GHRL", "NKX2-2", "NEUROG3", "CHGA", "RFX6", "ISL1", "AFP", "COL1A2", "MKI67"]
 SAMPLE_ORDER = ["ctr_rep1", "ctr_rep2", "KO_rep1", "KO_rep2"]
 SAMPLE_PAL = {"ctr_rep1": "#2f5d9e", "ctr_rep2": "#7fa7dd", "KO_rep1": "#b23b2a", "KO_rep2": "#eb9a84"}
 GREY = "#e3e3e3"
@@ -85,10 +88,16 @@ def main():
     h5 = DAY_DIR / f"{DAY}_merged.h5ad"
     a = ad.read_h5ad(h5)
     a.obs = a.obs[[c for c in a.obs.columns if not c.startswith("leiden_r")]]
-    u = a.obsm["X_umap"]
+    pca = pd.read_csv(DAY_DIR / "sct" / "SCT_B_pca.csv.gz", index_col=0)
+    um = pd.read_csv(DAY_DIR / "sct" / "sct_umaps.csv.gz", index_col=0)
+    assert (pca.index == a.obs_names).all() and (um.index == a.obs_names).all()
+    a.obsm["X_pca_SCT_B"] = pca.to_numpy()
+    a.obsm["X_umap_SCT_B"] = um[["SCT_B_UMAP1", "SCT_B_UMAP2"]].to_numpy()
+    sc.pp.neighbors(a, use_rep="X_pca_SCT_B", n_pcs=N_PCS, n_neighbors=N_NEIGHBORS, random_state=SEED, key_added="SCT_B")
+    u = a.obsm["X_umap_SCT_B"]
     for r in RESOLUTIONS:
         sc.tl.leiden(a, resolution=r, key_added=key(r), random_state=SEED, flavor="igraph",
-                     n_iterations=2, directed=False)
+                     n_iterations=2, directed=False, neighbors_key="SCT_B")
     n_cl = {r: a.obs[key(r)].nunique() for r in RESOLUTIONS}
     print(f"{DAY}: {a.n_obs} cells; clusters {n_cl}")
     a.obs[[key(r) for r in RESOLUTIONS]].to_csv(RES_DIR / "clusters.csv")
@@ -107,7 +116,7 @@ def main():
     fig, axs = plt.subplots(2, 3, figsize=(20, 12))
     for ax, r in zip(axs.flat, RESOLUTIONS):
         draw_clusters(ax, u, a.obs[key(r)].astype(str), f"resolution {r}: {n_cl[r]} clusters")
-    fig.suptitle(f"{DAY}: Leiden clusters (no batch correction)")
+    fig.suptitle(f"{DAY}: Leiden clusters on SCT B (no batch correction)")
     fig.tight_layout(); fig.savefig(RES_DIR / "umap_clusters.png", dpi=110); plt.close(fig)
 
     geno = a.obs["genotype"].astype(str).to_numpy()
@@ -201,8 +210,9 @@ table.t{{border-collapse:collapse;font-size:12.5px}} .t th,.t td{{padding:3px 7p
 img{{max-width:100%;height:auto;background:#fff;border-radius:4px;margin:6px 0}}
 </style></head><body><main>
 <h1>{DAY}: Leiden clusters</h1>
-<p class=sub>{a.n_obs:,} cells; per-day merge without batch correction (7.1). Leiden (igraph, 2 iterations, seed {SEED})
-on 7.1's graph (30 PCs, 15 neighbours). Markers: Wilcoxon, cluster vs rest, unregressed log1p. KO_over_ctr = % of
+<p class=sub>{a.n_obs:,} cells; per-day merge without batch correction (7.1). Graph and UMAP from SCT B: SCTransform v2
+on the merged day, S&minus;G2M regressed, 3,000 variable features without MT- genes; 30 PCs, 15 neighbours.
+Leiden (igraph, 2 iterations, seed {SEED}). Markers: Wilcoxon, cluster vs rest, unregressed log1p. KO_over_ctr = % of
 KO cells in the cluster / % of ctr cells. Resolutions: {nav}</p>
 <img src="data:image/png;base64,{b64(RES_DIR / 'umap_clusters.png')}" alt="clusters at all resolutions">
 {secs}
