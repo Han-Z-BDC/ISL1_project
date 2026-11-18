@@ -2,7 +2,8 @@
 
 Each removed cell is counted once, at the first step that removes it:
   Cell Ranger cells -> 1.1 low counts/genes (4 MAD, either) -> 1.1 below min_genes (fixed floor,
-  among cells that passed 4 MAD) -> 1.1 high %MT (> cutoff, among cells that passed both) ->
+  among cells that passed 4 MAD) -> 1.1 below min_nuclear_fraction (step 1.0; among cells that passed
+  both) -> 1.1 high %MT (> cutoff, among cells that passed both) ->
   1.2 SoupX (removes ambient UMIs, not cells) -> 1.3 doublets (scDblFinder; Scrublet columns are
   used only if 1.3 ran Scrublet) -> 5.2 merged (only if the merged object is newer than 1.3).
 The 1.1 flags are recomputed with the pipeline's own is_mad_outlier() and qc_RNA.yaml and checked
@@ -51,6 +52,7 @@ def main():
     n_merged = (ad.read_h5ad(merged_path, backed="r").obs["sample_id"].astype(str).value_counts()
                 if use_merged else None)
     min_genes = cfg_all.get("min_genes")
+    min_nf = cfg_all.get("min_nuclear_fraction")
 
     rows = []
     for s in samples:
@@ -62,7 +64,8 @@ def main():
         below = (obs["n_genes_by_counts"].to_numpy() < min_genes) if min_genes is not None else np.zeros(a.n_obs, bool)
         mt_cut = cfg_all["mt_pct_max_by_sample"][s]
         mt = obs["pct_counts_mt"].to_numpy() > mt_cut
-        keep = ~(low | below | mt)
+        below_nf = (obs["nuclear_fraction"].to_numpy() < min_nf) if min_nf is not None else np.zeros(a.n_obs, bool)
+        keep = ~(low | below | below_nf | mt)
         assert (keep == obs["passed_qc_step1_2"].to_numpy()).all(), f"{s}: recomputed 1.1 flags differ"
         umis_in = float(obs.loc[keep, "total_counts"].sum())
 
@@ -77,7 +80,8 @@ def main():
             "cellranger_cells": a.n_obs,
             "qc_low_counts_genes": int(low.sum()),
             "qc_below_min_genes": int((below & ~low).sum()),
-            "qc_high_mt": int((mt & ~(low | below)).sum()),
+            "qc_below_min_nuclear_fraction": int((below_nf & ~(low | below)).sum()),
+            "qc_high_mt": int((mt & ~(low | below | below_nf)).sum()),
             "after_qc": int(keep.sum()),
             "soupx_cells_removed": soup.get("n_cells_excluded_by_precluster_override", 0),
             "soupx_pct_umis_removed": round(100 * soup["total_counts_removed"] / umis_in, 1),
@@ -98,6 +102,7 @@ def main():
     # stacked bars: where each Cell Ranger cell ended up
     parts = [("after_doublets", "kept", "#4c9a6a"), ("qc_low_counts_genes", "low counts/genes (4 MAD)", "#9aa3ad"),
              ("qc_below_min_genes", f"< {min_genes:,} genes" if min_genes else "< min genes", "#6f7f94"),
+             ("qc_below_min_nuclear_fraction", f"nuclear fraction < {min_nf}" if min_nf else "< min NF", "#4f6d7a"),
              ("qc_high_mt", "%MT > 10", "#e3a72f"), ("doublets_removed", "doublet (scDblFinder)", "#b2364a")]
     fig, axs = plt.subplots(1, 2, figsize=(13, 4.6))
     for ax, frac in zip(axs, (False, True)):
@@ -124,6 +129,7 @@ def main():
 
     cols = [("sample", "Sample"), ("cellranger_cells", "Cell Ranger cells"), ("qc_low_counts_genes", "Low counts/genes (4 MAD)"),
             ("qc_below_min_genes", f"&lt; {min_genes:,} genes" if min_genes else "&lt; min genes"),
+            ("qc_below_min_nuclear_fraction", f"Nuclear fraction &lt; {min_nf}" if min_nf else "&lt; min NF"),
             ("qc_high_mt", "%MT &gt; 10"), ("after_qc", "After QC 1.1"), ("soupx_cells_removed", "SoupX cells"),
             ("soupx_pct_umis_removed", "SoupX % UMIs removed"), ("doublets_removed", "Doublets removed (scDblFinder)"),
             ("after_doublets", "After doublets"), ("pct_retained", "% retained")]
@@ -161,9 +167,10 @@ ul{{padding-left:20px}}
 <h2>How to read this</h2>
 <ul>
 <li>Each removed cell is counted once, at the first step that removed it, in the order 4 MAD,
-minimum genes, %MT.</li>
+minimum genes, minimum nuclear fraction, %MT.</li>
 <li><b>QC 1.1</b>: low counts or low genes = more than 4 MADs below the sample's own median (log scale);
-plus a fixed minimum of {min_genes:,} genes per cell for every sample; %MT cutoff fixed at 10% for every
+plus a fixed minimum of {min_genes:,} genes per cell and a minimum nuclear fraction of {min_nf}
+(intronic / (intronic + exonic) reads; removes droplets holding cytoplasm without a nucleus) for every sample; %MT cutoff fixed at 10% for every
 sample. No ribosomal filter, no upper cutoff.</li>
 <li><b>SoupX 1.2</b> removes ambient UMIs from each cell, not cells. The percent is UMIs removed out of all
 UMIs in the post-QC cells. Fallback tfidfMin used: {tf or "none"}; all other samples used SoupX defaults.</li>
