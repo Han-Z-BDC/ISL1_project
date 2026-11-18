@@ -17,14 +17,17 @@
 #   {variant}_variable_features.csv     gene (original name), rank, residual_variance
 #   {variant}_pca_variance.csv          PC, stdev, variance ratio (of the 50)
 # Usage: Rscript 7.1c_day_sct.R <D15|D22|D40> <SCT|SCT_A|SCT_B>   (via 7.1c_day_sct.sb)
+# Subset mode (7.1d subclustering): Rscript 7.1c_day_sct.R <day> <variant> <cells.txt> <out_dir>
+#   -- same settings, run on the listed cells only (one barcode per line); outputs go to <out_dir>.
 suppressPackageStartupMessages({
   library(rhdf5); library(Matrix); library(Seurat); library(glmGamPoi)
 })
 args <- commandArgs(TRUE); day <- args[1]; variant <- args[2]
 stopifnot(variant %in% c("SCT", "SCT_A", "SCT_B"))
+subset_file <- if (length(args) >= 4) args[3] else NA
 res <- file.path(Sys.getenv("OUT_DIR"), "day_analysis", day)
-sct_dir <- file.path(res, "sct")
-dir.create(sct_dir, showWarnings = FALSE)
+sct_dir <- if (is.na(subset_file)) file.path(res, "sct") else args[4]
+dir.create(sct_dir, recursive = TRUE, showWarnings = FALSE)
 unlink(list.files(sct_dir, pattern = paste0("^", variant, "_(pca|variable|pca_variance)"), full.names = TRUE))
 f <- file.path(res, paste0(day, "_merged.h5ad"))
 SEED <- 1234; N_VF <- 3000; N_PC <- 50
@@ -40,6 +43,15 @@ seurat_names <- make.unique(gsub("_", "-", genes))      # Seurat's renaming, map
 dimnames(m) <- list(seurat_names, cells)
 smg <- as.numeric(rd("obs/S_minus_G2M")); pmt <- as.numeric(rd("obs/pct_counts_mt"))
 h5closeAll()
+if (!is.na(subset_file)) {
+  keep_cells <- readLines(subset_file)
+  stopifnot(all(keep_cells %in% cells))
+  j <- match(keep_cells, cells)
+  m <- m[, j]; smg <- smg[j]; pmt <- pmt[j]; cells <- keep_cells
+  # genes detected in no cell of the subset carry no information for SCTransform
+  g <- tabulate(m@i + 1L, nbins = nrow(m)) > 0
+  m <- m[g, ]; genes <- genes[g]; seurat_names <- seurat_names[g]
+}
 cat(day, variant, ":", ncol(m), "cells,", nrow(m), "genes, nnz", length(m@x), "\n")
 
 so <- CreateSeuratObject(m, min.cells = 0, min.features = 0)

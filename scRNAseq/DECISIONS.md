@@ -35,10 +35,19 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
 - 7.1b: Leiden (igraph, 2 iterations, seed 1234) at resolutions 0.2-1.2 on the SCT B graph; one report per day
   (`day_analysis/<day>/clustering/<day>_clusters.html`). Resolution and annotation are decided day by day.
 
+## Compartment subclustering (step 7.1d)
+
+- D15 overview at **resolution 0.2** (7 clusters, 2026-11-18). Endocrine compartment = r0.2 clusters **0, 1, 5**
+  (CHGA+/FEV+ endocrine; control-only ISL1+/SCG5+; DCC+/TOX+ endocrine progenitors): 6,284 cells.
+- The compartment is re-processed on its own: SCT B refit on its cells only (`7.1c_day_sct.R` subset mode, same
+  settings), 30 PCs, 15 neighbours, UMAP in 2D and 3D, Leiden 0.2-1.2. Markers vs the rest of the compartment.
+  Output: `day_analysis/D15/subcluster_endocrine/` (report, `umap3d.html` interactive 3D UMAP).
+
 ## Current state (2026-11-18)
 
-- 7.1b clustering on SCT B submitted for D15, D22 and D40.
-- Next: per day, choose the resolution and annotate the clusters (D15 first).
+- 7.1b clustering on SCT B done for D15, D22 and D40.
+- D15: overview resolution 0.2; endocrine subclustering (7.1d) done. Next: choose the subcluster resolution and
+  annotate.
 
 ## Open items
 
