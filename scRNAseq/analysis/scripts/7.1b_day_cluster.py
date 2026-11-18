@@ -16,6 +16,8 @@ Writes ${OUT_DIR}/day_analysis/{day}/clustering/ (reruns overwrite):
   umap_clusters.png          all resolutions;  umap_r*_large.png  one resolution, labelled, + genotype split
   composition_r*.png         % of each sample's cells per cluster
   dotplot_genes_r*.png       fixed gene list by cluster;  dotplot_markers_r*.png  top 3 markers per cluster
+  feature_genes.png          UMAP feature plots of the fixed gene list (log1p, capped at the 99th percentile of
+                             expressing cells);  feature_markers_r*.png  top 2 markers of each cluster (user, 2026-11-18)
   {day}_clusters.html
 and adds leiden_r* to obs, obsm X_pca_SCT_B / X_umap_SCT_B and the SCT_B graph to {day}_merged.h5ad
 (overwritten in place; X_pca / X_umap from the 7.1 log1p route are kept).
@@ -65,14 +67,35 @@ def palette(cats):
     return {c: matplotlib.colors.to_hex((cmap if i < 20 else extra)(i % 20)) for i, c in enumerate(cats)}
 
 
+FEAT_CMAP = matplotlib.colors.LinearSegmentedColormap.from_list("feat", ["#dcdcdc", "#fdbb84", "#e34a33", "#7f0000"])
+
+
+def feature_grid(a, u, genes, path, title, labels=None, ncol=6):
+    """UMAP coloured by log1p expression, one panel per gene; expressing cells drawn on top."""
+    nrow = int(np.ceil(len(genes) / ncol))
+    fig, axs = plt.subplots(nrow, ncol, figsize=(3.7 * ncol, 3.5 * nrow), squeeze=False)
+    for i, (ax, g) in enumerate(zip(axs.flat, genes)):
+        x = a[:, g].X
+        v = np.asarray(x.todense()).ravel() if hasattr(x, "todense") else np.ravel(x)
+        vmax = np.percentile(v[v > 0], 99) if (v > 0).any() else 1
+        o = np.argsort(v, kind="stable")
+        sc_ = ax.scatter(u[o, 0], u[o, 1], c=v[o], s=3, cmap=FEAT_CMAP, vmin=0, vmax=vmax, linewidths=0, rasterized=True)
+        plt.colorbar(sc_, ax=ax, fraction=0.04, pad=0.01)
+        ax.set_title(g if labels is None else f"{g}  ({labels[i]})", fontsize=10)
+        ax.set_xticks([]); ax.set_yticks([])
+    for ax in list(axs.flat)[len(genes):]:
+        ax.axis("off")
+    fig.suptitle(title); fig.tight_layout(); fig.savefig(path, dpi=90); plt.close(fig)
+
+
 def draw_clusters(ax, u, cl, title, mask=None, labels=True):
     cats = sorted(cl.unique(), key=int)
     pal = palette(cats)
     if mask is None:
         mask = np.ones(len(cl), bool)
-    ax.scatter(u[~mask, 0], u[~mask, 1], c=GREY, s=1, linewidths=0, rasterized=True)
+    ax.scatter(u[~mask, 0], u[~mask, 1], c=GREY, s=2.5, linewidths=0, rasterized=True)
     idx = np.random.default_rng(SEED).permutation(np.where(mask)[0])
-    ax.scatter(u[idx, 0], u[idx, 1], c=cl.map(pal).to_numpy()[idx], s=1.5, linewidths=0, rasterized=True)
+    ax.scatter(u[idx, 0], u[idx, 1], c=cl.map(pal).to_numpy()[idx], s=3.5, linewidths=0, rasterized=True)
     if labels:
         for c in cats:
             xy = np.median(u[(cl == c).to_numpy()], axis=0)
@@ -118,6 +141,8 @@ def main():
         draw_clusters(ax, u, a.obs[key(r)].astype(str), f"resolution {r}: {n_cl[r]} clusters")
     fig.suptitle(f"{DAY}: Leiden clusters on SCT B (no batch correction)")
     fig.tight_layout(); fig.savefig(RES_DIR / "umap_clusters.png", dpi=110); plt.close(fig)
+    feature_grid(a, u, [g for g in GENES if g in a.var_names], RES_DIR / "feature_genes.png",
+                 f"{DAY}: lineage marker genes (log1p)")
 
     geno = a.obs["genotype"].astype(str).to_numpy()
     n_geno = pd.Series(geno).value_counts()
@@ -176,6 +201,13 @@ def main():
         dp = sc.pl.dotplot(a, top, groupby=k, show=False, return_fig=True, standard_scale="var")
         dp.savefig(RES_DIR / f"dotplot_markers_r{r}.png", dpi=110); plt.close("all")
         a.uns.pop("rank_genes_groups", None)
+        fm, fl = [], []
+        for grp, g in mk[mk["logfoldchanges"] > 0].groupby("group", observed=True, sort=False):
+            for nm in g["names"].head(2):
+                if nm not in fm:
+                    fm.append(nm); fl.append(f"cl {grp}")
+        feature_grid(a, u, fm, RES_DIR / f"feature_markers_r{r}.png",
+                     f"{DAY} resolution {r}: top 2 markers of each cluster (log1p)", labels=fl)
 
     a.write_h5ad(h5, compression="gzip")
 
@@ -194,7 +226,9 @@ def main():
 <img src="data:image/png;base64,{b64(RES_DIR / f'composition_r{r}.png')}" alt="composition at resolution {r}">
 <div class=tw>{table(comp)}</div><div class=tw>{table(top10.to_frame())}</div>
 <img src="data:image/png;base64,{b64(RES_DIR / f'dotplot_genes_r{r}.png')}" alt="gene dotplot at resolution {r}">
-<img src="data:image/png;base64,{b64(RES_DIR / f'dotplot_markers_r{r}.png')}" alt="top marker dotplot at resolution {r}">"""
+<img src="data:image/png;base64,{b64(RES_DIR / f'dotplot_markers_r{r}.png')}" alt="top marker dotplot at resolution {r}">
+<h3>Feature plots: top 2 markers of each cluster</h3>
+<img src="data:image/png;base64,{b64(RES_DIR / f'feature_markers_r{r}.png')}" alt="UMAP feature plots of the top markers at resolution {r}">"""
     nav = " · ".join(f'<a href="#r{r}">{r}</a>' for r in RESOLUTIONS)
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{DAY} Clusters</title>
@@ -203,7 +237,7 @@ def main():
 @media (prefers-color-scheme:dark){{:root{{--bg:#1a1a18;--fg:#ececea;--mut:#a3a39e;--line:#3a3a36}}}}
 body{{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,sans-serif;margin:0}}
 main{{max-width:1240px;margin:0 auto;padding:24px 16px 60px}} a{{color:inherit}}
-h1{{font-size:24px;margin:0 0 4px}} h2{{font-size:19px;margin:34px 0 8px}}
+h1{{font-size:24px;margin:0 0 4px}} h2{{font-size:19px;margin:34px 0 8px}} h3{{font-size:16px;margin:20px 0 6px}}
 .sub{{color:var(--mut)}} .tw{{overflow-x:auto;margin:8px 0}}
 table.t{{border-collapse:collapse;font-size:12.5px}} .t th,.t td{{padding:3px 7px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}}
 .t td:last-child{{text-align:left}}
@@ -215,6 +249,9 @@ on the merged day, S&minus;G2M regressed, 3,000 variable features without MT- ge
 Leiden (igraph, 2 iterations, seed {SEED}). Markers: Wilcoxon, cluster vs rest, unregressed log1p. KO_over_ctr = % of
 KO cells in the cluster / % of ctr cells. Resolutions: {nav}</p>
 <img src="data:image/png;base64,{b64(RES_DIR / 'umap_clusters.png')}" alt="clusters at all resolutions">
+<h2>Feature plots: lineage marker genes</h2>
+<p class=sub>log1p expression; colour capped at the 99th percentile of expressing cells; expressing cells drawn on top.</p>
+<img src="data:image/png;base64,{b64(RES_DIR / 'feature_genes.png')}" alt="UMAP feature plots of lineage marker genes">
 {secs}
 <p class=sub>Full marker tables (top 50 per cluster) and lineage.csv (parent cluster at the next-lower resolution) are in this folder.</p>
 </main></body></html>"""
