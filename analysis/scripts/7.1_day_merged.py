@@ -1,29 +1,28 @@
-"""Step 7.1: one time point on its own -- merge its 4 samples, no batch correction.
+"""Step 7.1: one time point on its own -- merge its 4 samples, process to UMAP. No batch correction.
 
-Decision (user, 2026-11-17): look at the data day by day, starting with D15; merge only, no batch
-correction of any kind (all 4 samples of a day share one differentiation batch and OCM channel).
+Decisions (user, 2026-11-17):
+  - each day on its own, the 4 samples merged; no batch correction (one differentiation batch and
+    OCM channel per day);
+  - damaged cells removed here, after doublet removal: nuclear fraction > MAX_NF (0.6). Steps 1.0-1.3
+    (NF < 0.10, 4 MAD + 2,000 genes + 10% MT, SoupX, scDblFinder) are upstream and unchanged;
+  - log1p normalization + scaling on the merged object (not per sample: per-sample scaling would act
+    as a batch correction and remove real ctr vs KO mean differences);
+  - 3,000 HVGs, ranked within each sample and combined (batch_key="sample");
+  - cell-cycle: regress out the S - G2M difference (keeps cycling vs non-cycling apart, removes the
+    S vs G2M split), on the merged object, before scaling. Regression and scaling feed PCA only;
+    X stays unregressed log1p for genes, markers and DE;
+  - stop at UMAP; clustering is done day by day afterwards.
 
-Inputs (current QC: 4 MAD + min 2,000 genes + 10% MT, SoupX, scDblFinder only):
-  ${OUT_DIR}/detect_doublets/h5ad/{sample}.doublets_removed.h5ad for the day's 4 samples
-  (X = SoupX-corrected counts; layers counts / soupx_counts).
-Processing (pipeline 5.3 log path + 6.1 graph conventions, on this day's cells only):
-  concat -> normalize_total (1e4) -> log1p -> 2,000 HVGs (flavor seurat) -> PCA (50 comps)
-  -> neighbours on 30 PCs (n_neighbors 15) -> UMAP -> Leiden (igraph, n_iterations 2) at RESOLUTIONS.
-  Seed 1234 throughout.
-  Nuclear fraction (step 1.0) is kept in obs; cells above HIGH_NF are flagged high_nuclear_fraction
-  (user, 2026-11-17: keep them, flag them -- low cytoplasmic mRNA, not nuclei). Nothing is removed.
-  Cell cycle (user, 2026-11-17: score only, no regression): sc.tl.score_genes_cell_cycle on the
-  log1p data with Seurat's cc.genes (Tirosh 2016; same lists as pipeline 5.3) -> obs S_score,
-  G2M_score, phase. Does not change the embedding or clusters.
+Inputs: ${OUT_DIR}/detect_doublets/h5ad/{sample}.doublets_removed.h5ad (X = SoupX counts; layers counts,
+soupx_counts; obs carries nuclear_fraction from step 1.0).
+Processing: concat -> drop NF > MAX_NF -> normalize_total(1e4) -> log1p -> cell-cycle scores (Seurat
+cc.genes, Tirosh 2016) -> 3,000 HVGs (flavor seurat, batch_key sample) -> on HVGs: regress_out(S - G2M)
+-> scale(max_value 10) -> PCA (50) -> neighbours (30 PCs, 15 neighbours) -> UMAP. Seed 1234.
 Writes ${OUT_DIR}/day_analysis/{day}/ (reruns overwrite):
-  {day}_merged.h5ad        cells x genes; X = log1p-normalized, layers counts / soupx_counts,
-                           obsm X_pca + X_umap, obs leiden_r* for every resolution
-  per_sample.csv           cells and QC medians per sample
-  clusters.csv             barcode -> cluster at every resolution;  n_clusters.csv
-  composition_r*.csv       per cluster: cells per sample, % of ctr and of KO cells
-  markers_r*.csv           top 10 Wilcoxon markers per cluster
-  cellcycle_by_sample.csv, cellcycle_by_cluster_r*.csv (phase % per cluster, per genotype)
-  umap_samples.png, umap_qc.png, umap_cellcycle.png, umap_clusters.png, composition.png, dotplot_r*.png,
+  {day}_merged.h5ad        X = log1p (unregressed), layers counts / soupx_counts, var highly_variable,
+                           obsm X_pca + X_umap, obs QC + nuclear_fraction + S_score/G2M_score/phase
+  per_sample.csv           cells in, removed (NF > MAX_NF), kept, QC medians, % per phase
+  umap_samples.png, umap_genotype_split.png, umap_qc.png, umap_cellcycle.png, umap_genes.png,
   {day}_summary.html
 Run: sbatch analysis/scripts/7.1_day_merged.sb D15
 """
@@ -48,14 +47,15 @@ OUT_DIR = Path(os.environ["OUT_DIR"])
 DAY = sys.argv[1]
 RES_DIR = OUT_DIR / "day_analysis" / DAY
 SEED = 1234
-HIGH_NF = 0.6        # flag only; D40's main peak sits at ~0.43, D15/D22 at ~0.28
-N_HVG, N_PCS_STORE, N_PCS, N_NEIGHBORS = 2000, 50, 30, 15
-RESOLUTIONS = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2]
-GENES = ["PDX1", "PTF1A", "NKX6-1", "ARX", "GCG", "PAX4", "PAX6", "INS", "SLC18A1", "FEV", "SST",
-         "NKX2-2", "RFX6", "ISL1"]
+MAX_NF = 0.6
+N_HVG, N_PCS_STORE, N_PCS, N_NEIGHBORS = 3000, 50, 30, 15
+GENES = ["PDX1", "PTF1A", "NKX6-1", "SOX9", "ARX", "GCG", "PAX4", "PAX6", "INS", "SLC18A1", "FEV", "SST",
+         "NKX2-2", "NEUROG3", "CHGA", "RFX6", "ISL1", "MKI67"]
 SAMPLE_ORDER = ["ctr_rep1", "ctr_rep2", "KO_rep1", "KO_rep2"]
 SAMPLE_PAL = {"ctr_rep1": "#2f5d9e", "ctr_rep2": "#7fa7dd", "KO_rep1": "#b23b2a", "KO_rep2": "#eb9a84"}
 GENO_PAL = {"ctr": "#3b6fb6", "KO": "#d0573f"}
+PHASE_PAL = {"G1": "#c9c9c9", "S": "#3a8fc1", "G2M": "#d1495b"}
+GREY = "#e3e3e3"
 
 
 def cc_genes():
@@ -63,10 +63,6 @@ def cc_genes():
     from rpy2.robjects.packages import importr
     importr("Seurat")
     return list(ro.r("Seurat::cc.genes$s.genes")), list(ro.r("Seurat::cc.genes$g2m.genes"))
-
-
-def key(res):
-    return f"leiden_r{str(res).replace('.', 'p')}"
 
 
 def b64(p):
@@ -85,13 +81,10 @@ def load_day():
         a.obs["genotype"] = tag.split("_")[0]
         a.obs["replicate"] = tag.split("_")[1]
         a.obs_names = [f"{new}#{b}" for b in a.obs_names]
-        keep_obs = ["sample", "genotype", "replicate", "total_counts", "n_genes_by_counts", "pct_counts_mt",
-                    "pct_counts_ribo", "scDblFinder_doublet_score", "nuclear_fraction"]
-        a.obs = a.obs[keep_obs]
+        a.obs = a.obs[["sample", "genotype", "replicate", "total_counts", "n_genes_by_counts", "pct_counts_mt",
+                       "pct_counts_ribo", "scDblFinder_doublet_score", "nuclear_fraction"]]
         a.obsm, a.uns, a.obsp = {}, {}, {}
         parts.append(a)
-    for p in parts:
-        p.obs["high_nuclear_fraction"] = p.obs["nuclear_fraction"] > HIGH_NF
     var = parts[0].var[["gene_ids", "feature_types"]].copy()
     for p in parts:
         assert (p.var_names == var.index).all()
@@ -102,34 +95,45 @@ def load_day():
     return m
 
 
-def scatter(ax, u, values, title, pal=None, cmap="viridis", vmax=None, order=None):
-    ax.set_title(title, fontsize=10)
+def clean(ax):
     ax.set_xticks([]); ax.set_yticks([])
-    if pal is not None:
-        idx = np.random.default_rng(SEED).permutation(len(values))   # no category drawn last on top
-        cols = pd.Series(values).astype(str).map(pal).to_numpy()
-        ax.scatter(u[idx, 0], u[idx, 1], c=cols[idx], s=1.5, linewidths=0, rasterized=True)
-        for k, c in pal.items():
-            ax.scatter([], [], c=c, s=20, label=k)
-        ax.legend(fontsize=7, frameon=False, markerscale=1, loc="best")
-    else:
-        v = np.asarray(values, float)
-        o = np.argsort(v)
-        sc_ = ax.scatter(u[o, 0], u[o, 1], c=v[o], s=1.5, cmap=cmap, vmax=vmax, linewidths=0, rasterized=True)
-        plt.colorbar(sc_, ax=ax, fraction=0.04)
+
+
+def cat_scatter(ax, u, values, title, pal, mask=None):
+    """Categorical colours; cells outside `mask` drawn in light grey underneath."""
+    vals = pd.Series(np.asarray(values).astype(str))
+    if mask is None:
+        mask = np.ones(len(vals), bool)
+    ax.scatter(u[~mask, 0], u[~mask, 1], c=GREY, s=1, linewidths=0, rasterized=True)
+    idx = np.random.default_rng(SEED).permutation(np.where(mask)[0])
+    ax.scatter(u[idx, 0], u[idx, 1], c=vals.map(pal).to_numpy()[idx], s=1.5, linewidths=0, rasterized=True)
+    for k, c in pal.items():
+        if (vals[mask] == k).any():
+            ax.scatter([], [], c=c, s=25, label=k)
+    if (~mask).any():
+        ax.scatter([], [], c=GREY, s=25, label="other")
+    ax.legend(fontsize=8, frameon=False, loc="best")
+    ax.set_title(title, fontsize=11); clean(ax)
+
+
+def num_scatter(ax, u, v, title, cmap="viridis", vmin=None, vmax=None):
+    v = np.asarray(v, float); o = np.argsort(v)
+    s_ = ax.scatter(u[o, 0], u[o, 1], c=v[o], s=1.5, cmap=cmap, vmin=vmin, vmax=vmax, linewidths=0, rasterized=True)
+    plt.colorbar(s_, ax=ax, fraction=0.04)
+    ax.set_title(title, fontsize=11); clean(ax)
 
 
 def main():
     RES_DIR.mkdir(parents=True, exist_ok=True)
-    for p in RES_DIR.iterdir():                       # rerun replaces the day's outputs
+    for p in RES_DIR.rglob("*"):                      # rerun replaces the day's outputs
         if p.is_file():
             p.unlink()
-        else:
-            for q in p.rglob("*"):
-                if q.is_file():
-                    q.unlink()
     a = load_day()
-    print(f"{DAY}: {a.n_obs} cells, {a.n_vars} genes")
+    n_in = a.obs["sample"].value_counts()
+    damaged = a.obs["nuclear_fraction"].to_numpy() > MAX_NF
+    n_rm = a.obs.loc[damaged, "sample"].value_counts()
+    a = a[~damaged].copy()
+    print(f"{DAY}: {int(damaged.sum())} cells with nuclear fraction > {MAX_NF} removed; {a.n_obs} cells kept")
 
     sc.pp.normalize_total(a, target_sum=1e4)
     sc.pp.log1p(a)
@@ -138,193 +142,122 @@ def main():
     print(f"cell cycle genes found: S {len(s_use)}/{len(s_genes)}, G2M {len(g2m_use)}/{len(g2m_genes)}")
     sc.tl.score_genes_cell_cycle(a, s_genes=s_use, g2m_genes=g2m_use, random_state=SEED)
     a.obs["phase"] = pd.Categorical(a.obs["phase"], ["G1", "S", "G2M"])
-    sc.pp.highly_variable_genes(a, n_top_genes=N_HVG, flavor="seurat")
+    a.obs["S_minus_G2M"] = a.obs["S_score"] - a.obs["G2M_score"]
+
+    sc.pp.highly_variable_genes(a, n_top_genes=N_HVG, flavor="seurat", batch_key="sample")
     hv = a[:, a.var["highly_variable"]].copy()
+    print(f"HVGs: {hv.n_vars}")
+    sc.pp.regress_out(hv, ["S_minus_G2M"], n_jobs=int(os.environ.get("SLURM_CPUS_PER_TASK", 1)))
+    sc.pp.scale(hv, max_value=10)
     sc.tl.pca(hv, n_comps=N_PCS_STORE, random_state=SEED)
     a.obsm["X_pca"] = hv.obsm["X_pca"]
     a.uns["pca_variance_ratio"] = hv.uns["pca"]["variance_ratio"]
     sc.pp.neighbors(a, use_rep="X_pca", n_pcs=N_PCS, n_neighbors=N_NEIGHBORS, random_state=SEED)
     sc.tl.umap(a, random_state=SEED)
-    for r in RESOLUTIONS:
-        sc.tl.leiden(a, resolution=r, key_added=key(r), random_state=SEED, flavor="igraph",
-                     n_iterations=2, directed=False)
     u = a.obsm["X_umap"]
 
     # ---- per-sample table
-    ps = a.obs.assign(hnf=a.obs["high_nuclear_fraction"].astype(float)).groupby("sample", observed=True).agg(
-        pct_high_nuclear_fraction=("hnf", lambda v: round(100 * v.mean(), 1)),
-        median_nuclear_fraction=("nuclear_fraction", "median"),
-        cells=("total_counts", "size"), median_counts=("total_counts", "median"),
-        median_genes=("n_genes_by_counts", "median"), median_pct_mt=("pct_counts_mt", "median"),
-        median_pct_ribo=("pct_counts_ribo", "median")).round(1)
+    ps = pd.DataFrame({"cells_in": n_in, f"removed_NF>{MAX_NF}": n_rm}).reindex(SAMPLE_ORDER).fillna(0).astype(int)
+    ps[f"pct_removed"] = (100 * ps[f"removed_NF>{MAX_NF}"] / ps["cells_in"]).round(1)
+    g = a.obs.groupby("sample", observed=True)
+    ps["cells_kept"] = g.size()
+    ps["median_counts"] = g["total_counts"].median().round(0)
+    ps["median_genes"] = g["n_genes_by_counts"].median().round(0)
+    ps["median_pct_mt"] = g["pct_counts_mt"].median().round(2)
+    ps["median_pct_ribo"] = g["pct_counts_ribo"].median().round(2)
+    ps["median_nuclear_fraction"] = g["nuclear_fraction"].median().round(3)
+    ph = pd.crosstab(a.obs["sample"], a.obs["phase"], normalize="index").mul(100).round(1)
+    for c in ["G1", "S", "G2M"]:
+        ps[f"pct_{c}"] = ph[c]
+    tot = ps[["cells_in", f"removed_NF>{MAX_NF}", "cells_kept"]].groupby(ps.index.str.split("_").str[0]).sum()
+    tot.index = [f"{i} (both reps)" for i in tot.index]
+    ps = pd.concat([ps, tot])
+    ps.loc[tot.index, "pct_removed"] = (100 * ps.loc[tot.index, f"removed_NF>{MAX_NF}"] / ps.loc[tot.index, "cells_in"]).round(1)
     ps.to_csv(RES_DIR / "per_sample.csv")
+    print(ps.to_string())
 
-    # ---- UMAPs: samples / genotype
-    fig, axs = plt.subplots(2, 3, figsize=(16, 10))
-    scatter(axs[0, 0], u, a.obs["sample"], "sample", pal=SAMPLE_PAL)
-    scatter(axs[0, 1], u, a.obs["genotype"], "genotype", pal=GENO_PAL)
-    for ax, g in zip([axs[0, 2], axs[1, 0]], ["ctr", "KO"]):
-        ax.scatter(u[:, 0], u[:, 1], c="#dddddd", s=1, linewidths=0, rasterized=True)
-        m = (a.obs["genotype"] == g).to_numpy()
-        sub = a.obs.loc[m, "sample"]
-        scatter(ax, u[m], sub, f"{g} only", pal={k: v for k, v in SAMPLE_PAL.items() if k.startswith(g)})
-    scatter(axs[1, 1], u, a.obs["replicate"], "replicate", pal={"rep1": "#555555", "rep2": "#e0a030"})
-    axs[1, 2].axis("off")
-    fig.suptitle(f"{DAY}: 4 samples merged, no batch correction ({a.n_obs:,} cells)")
-    fig.tight_layout(); fig.savefig(RES_DIR / "umap_samples.png", dpi=110); plt.close(fig)
+    title = f"{DAY}: 4 samples merged, no batch correction; S-G2M regressed for PCA ({a.n_obs:,} cells)"
+    sample = a.obs["sample"].astype(str).to_numpy(); geno = a.obs["genotype"].astype(str).to_numpy()
 
-    # ---- UMAPs: QC
-    fig, axs = plt.subplots(2, 3, figsize=(16, 10))
-    for ax, (col, lab, vmax) in zip(axs.flat, [("total_counts", "log10 counts", None), ("n_genes_by_counts", "log10 genes", None),
-                                             ("pct_counts_mt", "% MT", 10), ("pct_counts_ribo", "% ribo", None),
-                                             ("scDblFinder_doublet_score", "scDblFinder score", None),
-                                             ("nuclear_fraction", f"nuclear fraction (flag > {HIGH_NF})", 0.7)]):
-        v = a.obs[col].to_numpy(float)
-        if lab.startswith("log10"):
-            v = np.log10(v)
-        scatter(ax, u, v, lab, vmax=vmax)
-    fig.tight_layout(); fig.savefig(RES_DIR / "umap_qc.png", dpi=110); plt.close(fig)
-
-    # ---- nuclear fraction on the UMAP: where are the high-NF cells?
-    nfv = a.obs["nuclear_fraction"].to_numpy(float)
-    geno = a.obs["genotype"].astype(str).to_numpy()
+    # ---- samples / genotype
     fig, axs = plt.subplots(1, 3, figsize=(21, 6.8))
-    o_ = np.argsort(nfv)
-    s_ = axs[0].scatter(u[o_, 0], u[o_, 1], c=nfv[o_], s=1.5, cmap="viridis", vmin=0.1, vmax=0.8, linewidths=0, rasterized=True)
-    plt.colorbar(s_, ax=axs[0], fraction=0.04); axs[0].set_title("nuclear fraction", fontsize=11)
-    for ax, t in zip(axs[1:], (0.6, 0.65)):
-        m = nfv > t
-        ax.scatter(u[:, 0], u[:, 1], c="#e3e3e3", s=1, linewidths=0, rasterized=True)
-        ax.scatter(u[m, 0], u[m, 1], c="#c0392b", s=3, linewidths=0, rasterized=True)
-        nc, nk = int((m & (geno == "ctr")).sum()), int((m & (geno == "KO")).sum())
-        ax.set_title(f"nuclear fraction > {t}: {int(m.sum())} cells "
-                     f"(ctr {nc}, {100 * nc / (geno == 'ctr').sum():.1f}%; KO {nk}, {100 * nk / (geno == 'KO').sum():.1f}%)", fontsize=10)
-    for ax in axs:
-        ax.set_xticks([]); ax.set_yticks([])
-    fig.suptitle(f"{DAY}: nuclear fraction (no batch correction)")
-    fig.tight_layout(); fig.savefig(RES_DIR / "umap_nuclear_fraction.png", dpi=110); plt.close(fig)
+    cat_scatter(axs[0], u, sample, "sample", SAMPLE_PAL)
+    cat_scatter(axs[1], u, geno, "genotype", GENO_PAL)
+    cat_scatter(axs[2], u, a.obs["replicate"], "replicate", {"rep1": "#555555", "rep2": "#e0a030"})
+    fig.suptitle(title); fig.tight_layout(); fig.savefig(RES_DIR / "umap_samples.png", dpi=110); plt.close(fig)
 
-    # ---- cell cycle: UMAPs + tables (scores only; nothing regressed)
-    PHASE_PAL = {"G1": "#c9c9c9", "S": "#3a8fc1", "G2M": "#d1495b"}
-    fig, axs = plt.subplots(2, 3, figsize=(16, 10))
-    scatter(axs[0, 0], u, a.obs["phase"], "phase", pal=PHASE_PAL)
-    scatter(axs[0, 1], u, a.obs["S_score"], "S score", cmap="magma")
-    scatter(axs[0, 2], u, a.obs["G2M_score"], "G2M score", cmap="magma")
-    for ax, g in zip([axs[1, 0], axs[1, 1], axs[1, 2]], ["MKI67", "TOP2A", "PCNA"]):
-        x = a[:, g].X
-        scatter(ax, u, np.asarray(x.todense()).ravel() if hasattr(x, "todense") else np.ravel(x), f"{g} (log1p)", cmap="magma")
-    fig.suptitle(f"{DAY}: cell-cycle phase (scored, not regressed)")
-    fig.tight_layout(); fig.savefig(RES_DIR / "umap_cellcycle.png", dpi=110); plt.close(fig)
-    ccs = pd.crosstab(a.obs["sample"], a.obs["phase"], normalize="index").mul(100).round(1)
-    ccs.loc["ctr (both reps)"] = pd.crosstab(a.obs["genotype"], a.obs["phase"], normalize="index").mul(100).round(1).loc["ctr"]
-    ccs.loc["KO (both reps)"] = pd.crosstab(a.obs["genotype"], a.obs["phase"], normalize="index").mul(100).round(1).loc["KO"]
-    ccs.to_csv(RES_DIR / "cellcycle_by_sample.csv")
+    fig, axs = plt.subplots(1, 2, figsize=(16, 7.5))
+    for ax, gt, lab in zip(axs, ("ctr", "KO"), ("Control", "ISL1 KO")):
+        m = geno == gt
+        cat_scatter(ax, u, sample, f"{lab} ({int(m.sum()):,} cells); other genotype in grey",
+                    {k: v for k, v in SAMPLE_PAL.items() if k.startswith(gt)}, mask=m)
+    fig.suptitle(title); fig.tight_layout(); fig.savefig(RES_DIR / "umap_genotype_split.png", dpi=120); plt.close(fig)
 
-    # ---- UMAPs: clusters at every resolution
-    n_cl = {r: a.obs[key(r)].nunique() for r in RESOLUTIONS}
-    pd.Series(n_cl, name="n_clusters").rename_axis("resolution").to_csv(RES_DIR / "n_clusters.csv")
-    a.obs[[key(r) for r in RESOLUTIONS]].to_csv(RES_DIR / "clusters.csv")
-    fig, axs = plt.subplots(2, 3, figsize=(18, 11))
-    for ax, r in zip(axs.flat, RESOLUTIONS):
-        cl = a.obs[key(r)].astype(str)
-        cats = sorted(cl.unique(), key=int)
-        cmap = plt.get_cmap("tab20" if len(cats) > 10 else "tab10")
-        pal = {c: matplotlib.colors.to_hex(cmap(i % cmap.N)) for i, c in enumerate(cats)}
-        idx = np.random.default_rng(SEED).permutation(len(cl))
-        ax.scatter(u[idx, 0], u[idx, 1], c=cl.map(pal).to_numpy()[idx], s=1.5, linewidths=0, rasterized=True)
-        for c in cats:
-            xy = np.median(u[(cl == c).to_numpy()], axis=0)
-            ax.text(xy[0], xy[1], c, fontsize=9, weight="bold", ha="center", va="center")
-        ax.set_title(f"resolution {r}: {n_cl[r]} clusters", fontsize=10); ax.set_xticks([]); ax.set_yticks([])
-    fig.tight_layout(); fig.savefig(RES_DIR / "umap_clusters.png", dpi=110); plt.close(fig)
+    # ---- QC
+    fig, axs = plt.subplots(2, 3, figsize=(18, 10.5))
+    for ax, (col, lab, vmin, vmax) in zip(axs.flat, [
+            ("total_counts", "log10 counts", None, None), ("n_genes_by_counts", "log10 genes", None, None),
+            ("pct_counts_mt", "% MT", 0, 10), ("pct_counts_ribo", "% ribo", None, None),
+            ("scDblFinder_doublet_score", "scDblFinder score", 0, None), ("nuclear_fraction", "nuclear fraction", 0.1, MAX_NF)]):
+        v = a.obs[col].to_numpy(float)
+        num_scatter(ax, u, np.log10(v) if lab.startswith("log10") else v, lab, vmin=vmin, vmax=vmax)
+    fig.suptitle(title); fig.tight_layout(); fig.savefig(RES_DIR / "umap_qc.png", dpi=110); plt.close(fig)
 
-    # ---- composition + markers + dotplots per resolution
-    n_geno = a.obs["genotype"].value_counts()
-    fig, axs = plt.subplots(len(RESOLUTIONS), 1, figsize=(14, 3.2 * len(RESOLUTIONS)))
-    genes = [g for g in GENES if g in a.var_names]
-    for ax, r in zip(axs, RESOLUTIONS):
-        k = key(r)
-        ct = pd.crosstab(a.obs[k], a.obs["sample"]).reindex(columns=SAMPLE_ORDER, fill_value=0)
-        ct.index = ct.index.astype(int); ct = ct.sort_index()
-        comp = ct.copy()
-        comp["cells"] = ct.sum(axis=1)
-        comp["pct_of_ctr_cells"] = (100 * ct[["ctr_rep1", "ctr_rep2"]].sum(axis=1) / n_geno["ctr"]).round(2)
-        comp["pct_of_KO_cells"] = (100 * ct[["KO_rep1", "KO_rep2"]].sum(axis=1) / n_geno["KO"]).round(2)
-        comp["KO_over_ctr"] = (comp["pct_of_KO_cells"] / comp["pct_of_ctr_cells"]).round(2)
-        hf = pd.crosstab(a.obs[k], a.obs["high_nuclear_fraction"]).reindex(columns=[False, True], fill_value=0)
-        hf.index = hf.index.astype(int)
-        comp["pct_high_nuclear_fraction"] = (100 * hf[True] / hf.sum(axis=1)).reindex(comp.index).round(1)
-        comp.to_csv(RES_DIR / f"composition_r{r}.csv")
-        cc = {}
-        for g in ["ctr", "KO"]:
-            m = a.obs["genotype"] == g
-            t_ = pd.crosstab(a.obs.loc[m, k], a.obs.loc[m, "phase"]).reindex(columns=["G1", "S", "G2M"], fill_value=0)
-            cc[f"{g}_cells"] = t_.sum(axis=1)
-            cc[f"{g}_pct_S"] = (100 * t_["S"] / t_.sum(axis=1)).round(1)
-            cc[f"{g}_pct_G2M"] = (100 * t_["G2M"] / t_.sum(axis=1)).round(1)
-        cc = pd.DataFrame(cc); cc.index = cc.index.astype(int)
-        cc.sort_index().to_csv(RES_DIR / f"cellcycle_by_cluster_r{r}.csv")
-        # bars: % of each sample's cells in each cluster (replicates side by side)
-        pct = 100 * ct / ct.sum(axis=0)
-        x = np.arange(len(pct)); w = 0.2
-        for i, s in enumerate(SAMPLE_ORDER):
-            ax.bar(x + (i - 1.5) * w, pct[s], width=w, color=SAMPLE_PAL[s], label=s)
-        ax.set_xticks(x); ax.set_xticklabels(pct.index); ax.set_ylabel("% of sample's cells")
-        ax.set_title(f"resolution {r}", fontsize=10); ax.spines[["top", "right"]].set_visible(False)
-        axs[0].legend(fontsize=8, frameon=False, ncol=4)
+    # ---- cell cycle (after S-G2M regression: S and G2M cells should no longer separate)
+    def gx(gname):
+        x = a[:, gname].X
+        return np.asarray(x.todense()).ravel() if hasattr(x, "todense") else np.ravel(x)
+    fig, axs = plt.subplots(2, 3, figsize=(18, 10.5))
+    cat_scatter(axs[0, 0], u, a.obs["phase"], "phase", PHASE_PAL)
+    num_scatter(axs[0, 1], u, a.obs["S_score"], "S score", cmap="magma")
+    num_scatter(axs[0, 2], u, a.obs["G2M_score"], "G2M score", cmap="magma")
+    for ax, gname in zip(axs[1], ["MKI67", "TOP2A", "PCNA"]):
+        num_scatter(ax, u, gx(gname), f"{gname} (log1p)", cmap="magma")
+    fig.suptitle(title); fig.tight_layout(); fig.savefig(RES_DIR / "umap_cellcycle.png", dpi=110); plt.close(fig)
 
-        sc.tl.rank_genes_groups(a, k, method="wilcoxon", n_genes=10, use_raw=False)
-        mk = sc.get.rank_genes_groups_df(a, None)
-        mk = mk.groupby("group", observed=True).head(10)
-        mk.to_csv(RES_DIR / f"markers_r{r}.csv", index=False)
-        dp = sc.pl.dotplot(a, genes, groupby=k, show=False, return_fig=True, standard_scale=None)
-        dp.savefig(RES_DIR / f"dotplot_r{r}.png", dpi=110); plt.close("all")
-    fig.tight_layout(); fig.savefig(RES_DIR / "composition.png", dpi=110); plt.close(fig)
-    a.uns.pop("rank_genes_groups", None)
+    # ---- genes
+    genes = [gn for gn in GENES if gn in a.var_names]
+    ncol = 6; nrow = int(np.ceil(len(genes) / ncol))
+    fig, axs = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 3.8 * nrow))
+    for ax, gn in zip(axs.flat, genes):
+        num_scatter(ax, u, gx(gn), gn, cmap="magma")
+    for ax in list(axs.flat)[len(genes):]:
+        ax.axis("off")
+    fig.suptitle(f"{DAY}: log1p expression"); fig.tight_layout(); fig.savefig(RES_DIR / "umap_genes.png", dpi=100); plt.close(fig)
 
+    a.obs.drop(columns=["S_minus_G2M"]).to_csv(RES_DIR / "cells_obs.tsv.gz", sep="\t")
     a.write_h5ad(RES_DIR / f"{DAY}_merged.h5ad", compression="gzip")
 
     # ---- HTML
-    def table(df, idx=True):
-        return df.to_html(index=idx, border=0, classes="t")
-    comp_tabs = "".join(
-        f"<h3>Resolution {r} ({n_cl[r]} clusters)</h3><div class=tw>{table(pd.read_csv(RES_DIR / f'composition_r{r}.csv', index_col=0))}</div>"
-        f"<img src='data:image/png;base64,{b64(RES_DIR / f'dotplot_r{r}.png')}' alt='dotplot resolution {r}'>"
-        for r in RESOLUTIONS)
+    def table(df):
+        return df.to_html(border=0, classes="t")
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>{DAY} Merged Summary</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{DAY} Merged UMAP</title>
 <style>
 :root{{--bg:#fbfbf9;--fg:#1f1f1c;--mut:#6b6b66;--line:#e2e2dc}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#1a1a18;--fg:#ececea;--mut:#a3a39e;--line:#3a3a36}}}}
 body{{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,sans-serif;margin:0}}
 main{{max-width:1180px;margin:0 auto;padding:24px 16px 60px}}
-h1{{font-size:24px;margin:0 0 4px}} h2{{font-size:19px;margin:30px 0 8px}} h3{{font-size:15px;margin:22px 0 6px}}
+h1{{font-size:24px;margin:0 0 4px}} h2{{font-size:19px;margin:30px 0 8px}}
 .sub{{color:var(--mut)}} .tw{{overflow-x:auto}}
 table.t{{border-collapse:collapse;font-size:13px}} .t th,.t td{{padding:3px 8px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}}
 img{{max-width:100%;height:auto;background:#fff;border-radius:4px;margin:6px 0}}
 </style></head><body><main>
 <h1>{DAY}: four samples merged, no batch correction</h1>
-<p class=sub>{a.n_obs:,} cells after QC (4 MAD + at least 2,000 genes + %MT &le; 10, SoupX, scDblFinder).
-normalize_total (10,000) &rarr; log1p &rarr; 2,000 HVGs &rarr; PCA &rarr; 30 PCs, 15 neighbours &rarr; UMAP, Leiden. Seed 1234.</p>
+<p class=sub>QC upstream: nuclear fraction &ge; 0.10, 4 MAD + at least 2,000 genes + %MT &le; 10, SoupX, scDblFinder.
+Here: damaged cells (nuclear fraction &gt; {MAX_NF}) removed; normalize_total (10,000) &rarr; log1p &rarr;
+{N_HVG:,} HVGs (ranked within each sample) &rarr; S&minus;G2M regressed &rarr; scaled (merged object) &rarr; PCA &rarr;
+{N_PCS} PCs, {N_NEIGHBORS} neighbours &rarr; UMAP. Seed {SEED}. No clustering yet. Gene plots use unregressed log1p values.</p>
 <h2>Cells per sample</h2><div class=tw>{table(ps)}</div>
-<h2>Samples on the UMAP</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_samples.png')}" alt="UMAP by sample and genotype">
-<h2>QC metrics on the UMAP</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_qc.png')}" alt="UMAP coloured by QC metrics">
-<h2>Cell cycle (scored, not regressed)</h2><p class=sub>Seurat cc.genes (Tirosh 2016), scanpy
-score_genes_cell_cycle on log1p data. % of each sample's cells per phase:</p>
-<div class=tw>{table(pd.read_csv(RES_DIR / 'cellcycle_by_sample.csv', index_col=0))}</div>
+<h2>Samples and genotype</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_samples.png')}" alt="UMAP by sample, genotype and replicate">
+<img src="data:image/png;base64,{b64(RES_DIR / 'umap_genotype_split.png')}" alt="UMAP split by genotype, other genotype in grey">
+<h2>QC metrics</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_qc.png')}" alt="UMAP coloured by QC metrics">
+<h2>Cell cycle</h2><p class=sub>Phase from scores on log1p data. After regressing S&minus;G2M, S and G2M cells
+should no longer separate; cycling and non-cycling cells still can.</p>
 <img src="data:image/png;base64,{b64(RES_DIR / 'umap_cellcycle.png')}" alt="UMAP coloured by cell-cycle phase and scores">
-<h3>Phase by cluster, resolution 0.4</h3><div class=tw>{table(pd.read_csv(RES_DIR / 'cellcycle_by_cluster_r0.4.csv', index_col=0))}</div>
-<h2>Nuclear fraction on the UMAP</h2><p class=sub>Cells above 0.6 and 0.65 in red. Nothing is removed.</p>
-<img src="data:image/png;base64,{b64(RES_DIR / 'umap_nuclear_fraction.png')}" alt="UMAP coloured by nuclear fraction, high cells highlighted">
-<h2>Clusters</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_clusters.png')}" alt="Leiden clusters at six resolutions">
-<h2>Cluster composition</h2><p class=sub>Bars: % of each sample's cells in each cluster. Tables: cells per sample;
-% of all ctr / KO cells in the cluster; KO_over_ctr = ratio of those two.</p>
-<img src="data:image/png;base64,{b64(RES_DIR / 'composition.png')}" alt="cluster composition per sample">
-{comp_tabs}
-<p class=sub>Top 10 Wilcoxon markers per cluster: markers_r*.csv in this folder.</p>
+<h2>Genes</h2><img src="data:image/png;base64,{b64(RES_DIR / 'umap_genes.png')}" alt="UMAP coloured by marker genes">
 </main></body></html>"""
     (RES_DIR / f"{DAY}_summary.html").write_text(html)
-    print("clusters:", n_cl)
     print("wrote", RES_DIR)
 
 
