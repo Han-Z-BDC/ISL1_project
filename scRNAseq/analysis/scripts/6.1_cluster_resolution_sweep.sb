@@ -15,7 +15,7 @@
 # Submit from the repo root: sbatch analysis/scripts/6.1_cluster_resolution_sweep.sb
 
 set -euo pipefail
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 
 "${TOOLS}/python" "${REPO_DIR}/analysis/scripts/6.1_cluster_resolution_sweep.py" \
   --normalized-h5ad "${OUT_DIR}/integration/merged_rna_normalized.h5ad" \

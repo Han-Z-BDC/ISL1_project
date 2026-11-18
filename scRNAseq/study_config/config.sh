@@ -11,7 +11,7 @@ set -euo pipefail
 # (same folder name). Here: the 2 scRNA fastqs, md5.txt (their 2 lines) and
 # md5.admera_full_delivery.txt (Admera's original, all 34 files).
 RAW_DIR=/pl/active/ZhuLab_BDC/raw_data/ISL1_scRNAseq/7535-0002-10082026_215649
-REPO_DIR=/pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq   # code + configs only, no outputs
+REPO_DIR=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq   # code + configs only, no outputs
 # All outputs (logs + results) on scratch -- purged after 90 days, copy keepers to /pl/active.
 SCRATCH_DIR=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq
 LOGS="${SCRATCH_DIR}/logs"

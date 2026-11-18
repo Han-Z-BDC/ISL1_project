@@ -14,6 +14,6 @@
 # Submit from the repo root: sbatch analysis/scripts/7.2_cluster_de.sb D15 harmony 0.8 2
 
 set -euo pipefail
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR TOOLS
 "${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.2_cluster_de.py" "$@"

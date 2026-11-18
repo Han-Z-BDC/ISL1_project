@@ -19,7 +19,7 @@
 set -euo pipefail
 DAYS=(D15 D22 D40); VARIANTS=(SCT SCT_A SCT_B)
 DAY="${DAYS[$((SLURM_ARRAY_TASK_ID / 3))]}"; VARIANT="${VARIANTS[$((SLURM_ARRAY_TASK_ID % 3))]}"
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR
 echo "day ${DAY} variant ${VARIANT}"
 "${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.1c_day_sct.R" "${DAY}" "${VARIANT}"

@@ -21,7 +21,7 @@
 # Submit from the repo root: sbatch scripts/02_copy_cellranger_to_petalibrary.sb
 
 set -euo pipefail
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 
 ROOT=/pl/active/ZhuLab_BDC/Leia_rotation
 DEST="${ROOT}/cellranger"

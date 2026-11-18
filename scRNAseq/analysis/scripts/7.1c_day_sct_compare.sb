@@ -15,7 +15,7 @@
 set -euo pipefail
 DAYS=(D15 D22 D40)
 DAY="${DAYS[$SLURM_ARRAY_TASK_ID]}"
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR SAMPLE_SHEET
 echo "day ${DAY}"
 "${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1c_day_sct_compare.py" "${DAY}"

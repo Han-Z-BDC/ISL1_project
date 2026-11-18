@@ -13,6 +13,6 @@
 # Submit from the repo root: sbatch analysis/scripts/1.4_qc_cell_accounting.sb
 
 set -euo pipefail
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR SAMPLE_SHEET
 "${TOOLS}/python" "${REPO_DIR}/analysis/scripts/1.4_qc_cell_accounting.py"

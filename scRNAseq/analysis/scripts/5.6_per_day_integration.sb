@@ -16,6 +16,6 @@
 # Submit from the repo root: sbatch analysis/scripts/5.6_per_day_integration.sb
 
 set -euo pipefail
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR
 "${TOOLS}/python" "${REPO_DIR}/analysis/scripts/5.6_per_day_integration.py"

@@ -13,6 +13,6 @@
 
 set -euo pipefail
 DAY="${1:?usage: sbatch analysis/scripts/7.1b_day_cluster.sb <D15|D22|D40>}"
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR
 "${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1b_day_cluster.py" "${DAY}"

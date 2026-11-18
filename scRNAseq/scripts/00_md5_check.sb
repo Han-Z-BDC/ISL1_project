@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-source /pl/active/ZhuLab_BDC/GitHub/ISL1_scRNAseq/study_config/config.sh
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 
 # Optional argument: folder to check (default RAW_DIR). Used 2026-10-16 to re-check both the
 # scRNA folder and raw_data/ISL1_cut_N_run/7535-0002-10082026_215649 after the CUT&RUN move:
