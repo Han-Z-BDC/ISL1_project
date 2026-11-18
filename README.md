@@ -22,7 +22,7 @@ at tag `cutnrun-exploratory` (`git checkout cutnrun-exploratory -- <folder>` res
 Scripts are edited in the Alpine copy (`/pl/active/ZhuLab_BDC/GitHub/ISL1_project`), committed and pushed to
 `Han-Z-BDC/ISL1_project` (private). This repo moves to the lab organization and becomes public at publication.
 
-Until the switch-over, the assay jobs still run from the original repos under `/pl/active/ZhuLab_BDC/GitHub/`; their
-configs point at those paths. New commits made there are brought in with
-`git fetch <name> main && git merge -X subtree=<folder>/ <name>/main` (remote name:
-`ISL1_scRNAseq`).
+All assay jobs run from this repo; every config points at its folder here. The scRNA-seq repo `ISL1_scRNAseq` was
+merged into `scRNAseq/` with its full history (last merge: branch `scrna-qc`, 2026-11-18) and moved to
+`/pl/active/ZhuLab_BDC/GitHub_archive/`. Outputs stay where they were (scratch paths keep the old names, e.g.
+`/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/`).
