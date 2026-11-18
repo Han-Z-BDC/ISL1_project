@@ -46,8 +46,9 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
 ## Current state (2026-11-18)
 
 - 7.1b clustering on SCT B done for D15, D22 and D40.
-- D15: overview resolution 0.2; endocrine subclustering (7.1d) done. Next: choose the subcluster resolution and
-  annotate.
+- D15: overview resolution 0.2; endocrine subclustering (7.1d) done. Report with interactive 3D UMAP (7.1e) at
+  subcluster resolution 0.6 with **draft** labels (`study_config/annotation/D15_endocrine_r0.6.tsv`; status column
+  = draft until confirmed). Next: confirm the resolution and labels.
 
 ## Open items
 
