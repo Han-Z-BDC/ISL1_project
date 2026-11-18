@@ -43,6 +43,23 @@ filtering_strategy_by_sample: {}
 # filtering_strategy_by_sample:
 #   D22_rep1: manual
 
+# Optional fixed minimum genes per cell, applied on top of the step-1 rule
+# (a cell must pass both; one number for every sample). null = off.
+# ISL1_scRNAseq (user decision 2026-11-17): 2000, with 4 MAD, for all samples. The
+# second sequencing batch (~2x depth) makes Cell Ranger call a low-gene population
+# (~1,000-1,800 genes) in D15 and the D22 controls that per-sample MAD keeps; 3 MAD was
+# still uneven and cut clean D40 cells. Genes, not counts: depth differs between days.
+min_genes: 2000
+
+# Optional minimum nuclear fraction (intronic / (intronic + exonic) reads per cell,
+# from step 1.0 -- run scripts/submit_1.0_nuclear_fraction.sh first; needs the Cell Ranger
+# BAM). Drops droplets holding cytoplasm without a nucleus. One number for every sample;
+# null = off. Pick it from the per-sample NF histograms (look for a gap above the low peak).
+# ISL1_scRNAseq (user decision 2026-11-17): 0.10 for all samples. Cytoplasmic fragments (NF ~0.04,
+# MALAT1 ~0.05%, MT ~0.3%, high ribo) formed their own peak in D15/D22, gap at ~0.10; real cells
+# 0.24-0.46. A %ribo cutoff could not separate them (fragments spread over 2-28% ribo).
+min_nuclear_fraction: 0.10
+
 # --- Step 2: MT% cutoff ---
 # "mad" (default): one-sided (upper only) adaptive threshold --
 # median(pct_counts_mt) + mt_pct_n_mads * MAD(pct_counts_mt), clamped to
