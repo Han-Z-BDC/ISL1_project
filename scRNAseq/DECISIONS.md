@@ -102,8 +102,13 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     SST+ cells are scattered in SC_alpha and concentrated in r0.4 cluster 9 (166 cells, between SC_alpha and the KO
     lobe). 7.1g split of r0.4 cluster 9 (same groups at sub-resolution 0.2, 0.3, 0.5): 0 SST+ delta-like (52 cells,
     50 control; SST 60%, HHEX 15%, PBX3, MEIS1), 1 GHRL+ (36; 18 control / 18 KO; GHRL 89%), 2 GC / PDK3 / CASR /
-    PAX6 (35; no SST / GHRL, alpha-lineage-like?), 3 KO EC-like (43, 41 KO; SLC18A1, TPH1, MNX1). Labels for these
-    groups: not decided yet.
+    PAX6 (35; no SST / GHRL, alpha-lineage-like?), 3 KO EC-like (43, 41 KO; SLC18A1, TPH1, MNX1).
+  - r0.4 cluster 9 labelled (user, 2026-11-19) at sub-resolution **0.1** (2 groups): subcluster 0 = **GHRL+** (132
+    cells, 70 control / 62 KO; = the sub-resolution 0.2 groups 0, 1 and 3 plus 1 cell; GHRL 46%, SST 27% with
+    log1p > 1), subcluster 1 = **SC_delta** (34 cells, 26 control / 8 KO; = sub-resolution 0.2 group 2: GC, PDK3,
+    CASR, PAX6, TOX3). Noted when the labels were given: SST and HHEX are not detected above log1p 1 in the SC_delta
+    group, and the GHRL+ group also holds the SST+ delta-like cells and 41 KO EC-like cells; the user kept 0.1.
+    These cells take these labels over their r0.2 label.
 
 ## Open items
 
