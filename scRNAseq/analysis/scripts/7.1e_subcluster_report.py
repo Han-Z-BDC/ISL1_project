@@ -6,10 +6,16 @@ Inputs (7.1d, ${OUT_DIR}/day_analysis/{day}/subcluster_{name}/):
   {day}_{name}.h5ad (obs: parent, genotype, sample, sub_r*; obsm X_umap_3d; X = unregressed log1p),
   composition_r{res}.csv, markers_r{res}.csv, dotplot_genes_r{res}.png; obsm X_umap_2d for the 2D panels
   + labels: study_config/annotation/{day}_{name}_r{res}.tsv (subcluster, label, group, status) -- optional;
-    without it the page shows subcluster numbers only.
+    without it, or when it does not list exactly this run's subclusters (e.g. after a 7.1d rerun renumbered them),
+    the page shows subcluster numbers only
+  + previous draft labels per cell (optional): ${OUT_DIR}/day_analysis/{day}/subcluster_{name}_previous_labels.csv
+    (barcode, previous_subcluster, previous_label), kept from the run before a 7.1d rerun; shown as a colour option
+    and as a table of new subclusters vs previous labels.
 Writes: {day}_{name}_r{res}_report.html in the same folder (self-contained except plotly.js from cdnjs).
 The 3D and 2D coordinates are stored once and recoloured in the browser (7.1d's umap3d.html repeats them per gene).
 2D UMAP (user, 2026-11-18): interactive, larger points, panels all / control / KO with the other genotype in grey.
+2D annotation (user, 2026-11-19): subcluster number (and label, when labelled) written at each subcluster's centre in
+every panel.
 Run: sbatch analysis/scripts/7.1e_subcluster_report.sb D15 endocrine 0.6
 """
 import base64
@@ -47,14 +53,17 @@ def main():
 
     lab_f = REPO / "study_config" / "annotation" / f"{day}_{name}_r{res}.tsv"
     cl_ids = sorted(comp.index.astype(int))
+    labelled = False
     if lab_f.exists():
         lab = pd.read_csv(lab_f, sep="\t", index_col=0)
         lab.index = lab.index.astype(int)
-        assert set(lab.index) == set(cl_ids), f"{lab_f} does not list every subcluster at r{res}"
+        labelled = set(lab.index) == set(cl_ids)
+        if not labelled:
+            print(f"NOTE: {lab_f.name} does not list exactly this run's subclusters at r{res}: labels not used")
+    if labelled:
         draft = (lab["status"] == "draft").any()
     else:
-        lab = pd.DataFrame({"label": [f"subcluster {c}" for c in cl_ids], "group": "unlabelled",
-                            "status": "none"}, index=cl_ids)
+        lab = pd.DataFrame({"label": "", "group": "unlabelled", "status": "none"}, index=cl_ids)
         draft = False
     groups = list(dict.fromkeys(lab.loc[[c for c in lab.index], "group"]))   # file order = colour order
 
@@ -78,7 +87,28 @@ def main():
         "groups": groups,
         "samples": SAMPLE_ORDER,
         "parents": sorted(int(p) for p in a.obs["parent"].astype(int).unique()),
+        "labelled": labelled, "prevs": [], "prev": [],
     }
+    prev_f = OUT_DIR / "day_analysis" / day / f"subcluster_{name}_previous_labels.csv"
+    prev_html, main_prev = "", {}
+    if prev_f.exists():
+        pv = pd.read_csv(prev_f, index_col=0, dtype=str).reindex(a.obs_names).previous_label.fillna("not in the previous run")
+        prevs = sorted(pv.unique(), key=lambda s: (not s[0].isdigit(), int(s.split()[0]) if s[0].isdigit() else 0, s))
+        data["prevs"] = prevs
+        data["prev"] = [prevs.index(x) for x in pv]
+        ct = pd.crosstab(pd.Series(sub, name="subcluster"), pd.Series(pv.to_numpy(), name="previous draft label"))
+        ct = ct.reindex(columns=prevs, fill_value=0)
+        pct_ = (ct.div(ct.sum(1), axis=0) * 100).round(0).astype(int)
+        for c in ct.index:
+            j = pct_.loc[c].idxmax(); main_prev[int(c)] = f"{j} ({pct_.loc[c, j]}%)"
+        head = "".join(f"<th class=n>{html.escape(x)}</th>" for x in prevs)
+        body = "".join(f"<tr><td class=n>{c}</td><td class=n>{int(ct.loc[c].sum()):,}</td>" +
+                       "".join(f"<td class=n{' style=font-weight:700' if v >= 50 else ''}>{v if v else ''}</td>" for v in pct_.loc[c])
+                       + "</tr>" for c in ct.index)
+        prev_html = (f"<h2>New subclusters vs previous draft labels</h2><p class=mut>Each row: % of the subcluster's cells by "
+                     f"their draft label in the run before the rerun (number = previous subcluster). Bold = 50% or more.</p>"
+                     f"<div class=\"card tw\"><table><thead><tr><th class=n>Sub</th><th class=n>Cells</th>{head}</tr></thead>"
+                     f"<tbody>{body}</tbody></table></div>")
 
     # ---- summary table
     top = (mk[mk["logfoldchanges"] > 0].groupby("group").head(8).groupby("group")["names"]
@@ -89,11 +119,11 @@ def main():
         r = comp.loc[c]
         rows.append({"id": c, "label": lab.loc[c, "label"], "group": lab.loc[c, "group"], "cells": int(r["cells"]),
                      "ctr": float(r["pct_of_ctr_subset"]), "ko": float(r["pct_of_KO_subset"]),
-                     "markers": top.get(c, "")})
+                     "markers": top.get(c, ""), "prev": main_prev.get(c, "")})
     order = sorted(rows, key=lambda d: (groups.index(d["group"]), d["id"]))
     data["comp"] = order
     n_ctr = int((a.obs["genotype"] == "ctr").sum()); n_ko = int((a.obs["genotype"] == "KO").sum())
-    hormone = [d for d in rows if d["group"].startswith("hormone")]
+    hormone = [d for d in rows if d["group"].startswith("hormone")]   # empty when unlabelled
     koonly = [d for d in rows if d["group"] == "KO-only"]
     kpi = {
         "cells": f"{a.n_obs:,}", "ctr": f"{n_ctr:,}", "ko": f"{n_ko:,}",
@@ -107,9 +137,10 @@ def main():
         f"<tr><td class=n>{d['id']}</td><td><span class=sw data-g=\"{groups.index(d['group'])}\"></span>{esc(d['label'])}</td>"
         f"<td>{esc(d['group'])}</td><td class=n>{d['cells']:,}</td><td class=n>{d['ctr']:.1f}</td>"
         f"<td class=n>{d['ko']:.1f}</td><td class=n>{(d['ko'] / d['ctr']) if d['ctr'] > 0 else float('inf'):.2f}</td>"
-        f"<td class=mk>{esc(d['markers'])}</td></tr>" for d in order)
+        f"<td class=mk>{esc(d['markers'])}</td><td class=mk>{esc(d['prev'])}</td></tr>" for d in order)
     pc = ", ".join(str(c) for c in par["clusters"])
-    draft_note = ('<span class=badge>Draft labels</span>' if draft else "")
+    draft_note = ('<span class=badge>Draft labels</span>' if draft else
+                  "" if labelled else '<span class=badge>Not labelled yet</span>')
     title = f"{day} {name.capitalize()} Subclusters"
 
     page = TEMPLATE
@@ -120,7 +151,8 @@ def main():
         "@@HCTR@@": str(kpi["hormone_ctr"]), "@@HKO@@": str(kpi["hormone_ko"]),
         "@@KCTR@@": str(kpi["koonly_ctr"]), "@@KKO@@": str(kpi["koonly_ko"]),
         "@@DOT@@": b64(out / f"dotplot_genes_r{res}.png"),
-        "@@DATA@@": json.dumps(data, separators=(",", ":")),
+        "@@DATA@@": json.dumps(data, separators=(",", ":")), "@@PREV@@": prev_html,
+        "@@KPISTYLE@@": "" if labelled else "display:none",
     }.items():
         page = page.replace(k, v)
     dest = out / f"{day}_{name}_r{res}_report.html"
@@ -170,7 +202,7 @@ img{max-width:100%;height:auto;background:#fff;border-radius:6px;display:block}
 <h1>@@DAY@@ endocrine subclusters @@DRAFT@@</h1>
 <p class=sub>@@CELLS@@ cells (@@NCTR@@ control, @@NKO@@ ISL1 KO) from the @@DAY@@ overview clusters @@PCL@@ at resolution
 @@PRES@@, re-clustered on their own. Subclusters shown at resolution @@RES@@.</p>
-<div class=kpis>
+<div class=kpis style="@@KPISTYLE@@">
  <div class=kpi><div class=v>@@HCTR@@% → @@HKO@@%</div><div class=l>hormone+ (β-, α-, δ-like) share of the compartment, control → KO</div></div>
  <div class=kpi><div class=v>@@KCTR@@% → @@KKO@@%</div><div class=l>KO-only states (2 subclusters), control → KO</div></div>
  <div class=kpi><div class=v>@@CELLS@@</div><div class=l>endocrine-compartment cells, 4 samples (2 control, 2 KO)</div></div>
@@ -196,12 +228,14 @@ img{max-width:100%;height:auto;background:#fff;border-radius:6px;display:block}
 
 <h2>Subclusters</h2>
 <div class="card tw"><table>
-<thead><tr><th class=n>Sub</th><th>Label</th><th>Group</th><th class=n>Cells</th><th class=n>% ctr</th><th class=n>% KO</th><th class=n>KO / ctr</th><th>Top markers (vs rest of compartment)</th></tr></thead>
+<thead><tr><th class=n>Sub</th><th>Label</th><th>Group</th><th class=n>Cells</th><th class=n>% ctr</th><th class=n>% KO</th><th class=n>KO / ctr</th><th>Top markers (vs rest of compartment)</th><th>Main previous draft label</th></tr></thead>
 <tbody>@@TRS@@</tbody></table></div>
+@@PREV@@
 
 <h2>2D UMAP, split by genotype</h2>
 <p class=mut>Same graph as the 3D UMAP, in two dimensions. Colours follow &ldquo;Colour by&rdquo; above; in the control and KO
-panels the other genotype is drawn in grey underneath. Hover a cell for its subcluster, drag to zoom, double-click to reset.</p>
+panels the other genotype is drawn in grey underneath; each panel has the subcluster numbers (and labels) at their
+centres. Hover a cell for its subcluster, drag to zoom, double-click to reset.</p>
 <div class=card><div id=u2></div></div>
 
 <h2>Endocrine genes by subcluster</h2>
@@ -222,10 +256,18 @@ const N = D.x.length;
 const gcol = i => css('--s' + (i + 1));
 const subGroup = {}; D.clusters.forEach(c => subGroup[c.id] = D.groups.indexOf(c.group));
 const subLabel = {}; D.clusters.forEach(c => subLabel[c.id] = c.label);
-let filt = 'all', mode = 'group';
+const PAL = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948', '#17becf',
+  '#8c564b', '#7f7f7f', '#bcbd22', '#393b79', '#ad494a'];
+const subIdx = {}; D.clusters.forEach((c, i) => subIdx[c.id] = i);
+const subCol = id => D.labelled ? gcol(subGroup[id]) : PAL[subIdx[id] % PAL.length];
+const subName = id => id + (D.labelled ? ' ' + subLabel[id] : '');
+const prevTxt = i => D.prevs.length ? '<br>previous: ' + D.prevs[D.prev[i]] : '';
+let filt = 'all', mode = D.labelled ? 'group' : 'sub';
 
 const sel = document.getElementById('col');
-[['group', 'Label group'], ['sub', 'Subcluster'], ['geno', 'Genotype'], ['sample', 'Sample'], ['parent', 'Overview cluster']]
+[['group', 'Label group'], ['sub', 'Subcluster'], ['prev', 'Previous draft label'], ['geno', 'Genotype'], ['sample', 'Sample'],
+  ['parent', 'Overview cluster']]
+  .filter(([v]) => (v !== 'group' || D.labelled) && (v !== 'prev' || D.prevs.length))
   .forEach(([v, t]) => sel.add(new Option(t, v)));
 const og = document.createElement('optgroup'); og.label = 'Gene (log1p)';
 D.genes.forEach(g => og.appendChild(new Option(g, 'gene:' + g))); sel.appendChild(og);
@@ -239,7 +281,7 @@ function catTraces(ix, keyFn, names, colours) {
   return Object.keys(names).filter(k => by[k]).map(k => ({
     type: 'scatter3d', mode: 'markers', name: names[k] + ' (' + by[k].length + ')',
     x: pick(D.x, by[k]), y: pick(D.y, by[k]), z: pick(D.z, by[k]),
-    text: by[k].map(i => 'subcluster ' + D.sub[i] + ': ' + subLabel[D.sub[i]] + '<br>' + D.samples[D.sample[i]]),
+    text: by[k].map(i => 'subcluster ' + subName(D.sub[i]) + '<br>' + D.samples[D.sample[i]] + prevTxt(i)),
     hovertemplate: '%{text}<extra></extra>', marker: { size: 2, color: colours[k], opacity: .85 }
   }));
 }
@@ -259,8 +301,11 @@ function draw() {
     const nm = {}, co = {}; D.groups.forEach((g, i) => { nm[i] = g; co[i] = gcol(i); });
     tr = catTraces(ix, i => subGroup[D.sub[i]], nm, co);
   } else if (mode === 'sub') {
-    const nm = {}, co = {}; D.clusters.forEach(c => { nm[c.id] = c.id + ' ' + c.label; co[c.id] = gcol(subGroup[c.id]); });
+    const nm = {}, co = {}; D.clusters.forEach(c => { nm[c.id] = subName(c.id); co[c.id] = subCol(c.id); });
     tr = catTraces(ix, i => D.sub[i], nm, co);
+  } else if (mode === 'prev') {
+    const nm = {}, co = {}; D.prevs.forEach((p, i) => { nm[i] = p; co[i] = PAL[i % PAL.length]; });
+    tr = catTraces(ix, i => D.prev[i], nm, co);
   } else if (mode === 'geno') {
     tr = catTraces(ix, i => D.geno[i], { 0: 'control', 1: 'ISL1 KO' }, { 0: css('--ctr'), 1: css('--ko') });
   } else if (mode === 'sample') {
@@ -296,7 +341,8 @@ function draw() {
 function catSpec() {
   const nm = {}, co = {};
   if (mode === 'group') { D.groups.forEach((g, i) => { nm[i] = g; co[i] = gcol(i); }); return { key: i => subGroup[D.sub[i]], nm, co }; }
-  if (mode === 'sub') { D.clusters.forEach(c => { nm[c.id] = c.id + ' ' + c.label; co[c.id] = gcol(subGroup[c.id]); }); return { key: i => D.sub[i], nm, co }; }
+  if (mode === 'sub') { D.clusters.forEach(c => { nm[c.id] = subName(c.id); co[c.id] = subCol(c.id); }); return { key: i => D.sub[i], nm, co }; }
+  if (mode === 'prev') { D.prevs.forEach((p, i) => { nm[i] = p; co[i] = PAL[i % PAL.length]; }); return { key: i => D.prev[i], nm, co }; }
   if (mode === 'geno') return { key: i => D.geno[i], nm: { 0: 'control', 1: 'ISL1 KO' }, co: { 0: css('--ctr'), 1: css('--ko') } };
   if (mode === 'sample') return { key: i => D.sample[i], nm: Object.fromEntries(D.samples.map((s, i) => [i, s])),
     co: { 0: css('--ctr'), 1: css('--ctr2'), 2: css('--ko'), 3: css('--ko2') } };
@@ -310,7 +356,7 @@ function draw2d() {
   const lo = a => Math.min(...a), hi = a => Math.max(...a), pad = (a, b) => [a - .03 * (b - a), b + .03 * (b - a)];
   const xr = pad(lo(D.u), hi(D.u)), yr = pad(lo(D.v), hi(D.v));
   const spec = catSpec(), tr = [], ann = [], lay = {};
-  const hov = i => 'subcluster ' + D.sub[i] + ': ' + subLabel[D.sub[i]] + '<br>' + D.samples[D.sample[i]];
+  const hov = i => 'subcluster ' + subName(D.sub[i]) + '<br>' + D.samples[D.sample[i]] + prevTxt(i);
   panels.forEach(([f, t], p) => {
     const n = p === 0 ? '' : String(p + 1), xa = 'x' + n, ya = 'y' + n;
     const fg = [], bg = [];
@@ -336,8 +382,8 @@ function draw2d() {
       const med = a => { const s = [...a].sort((q, r) => q - r); return s[Math.floor(s.length / 2)]; };
       const ks = Object.keys(acc).filter(k => acc[k][0].length >= 10);
       tr.push({ type: 'scatter', mode: 'text', showlegend: false, hoverinfo: 'skip', xaxis: xa, yaxis: ya,
-        x: ks.map(k => med(acc[k][0])), y: ks.map(k => med(acc[k][1])), text: ks.map(k => '<b>' + k + '</b>'),
-        textfont: { size: 13, color: css('--fg') } });
+        x: ks.map(k => med(acc[k][0])), y: ks.map(k => med(acc[k][1])), text: ks.map(k => '<b>' + subName(k) + '</b>'),
+        textfont: { size: 12, color: css('--fg') } });
     }
     const axis = { range: null, showgrid: false, zeroline: false, showticklabels: false, ticks: '', showline: false };
     lay['xaxis' + n] = { ...axis, range: xr }; lay['yaxis' + n] = { ...axis, range: yr };
@@ -369,6 +415,7 @@ function comp() {
 }
 
 document.querySelectorAll('.sw').forEach(s => s.style.background = gcol(+s.dataset.g));
+sel.value = mode;
 sel.onchange = () => { mode = sel.value; draw(); draw2d(); };
 document.getElementById('lbl').onchange = () => { draw(); draw2d(); };
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
