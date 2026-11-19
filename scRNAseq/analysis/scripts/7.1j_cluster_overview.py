@@ -14,8 +14,10 @@ Writes ${OUT_DIR}/day_analysis/{day}/clustering/overview/ (reruns overwrite):
   feature_c{k}.png           marker genes of the fine clusters inside r0.2 cluster k, control | KO
   umap_r{res}_split.png      every resolution: all cells | control | KO
   marker_genes.csv           gene, fine cluster, r0.2 cluster, % control / KO cells > 0
+  feature_requested.png      genes asked for by name (optional second argument), control | KO, same style
   {day}_cluster_overview.html
-Run: sbatch analysis/scripts/7.1j_cluster_overview.sb D40
+Run: sbatch analysis/scripts/7.1j_cluster_overview.sb D40 [GENE,GENE,...]
+     (D40 2026-11-19: SST,GHRL, user request, to see the delta-like and GHRL+ cells)
 """
 import base64
 import os
@@ -31,6 +33,7 @@ import pandas as pd
 
 OUT_DIR = Path(os.environ["OUT_DIR"])
 DAY = sys.argv[1]
+EXTRA = sys.argv[2].split(",") if len(sys.argv) > 2 and sys.argv[2] else []
 DD = OUT_DIR / "day_analysis" / DAY
 CL_DIR = DD / "clustering"
 OUT = CL_DIR / "overview"
@@ -141,7 +144,10 @@ def main():
     a = ad.read_h5ad(DD / f"{DAY}_merged.h5ad", backed="r")
     pos = pd.Index(a.obs_names).get_indexer(cl.index)
     assert (pos >= 0).all()
-    genes = [g for g, _, _ in rows]
+    missing = [g for g in EXTRA if g not in a.var_names]
+    if missing:
+        sys.exit(f"genes not found: {missing}")
+    genes = list(dict.fromkeys([g for g, _, _ in rows] + EXTRA))
     Xm = a[:, [a.var_names.get_loc(g) for g in genes]].X
     Xm = Xm.toarray() if hasattr(Xm, "toarray") else np.asarray(Xm)
     a.file.close()
@@ -171,6 +177,14 @@ def main():
         else:
             sec.append(head + "<p class=sub>no fine cluster has most of its cells here</p>")
 
+    req, req_nav = "", ""
+    if EXTRA:
+        p = OUT / "feature_requested.png"
+        feature_split(u, X, [(g, "requested") for g in EXTRA], ko, p,
+                      f"{DAY}: requested genes (log1p; one colour scale per gene; other genotype very light grey)")
+        req = (f'<h2 id="requested">Requested genes: {", ".join(EXTRA)}</h2>'
+               f'<img src="data:image/png;base64,{b64(p)}" alt="{DAY} requested genes by genotype">')
+        req_nav = '<a href="#requested">requested genes</a>'
     res_sec = []
     for r in RESOLUTIONS:
         p = OUT / f"umap_r{r}_split.png"
@@ -197,10 +211,11 @@ img{{max-width:100%;height:auto;background:#fff;border-radius:4px;margin:6px 0}}
 (7.1c / 7.1b). Gene values are unregressed log1p; each gene has one colour scale for control and KO, capped at the
 99th percentile of expressing cells. Marker genes: the top {N_TOP} Wilcoxon markers of each r{FINE} cluster (duplicates
 dropped), grouped under the r{BASE} cluster that holds most of that cluster's cells.</p>
-<nav><a href="#base">r{BASE} by genotype</a><a href="#markers">marker genes</a><a href="#res">all resolutions</a></nav>
+<nav><a href="#base">r{BASE} by genotype</a>{req_nav}<a href="#markers">marker genes</a><a href="#res">all resolutions</a></nav>
 <h2 id="base">r{BASE} clusters by genotype</h2>
 <img src="data:image/png;base64,{b64(OUT / f'umap_r{BASE}_split.png')}" alt="{DAY} r{BASE} clusters by genotype">
 <div class=tw>{comp[BASE][cols].to_html(border=0)}</div>
+{req}
 <h2 id="markers">Marker genes (top {N_TOP} of each r{FINE} cluster), control | KO</h2>
 <p class=sub>Other genotype in very light grey; grey = cells of the shown genotype without the gene.</p>
 {''.join(sec)}
