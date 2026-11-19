@@ -53,7 +53,10 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   resolution (0.6 is a working choice), the endocrine labels (all draft), and whether to subcluster the other D15
   compartments. Summary so far: hormone+ cells (beta-, alpha-, delta-like) are almost control-only; KO cells sit in
   FEV+, EC-like (LMX1A+) and two KO-only states.
-- Next: D22 (overview clustering report first).
+- D22 (in progress): overview resolution not chosen yet. Label decided (2026-11-18): r0.2 cluster 2 (top island,
+  805 cells, mostly control, about half in S phase) = **non-endocrine**. It mixes hepatic-like cells (AFP, FGB/FGG,
+  GPC3, APOA2; at the tip) and pancreatic progenitor / duct-like cells (SOX9, ONECUT1, PDX1, some NKX6-1; PTF1A off).
+  It stays one cluster up to r0.8 apart from 18 liver-like cells, so it is not labelled as liver cells.
 
 ## Open items
 
