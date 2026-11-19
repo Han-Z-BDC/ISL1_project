@@ -58,8 +58,11 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   4 **SC_EC2**. Cluster 2 (805 cells, mostly control, about half in S phase) mixes hepatic-like cells (AFP,
   FGB/FGG, GPC3, APOA2; at the tip) and pancreatic progenitor / duct-like cells (SOX9, ONECUT1, PDX1, some NKX6-1;
   PTF1A off); it stays one cluster up to r0.8 apart from 18 liver-like cells, so it is not labelled as liver cells.
-  Still to decide: how to label delta-like cells (SST bridge) and NEUROG3+ endocrine progenitors on top of r0.2;
-  step 7.1f (genes by cluster at r1.0) checks where they sit first.
+  Delta-like cells and endocrine precursors (user, 2026-11-18): r1.0 cluster 1 (346 cells, 92% control) holds both;
+  it is split by Leiden restricted to its cells on the SCT B graph (7.1g) at sub-resolution **0.1** (same split at
+  0.2): subcluster 1 = SST / HHEX delta-like arm (143 cells, all control; INS also high), subcluster 0 = GHRL / ARX /
+  NEUROG3 / NEUROD1 precursor stem (203 cells). These cells take their new labels over their r0.2 label. Names of
+  the two groups: not decided yet.
 
 ## Open items
 
