@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=isl1_int_scvi
-#SBATCH --partition=ah200
-#SBATCH --qos=gpu-normal
+#SBATCH --partition=aa100
+#SBATCH --qos=gpu-testing
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=30G
-#SBATCH --time=02:00:00
-#SBATCH --gres=gpu:h200_2g.35gb:1
+#SBATCH --time=01:00:00
+#SBATCH --gres=gpu:a100_3g.20gb:1
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/isl1_int_scvi.%j.out
 
 # Step 7.2c_integrate_scvi of the D15 + D22 endocrine integration -- see the script's header. Submit all four with
