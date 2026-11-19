@@ -1,0 +1,15 @@
+label	colour
+SC_alpha	#1f77b4
+SC_beta	#ff7f0e
+SC_delta	#8c564b
+GHRL+	#e377c2
+ENP	#bcbd22
+SC_EC1	#d62728
+SC_EC2	#9467bd
+proliferating	#17becf
+non-endocrine	#2ca02c
+hepatic	#66a61e
+pancreatic progenitor	#00a087
+acinar	#e6ab02
+fibroblast	#6b6b6b
+neural	#393b79

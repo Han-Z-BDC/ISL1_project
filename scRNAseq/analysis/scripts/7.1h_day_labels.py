@@ -69,7 +69,10 @@ def main():
 
     um = pd.read_csv(DAY_DIR / "sct" / "sct_umaps.csv.gz", index_col=0).reindex(cl.index)
     u = um[["SCT_B_UMAP1", "SCT_B_UMAP2"]].to_numpy()
-    pal = {l: matplotlib.colors.to_hex(plt.get_cmap("tab10")(i % 10)) for i, l in enumerate(order)}
+    # One colour per label name, shared by all days (user, 2026-11-19): study_config/annotation/label_colours.tsv
+    cols = pd.read_csv(REPO_DIR / "study_config" / "annotation" / "label_colours.tsv", sep="\t", dtype=str)
+    pal = dict(zip(cols.label, cols.colour))
+    assert set(order) <= set(pal), f"labels without a colour in label_colours.tsv: {sorted(set(order) - set(pal))}"
     col = out.label.map(pal).to_numpy()
     fig, axs = plt.subplots(1, 3, figsize=(22, 7.5))
     for ax, (name, m) in zip(axs, [("all cells", np.ones(len(out), bool)), ("control", ~ko.to_numpy()),

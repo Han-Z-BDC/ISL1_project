@@ -66,7 +66,10 @@ def main():
     ko = lab.genotype.astype(str).str.upper().str.startswith("KO").to_numpy()
     n_ctr, n_ko = int((~ko).sum()), int(ko.sum())
     labels = lab.label.astype(str)
-    pal = {l: matplotlib.colors.to_hex(plt.get_cmap("tab10")(i % 10)) for i, l in enumerate(order)}
+    # One colour per label name, shared by all days (user, 2026-11-19): study_config/annotation/label_colours.tsv
+    cols = pd.read_csv(REPO_DIR / "study_config" / "annotation" / "label_colours.tsv", sep="\t", dtype=str)
+    pal = dict(zip(cols.label, cols.colour))
+    assert set(order) <= set(pal), f"labels without a colour in label_colours.tsv: {sorted(set(order) - set(pal))}"
     col = labels.map(pal).to_numpy()
 
     # ---- labels: all | control | KO
