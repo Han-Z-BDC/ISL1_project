@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cluster_overview
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-testing
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=15G
+#SBATCH --time=00:50:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cluster_overview.%j.out
+
+# Step 7.1j: cluster overview split by genotype (r0.2, markers of the finest resolution, all resolutions) --
+# see the .py docstring. Needs 7.1b first. Submit from the repo root: sbatch analysis/scripts/7.1j_cluster_overview.sb D40
+
+set -euo pipefail
+DAY="${1:?usage: sbatch analysis/scripts/7.1j_cluster_overview.sb <D15|D22|D40>}"
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1j_cluster_overview.py" "${DAY}"
