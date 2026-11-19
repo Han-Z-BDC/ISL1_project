@@ -1,24 +1,26 @@
 #!/bin/bash
 #SBATCH --job-name=isl1_subcluster
-#SBATCH --partition=acpu
-#SBATCH --qos=cpu-normal
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=30G
+#SBATCH --cpus-per-task=13
+#SBATCH --mem=256G
 #SBATCH --time=02:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/subcluster.%j.out
 
 # Step 7.1d: subcluster one compartment of one day -- see the .py docstring. Needs 7.1b for that day first.
 # Submit from the repo root:
 #   sbatch analysis/scripts/7.1d_subcluster.sb <day> <name> <7.1b resolution> <comma-separated 7.1b clusters>
-#   e.g. sbatch analysis/scripts/7.1d_subcluster.sb D15 endocrine 0.2 0,1,5
+#   e.g. sbatch analysis/scripts/7.1d_subcluster.sb D15 endocrine 0.2 0,1,5 study_config/annotation/D15_endocrine_excluded_cells.txt
 
 set -euo pipefail
 DAY="${1:?day}"; NAME="${2:?name}"; RES="${3:?7.1b resolution}"; CLUSTERS="${4:?7.1b clusters}"
+EXCLUDE="${5:-}"   # optional: file of barcodes to leave out, relative to the repo (scRNAseq/)
+[[ -n "${EXCLUDE}" ]] && EXCLUDE="${REPO_DIR:-/pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq}/${EXCLUDE}"
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR
 S="${REPO_DIR}/analysis/scripts"
 SUB="${OUT_DIR}/day_analysis/${DAY}/subcluster_${NAME}"
-"${TOOLS}/python" "${S}/7.1d_subcluster.py" prep "${DAY}" "${NAME}" "${RES}" "${CLUSTERS}"
+"${TOOLS}/python" "${S}/7.1d_subcluster.py" prep "${DAY}" "${NAME}" "${RES}" "${CLUSTERS}" "${EXCLUDE}"
 "${TOOLS}/Rscript" "${S}/7.1c_day_sct.R" "${DAY}" SCT_B "${SUB}/cells.txt" "${SUB}"
 "${TOOLS}/python" "${S}/7.1d_subcluster.py" cluster "${DAY}" "${NAME}"

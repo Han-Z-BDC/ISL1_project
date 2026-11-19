@@ -4,7 +4,8 @@ Request (user, 2026-11-18): D15, resolution 0.2 kept for the overview; the endoc
 0, 1, 5 at r = 0.2) taken out and subclustered, with a 3D UMAP as well.
 
 Two stages, run in order by 7.1d_subcluster.sb:
-  prep     write the subset's barcodes (cells.txt) from 7.1b clusters.csv
+  prep     write the subset's barcodes (cells.txt) from 7.1b clusters.csv, minus the cells listed in an optional
+           exclusion file (one barcode per line, # comments; e.g. study_config/annotation/D15_endocrine_excluded_cells.txt)
   (R)      7.1c_day_sct.R in subset mode: SCT B (SCTransform v2, glmGamPoi, S - G2M regressed, 3,000 variable
            features without MT- genes) refit on the subset's cells only, so the variable genes and PCs are the
            compartment's own -> SCT_B_pca.csv.gz in the output folder
@@ -72,7 +73,7 @@ def paths(day, name):
     return dd, dd / f"subcluster_{name}"
 
 
-def prep(day, name, res, clusters):
+def prep(day, name, res, clusters, exclude=None):
     dd, out = paths(day, name)
     out.mkdir(parents=True, exist_ok=True)
     for p in out.iterdir():
@@ -81,9 +82,16 @@ def prep(day, name, res, clusters):
     col = f"leiden_r{str(res).replace('.', 'p')}"
     cl = pd.read_csv(dd / "clustering" / "clusters.csv", index_col=0)[col]
     cells = cl.index[cl.isin(clusters)]
+    n_excl = 0
+    if exclude:
+        ex = {l.strip() for l in open(exclude) if l.strip() and not l.startswith("#")}
+        assert ex <= set(cells), "exclusion list has cells outside the subset"
+        n_excl = len(ex)
+        cells = cells[~cells.isin(ex)]
     (out / "cells.txt").write_text("\n".join(cells) + "\n")
-    (out / "parent.json").write_text(json.dumps({"resolution": res, "clusters": clusters, "column": col}))
-    print(f"{day} {name}: {len(cells)} cells from {col} clusters {clusters}")
+    (out / "parent.json").write_text(json.dumps({"resolution": res, "clusters": clusters, "column": col,
+                                                "excluded": n_excl, "exclude_file": Path(exclude).name if exclude else None}))
+    print(f"{day} {name}: {len(cells)} cells from {col} clusters {clusters} ({n_excl} excluded)")
     print(cl[cl.isin(clusters)].value_counts().sort_index().to_string())
 
 
@@ -276,6 +284,8 @@ def cluster(day, name):
 <img src="data:image/png;base64,{b64(out / f'dotplot_markers_r{r}.png')}" alt="top marker dotplot at resolution {r}">"""
     nav = " · ".join(f'<a href="#r{r}">{r}</a>' for r in RESOLUTIONS)
     pc = ", ".join(str(c) for c in par["clusters"])
+    excl = (f", minus {par['excluded']} cells listed in {par['exclude_file']}"
+            if par.get("excluded") else "")
     html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{day} {name.capitalize()} Subclusters</title>
 <style>
@@ -290,7 +300,7 @@ table.t{{border-collapse:collapse;font-size:12.5px}} .t th,.t td{{padding:3px 7p
 img{{max-width:100%;height:auto;background:#fff;border-radius:4px;margin:6px 0}}
 </style></head><body><main>
 <h1>{day}: {name} subclusters</h1>
-<p class=sub>{a.n_obs:,} cells = 7.1b clusters {pc} at resolution {par['resolution']}. SCT B refit on these cells only
+<p class=sub>{a.n_obs:,} cells = 7.1b clusters {pc} at resolution {par['resolution']}{excl}. SCT B refit on these cells only
 (SCTransform v2, S&minus;G2M regressed, 3,000 variable features without MT- genes); 30 PCs, 15 neighbours; UMAP 2D and
 3D from the same graph; Leiden (igraph, 2 iterations, seed {SEED}). Markers: Wilcoxon, subcluster vs the rest of the
 subset, unregressed log1p. % columns are of the subset's ctr or KO cells. Interactive 3D UMAP: <code>umap3d.html</code> in
@@ -307,7 +317,8 @@ this folder. Resolutions: {nav}</p>
 if __name__ == "__main__":
     stage, day, name = sys.argv[1], sys.argv[2], sys.argv[3]
     if stage == "prep":
-        prep(day, name, float(sys.argv[4]), [int(c) for c in sys.argv[5].split(",")])
+        prep(day, name, float(sys.argv[4]), [int(c) for c in sys.argv[5].split(",")],
+             sys.argv[6] if len(sys.argv) > 6 and sys.argv[6] else None)
     elif stage == "cluster":
         cluster(day, name)
     else:
