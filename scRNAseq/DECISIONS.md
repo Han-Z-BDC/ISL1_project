@@ -53,10 +53,13 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   resolution (0.6 is a working choice), the endocrine labels (all draft), and whether to subcluster the other D15
   compartments. Summary so far: hormone+ cells (beta-, alpha-, delta-like) are almost control-only; KO cells sit in
   FEV+, EC-like (LMX1A+) and two KO-only states.
-- D22 (in progress): overview resolution not chosen yet. Label decided (2026-11-18): r0.2 cluster 2 (top island,
-  805 cells, mostly control, about half in S phase) = **non-endocrine**. It mixes hepatic-like cells (AFP, FGB/FGG,
-  GPC3, APOA2; at the tip) and pancreatic progenitor / duct-like cells (SOX9, ONECUT1, PDX1, some NKX6-1; PTF1A off).
-  It stays one cluster up to r0.8 apart from 18 liver-like cells, so it is not labelled as liver cells.
+- D22 (in progress): overview resolution **0.2** (5 clusters, 2026-11-18). Labels (user, 2026-11-18;
+  `study_config/annotation/D22_r0.2.tsv`): 0 **SC_alpha**, 1 **SC_beta**, 2 **non-endocrine**, 3 **SC_EC1**,
+  4 **SC_EC2**. Cluster 2 (805 cells, mostly control, about half in S phase) mixes hepatic-like cells (AFP,
+  FGB/FGG, GPC3, APOA2; at the tip) and pancreatic progenitor / duct-like cells (SOX9, ONECUT1, PDX1, some NKX6-1;
+  PTF1A off); it stays one cluster up to r0.8 apart from 18 liver-like cells, so it is not labelled as liver cells.
+  Still to decide: how to label delta-like cells (SST bridge) and NEUROG3+ endocrine progenitors on top of r0.2;
+  step 7.1f (genes by cluster at r1.0) checks where they sit first.
 
 ## Open items
 

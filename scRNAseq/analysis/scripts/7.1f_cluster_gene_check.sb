@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_gene_check
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-testing
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=15G
+#SBATCH --time=00:45:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/gene_check.%j.out
+
+# Step 7.1f: genes by cluster at one 7.1b resolution -- see the .py docstring. Needs 7.1b first.
+# Submit from the repo root: sbatch analysis/scripts/7.1f_cluster_gene_check.sb D22 1.0 SST HHEX NEUROG3 ...
+
+set -euo pipefail
+DAY="${1:?usage: sbatch analysis/scripts/7.1f_cluster_gene_check.sb <day> <resolution> <genes...>}"
+RES="${2:?resolution}"; shift 2
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1f_cluster_gene_check.py" "${DAY}" "${RES}" "$@"
