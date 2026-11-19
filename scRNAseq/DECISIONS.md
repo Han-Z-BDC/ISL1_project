@@ -53,16 +53,21 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   resolution (0.6 is a working choice), the endocrine labels (all draft), and whether to subcluster the other D15
   compartments. Summary so far: hormone+ cells (beta-, alpha-, delta-like) are almost control-only; KO cells sit in
   FEV+, EC-like (LMX1A+) and two KO-only states.
-- D22 (in progress): overview resolution **0.2** (5 clusters, 2026-11-18). Labels (user, 2026-11-18;
-  `study_config/annotation/D22_r0.2.tsv`): 0 **SC_alpha**, 1 **SC_beta**, 2 **non-endocrine**, 3 **SC_EC1**,
-  4 **SC_EC2**. Cluster 2 (805 cells, mostly control, about half in S phase) mixes hepatic-like cells (AFP,
-  FGB/FGG, GPC3, APOA2; at the tip) and pancreatic progenitor / duct-like cells (SOX9, ONECUT1, PDX1, some NKX6-1;
-  PTF1A off); it stays one cluster up to r0.8 apart from 18 liver-like cells, so it is not labelled as liver cells.
-  Delta-like cells and endocrine precursors (user, 2026-11-18): r1.0 cluster 1 (346 cells, 92% control) holds both;
-  it is split by Leiden restricted to its cells on the SCT B graph (7.1g) at sub-resolution **0.1** (same split at
-  0.2): subcluster 1 = SST / HHEX delta-like arm (143 cells, all control; INS also high), subcluster 0 = GHRL / ARX /
-  NEUROG3 / NEUROD1 precursor stem (203 cells). These cells take their new labels over their r0.2 label. Names of
-  the two groups: not decided yet.
+- D22 **annotated** (user, 2026-11-18). Rules: `study_config/annotation/D22_annotation.tsv`; per-cell labels from
+  step 7.1h (`day_analysis/D22/labels/`: labels.csv, composition.csv, umap_labels.png).
+  - Base: overview resolution **0.2**: 0 **SC_alpha**, 1 **SC_beta**, 2 **non-endocrine**, 3 **SC_EC1**, 4 **SC_EC2**.
+  - Cluster 2 (805 cells, mostly control, about half in S phase) mixes hepatic-like cells (AFP, FGB/FGG, GPC3,
+    APOA2; at the tip) and pancreatic progenitor / duct-like cells (SOX9, ONECUT1, PDX1, some NKX6-1; PTF1A off);
+    it stays one cluster up to r0.8 apart from 18 liver-like cells, so it is not labelled as liver cells.
+  - Override: r1.0 cluster 1 (346 cells, 92% control) holds the delta-like bridge and an endocrine precursor stem
+    (7.1f gene check at r1.0). It is split by Leiden restricted to its cells on the SCT B graph (7.1g) at
+    sub-resolution **0.1** (same split at 0.2): subcluster 1 = **SC_delta** (143 cells, all control; SST 97%,
+    HHEX 36% with log1p > 1; INS also high, so partly SST / INS co-expressing), subcluster 0 = **ENP** (203 cells;
+    GHRL, ARX, NEUROG3, NEUROD1, CDKN1C). These cells take these labels over their r0.2 label.
+  - Not labelled separately: the NEUROG3+ cells on the KO side (mostly r1.0 cluster 4, inside SC_EC1 / SC_EC2);
+    the small SST + GCG + INS polyhormonal end of the delta arm (61 cells at sub-resolution 0.5).
+  - Caveat: ambient INS is strong on D22 (INS log1p > 1 in 60-100% of cells in the KO clusters).
+- Next: D40 (overview resolution, then annotation), or back to D15.
 
 ## Open items
 

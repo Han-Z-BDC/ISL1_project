@@ -1,0 +1,8 @@
+rule	source	cluster	label	description	status
+base	r0.2	0	SC_alpha	control only (ARX, GCG)	confirmed
+base	r0.2	1	SC_beta	control only (INS, ISL1, PCP4)	confirmed
+base	r0.2	2	non-endocrine	mostly control; hepatic-like (AFP, FGB, GPC3) + progenitor / duct-like (SOX9, ONECUT1, PDX1)	confirmed
+base	r0.2	3	SC_EC1	KO-enriched (PLCL1, RUNX1T1)	confirmed
+base	r0.2	4	SC_EC2	KO-enriched (TPH1, LMX1A)	confirmed
+override	r1.0_c1_s0.1	1	SC_delta	delta-like arm, control only (SST, HHEX; INS also high)	confirmed
+override	r1.0_c1_s0.1	0	ENP	endocrine precursor stem (GHRL, ARX, NEUROG3, NEUROD1, CDKN1C)	confirmed

@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_day_labels
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-testing
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=00:20:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/day_labels.%j.out
+
+# Step 7.1h: per-cell labels for one day from study_config/annotation/<day>_annotation.tsv -- see the .py docstring.
+# Submit from the repo root: sbatch analysis/scripts/7.1h_day_labels.sb D22
+
+set -euo pipefail
+DAY="${1:?usage: sbatch analysis/scripts/7.1h_day_labels.sb <D15|D22|D40>}"
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1h_day_labels.py" "${DAY}"
