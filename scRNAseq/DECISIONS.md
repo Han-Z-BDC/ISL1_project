@@ -119,6 +119,19 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   - D22 ENP has no clear D40 partner (best: GHRL+, 9 shared, r 0.21). D40 acinar, hepatic, pancreatic progenitor
     and fibroblast all map to D22 non-endocrine (hepatic best, 14 / r 0.60). D40 proliferating is closest to D22
     SC_alpha (r 0.37); D40 neural has no D22 partner.
+  - Independent check of 7.1k (2026-11-19, one-off script, not a pipeline step):
+    - Centring choice: 7.1k centres each gene on the mean of its own day's labels, and D40 has more
+      non-endocrine labels than D22. Re-centring both days on the 6 shared labels gives the same matches (same-label
+      r: SC_alpha 0.69, SC_beta 0.73, SC_EC1 0.65, SC_EC2 0.72, GHRL+ 0.63; Spearman 0.57-0.67) and SC_delta still
+      does not match (r 0.10).
+    - Why SC_delta does not match: the D40 cells that match D22 SC_delta are the SST+ group of r0.4 cluster 9 at
+      sub-resolution 0.2 (group 0, 52 cells, 50 control): r 0.51-0.54 and 14 shared top-50 markers with D22
+      SC_delta, its best partner by both. Under the sub-resolution 0.1 labels these cells are in D40 **GHRL+**. The
+      cells labelled D40 SC_delta are the GC / PAX6 group (sub-resolution 0.2 group 2), closest to D22 SC_alpha
+      (r 0.30, 7 markers). Of the other sub-resolution 0.2 groups, group 1 (GHRL+, 36 cells) matches D22 GHRL+
+      (r 0.69-0.73, 20 markers) and group 3 (KO EC-like, 43 cells, in D40 GHRL+) has no clear partner (D22 SC_EC2 /
+      GHRL+, r 0.29-0.40).
+    - Decision (user, 2026-11-19): keep the sub-resolution 0.1 labels as they are, knowing the above.
 
 ## Open items
 
