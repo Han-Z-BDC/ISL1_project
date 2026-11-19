@@ -93,8 +93,11 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     57%, HNF1B, KRT19, NKX6-1; PDX1 detected in 73% but low), 3 **fibroblast** (78; COL3A1 96%, PDGFRA 85%, COL1A1
     83%). User's choice for group 1: "hepatic, or matching the D22 name"; D22 has no hepatic-only label (its
     non-endocrine cluster mixes hepatic-like and progenitor cells), so "hepatic" is used.
-  - Cluster 5 (7.1g, not labelled yet): at sub-resolution 0.1, cycling early neural progenitors (102), immature
-    neurons (174; DCX, SOX11, STMN2, ELAVL4) and radial-glia-like cells (240; SOX2, VIM, FABP7, SLC1A3, NFIA).
+  - Cluster 5 labelled **neural** as one group (user, 2026-11-19; base rule, the 7.1g split is not used for labels):
+    at sub-resolution 0.1 it holds cycling early neural progenitors (102), immature neurons (174; DCX, SOX11, STMN2,
+    ELAVL4) and radial-glia-like cells (240; SOX2, VIM, FABP7, SLC1A3, NFIA); off-target, 92% control.
+  - Per-cell labels (7.1h, 2026-11-19): every r0.2 cluster now has a label, so `day_analysis/D40/labels/` covers all
+    12,641 cells (10 labels). The r0.4 cluster 9 groups keep their r0.2 labels until their own labels are decided.
   - No separate delta cluster and no NEUROG3+ progenitors at D40 (NEUROG3 log1p > 1 in at most 0.1% of any cluster).
     SST+ cells are scattered in SC_alpha and concentrated in r0.4 cluster 9 (166 cells, between SC_alpha and the KO
     lobe). 7.1g split of r0.4 cluster 9 (same groups at sub-resolution 0.2, 0.3, 0.5): 0 SST+ delta-like (52 cells,

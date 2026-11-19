@@ -4,6 +4,7 @@ base	r0.2	1	SC_EC2	KO-enriched (TPH1, FEV, LMX1A, AFF3); 19 of top 50 markers sh
 base	r0.2	2	SC_EC1	KO-enriched (PLCL1, NKX6-1, PRKCH); 12 of top 50 markers shared with D22 SC_EC1	confirmed
 base	r0.2	3	SC_beta	control only (INS, ERO1B, ACVR1C)	confirmed
 base	r0.2	4	SC_alpha	control only (GCG, ARX, DPP4, ALDH1A1)	confirmed
+base	r0.2	5	neural	off-target neural, 92% control: cycling neural progenitors, immature neurons (DCX, SOX11, STMN2, ELAVL4), radial-glia-like cells (SOX2, VIM, FABP7, SLC1A3); one label for the whole cluster	confirmed
 override	r0.2_c6_s0.2	0	acinar	PTF1A+ pre-acinar / tip-like (CPA2, CTRB2, PRSS1, CPA1, RBPJL; NR5A2, DLK1; 40% cycling); 35 control	confirmed
 override	r0.2_c6_s0.2	1	hepatic	hepatic-like (AFP, FGB, APOA2, HNF4A) with intestinal genes (CDX2, CDH17); 62 control / 6 KO	confirmed
 override	r0.2_c6_s0.2	2	pancreatic progenitor	trunk / duct-like (ONECUT1, SOX9, HNF1B, KRT19, NKX6-1; PDX1 low); 101 control / 3 KO	confirmed
