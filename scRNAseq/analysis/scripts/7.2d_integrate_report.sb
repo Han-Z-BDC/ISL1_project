@@ -14,4 +14,4 @@
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
 export OUT_DIR REPO_DIR
-"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.2d_integrate_report.py"
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.2d_integrate_report.py" "$@"

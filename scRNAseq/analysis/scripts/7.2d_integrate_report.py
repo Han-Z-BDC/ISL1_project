@@ -14,9 +14,11 @@ Gene plots: log1p of SoupX counts normalised to 10,000 per cell (unregressed), a
 Writes ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine/ (reruns overwrite these files):
   umap_{method}.csv, metrics_*.csv, d15_to_d22_{method}.csv, umap_overview.png, genes_{method}.png,
   D15_D22_endocrine_integration.html
+Run: sbatch analysis/scripts/7.2d_integrate_report.sb [uncorrected,harmony,rpca,scvi]   (default: all four)
 """
 import base64
 import os
+import sys
 import warnings
 from pathlib import Path
 
@@ -69,6 +71,10 @@ def cat_panel(ax, u, values, pal, title, legend=True, order=None):
 
 
 def main():
+    global METHODS
+    if len(sys.argv) > 1:   # optional subset, e.g. before scVI has finished; a full run overwrites the report
+        keep = sys.argv[1].split(",")
+        METHODS = [x for x in METHODS if x[0] in keep]
     a = ad.read_h5ad(OUT / "merged_counts.h5ad")
     obs = a.obs.copy()
     n = len(obs)
