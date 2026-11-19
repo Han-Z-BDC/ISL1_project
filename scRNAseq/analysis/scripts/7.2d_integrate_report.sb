@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_int_report
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=30G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/isl1_int_report.%j.out
+
+# Step 7.2d_integrate_report of the D15 + D22 endocrine integration -- see the script's header. Submit all four with
+# bash analysis/scripts/7.2_integrate_submit.sh (from the repo root).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.2d_integrate_report.py"
