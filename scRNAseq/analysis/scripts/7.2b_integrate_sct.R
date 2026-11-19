@@ -6,7 +6,7 @@
 #   uncorrected  SCT B on the merged cells as one model -> PCA (50; 30 used downstream)
 #   Harmony      harmony::RunHarmony on PCs 1-30 of that model, group.by.vars = stage (default theta 2)
 #   RPCA         Seurat's standard SCT + RPCA workflow: SCT B model per stage (same regression), anchor features =
-#                the merged model's 3,000 genes, PrepSCTIntegration, PCA per stage, FindIntegrationAnchors
+#                the merged model's 3,000 genes found in both stage models, PrepSCTIntegration, PCA per stage, FindIntegrationAnchors
 #                (reduction rpca, dims 1-30), IntegrateData (dims 1-30), PCA on the integrated assay
 # Input:  ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine/merged_counts.h5ad + cells.tsv (7.2a)
 # Writes (same folder; reruns overwrite):
@@ -72,9 +72,15 @@ lst <- SplitObject(so, split.by = "stage"); rm(so); invisible(gc())
 lst <- lapply(lst, function(x) SCTransform(x, vst.flavor = "v2", method = "glmGamPoi",
                                            vars.to.regress = "S_minus_G2M", variable.features.n = N_VF + 100,
                                            seed.use = SEED, verbose = FALSE))
-lst <- PrepSCTIntegration(lst, anchor.features = vf, verbose = FALSE)
-lst <- lapply(lst, function(x) RunPCA(x, features = vf, npcs = N_PC, seed.use = SEED, verbose = FALSE))
-anc <- FindIntegrationAnchors(lst, normalization.method = "SCT", anchor.features = vf, reduction = "rpca",
+# a gene enters a per-stage model only if detected in >= 5 of that stage's cells (SCTransform min_cells);
+# anchor features = the merged model's genes that are in both stage models
+in_all <- Reduce(intersect, lapply(lst, function(x) rownames(SCTResults(x[["SCT"]], slot = "feature.attributes"))))
+vf_a <- vf[vf %in% in_all]
+cat("anchor features:", length(vf_a), "of", length(vf), "; not in both stage models:",
+    paste(genes[match(setdiff(vf, vf_a), seurat_names)], collapse = " "), "\n")
+lst <- PrepSCTIntegration(lst, anchor.features = vf_a, verbose = FALSE)
+lst <- lapply(lst, function(x) RunPCA(x, features = vf_a, npcs = N_PC, seed.use = SEED, verbose = FALSE))
+anc <- FindIntegrationAnchors(lst, normalization.method = "SCT", anchor.features = vf_a, reduction = "rpca",
                               dims = seq_len(N_DIM), verbose = FALSE)
 cat("RPCA anchors:", nrow(anc@anchors), "\n")
 ig <- IntegrateData(anc, normalization.method = "SCT", dims = seq_len(N_DIM), verbose = FALSE)
