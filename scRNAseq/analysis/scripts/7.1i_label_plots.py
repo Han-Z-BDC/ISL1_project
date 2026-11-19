@@ -39,6 +39,13 @@ MARKERS = {
             ("SC_delta", ["SST", "HHEX"]), ("ENP", ["NEUROG3", "CDKN1C", "NEUROD1"]), ("GHRL+", ["GHRL"]),
             ("SC_EC1", ["PLCL1", "RUNX1T1"]), ("SC_EC2", ["TPH1", "LMX1A", "FEV"]),
             ("non-endocrine", ["AFP", "SOX9", "PDX1"]), ("all endocrine", ["CHGA"])],
+    "D40": [("SC_alpha", ["ARX", "GCG", "IRX2"]), ("SC_beta", ["INS", "ISL1", "NKX6-1"]),
+            ("SC_delta", ["SST", "HHEX", "GC", "CASR"]), ("GHRL+", ["GHRL"]),
+            ("SC_EC1", ["PLCL1", "RUNX1T1"]), ("SC_EC2", ["TPH1", "LMX1A", "FEV"]),
+            ("proliferating", ["MKI67", "TOP2A"]), ("neural", ["SOX2", "DCX", "STMN2"]),
+            ("acinar", ["PTF1A", "CPA2"]), ("hepatic", ["AFP", "FGB"]),
+            ("pancreatic progenitor", ["ONECUT1", "SOX9"]), ("fibroblast", ["COL3A1", "PDGFRA"]),
+            ("all endocrine", ["CHGA"])],
 }
 
 
