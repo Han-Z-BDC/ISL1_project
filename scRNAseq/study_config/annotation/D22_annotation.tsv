@@ -5,4 +5,5 @@ base	r0.2	2	non-endocrine	mostly control; hepatic-like (AFP, FGB, GPC3) + progen
 base	r0.2	3	SC_EC1	KO-enriched (PLCL1, RUNX1T1)	confirmed
 base	r0.2	4	SC_EC2	KO-enriched (TPH1, LMX1A)	confirmed
 override	r1.0_c1_s0.1	1	SC_delta	delta-like arm, control only (SST, HHEX; INS also high)	confirmed
-override	r1.0_c1_s0.1	0	ENP	endocrine precursor stem (GHRL, ARX, NEUROG3, NEUROD1, CDKN1C)	confirmed
+override	r1.0_c1_s0.1	0	ENP	endocrine precursor stem (NEUROG3, ARX, NEUROD1, CDKN1C); its GHRL+ part relabelled below	confirmed
+override	r1.0_c1_s0.3	1	GHRL+	GHRL+ part of the precursor stem (GHRL 96%, ARX 72%); 46 control / 22 KO	confirmed

@@ -64,6 +64,11 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     sub-resolution **0.1** (same split at 0.2): subcluster 1 = **SC_delta** (143 cells, all control; SST 97%,
     HHEX 36% with log1p > 1; INS also high, so partly SST / INS co-expressing), subcluster 0 = **ENP** (203 cells;
     GHRL, ARX, NEUROG3, NEUROD1, CDKN1C). These cells take these labels over their r0.2 label.
+  - GHRL+ (user, 2026-11-19): the ENP stem is split further at sub-resolution **0.3** (nested in the 0.1 split):
+    subcluster 1 = **GHRL+** (68 cells, 46 control / 22 KO; GHRL 96%, ARX 72%, NEUROG3 9% with log1p > 1),
+    subcluster 0 stays **ENP** (135 cells; NEUROG3 24%, GHRL 30%). Reason: D40 r0.4 cluster 9 (166 cells, 96
+    control / 70 KO; GHRL 37%, SST 21%, no NEUROG3) matches the GHRL+ part, so D22 has both ENP and GHRL+ cells and
+    D40 only GHRL+ cells. Named GHRL+ (not epsilon), describing the marker only.
   - Not labelled separately: the NEUROG3+ cells on the KO side (mostly r1.0 cluster 4, inside SC_EC1 / SC_EC2);
     the small SST + GCG + INS polyhormonal end of the delta arm (61 cells at sub-resolution 0.5).
   - Caveat: ambient INS is strong on D22 (INS log1p > 1 in 60-100% of cells in the KO clusters). GCG shows the

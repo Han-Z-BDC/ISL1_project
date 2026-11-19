@@ -2,8 +2,9 @@
 
 Rules: study_config/annotation/{day}_annotation.tsv (user decisions), columns rule, source, cluster, label.
   rule "base":     source "r<res>" = a 7.1b resolution; every cell gets the label of its cluster there.
-  rule "override": source "r<res>_c<cluster>_s<sub_res>" = a 7.1g split; cells of that subcluster take this label
-                   instead of their base label (overrides are applied in file order).
+  rule "override": source "r<res>_c<cluster>_s<sub_res>" = a 7.1g split; cells of the listed subclusters take this
+                   label instead of their earlier label (overrides are applied in file order; an override may list
+                   only some subclusters of a split, e.g. a finer split of a group labelled by an earlier override).
 Every cell must end up with a label.
 
 Writes ${OUT_DIR}/day_analysis/{day}/labels/ (reruns overwrite):
@@ -45,8 +46,8 @@ def main():
     for src, g in rules[rules.rule == "override"].groupby("source", sort=False):
         res, c, sr = re.fullmatch(r"r([\d.]+)_c(\d+)_s([\d.]+)", src).groups()
         sub = pd.read_csv(DAY_DIR / "clustering" / f"split_r{res}_c{c}" / "subclusters.csv", index_col=0, dtype=str)
-        s = sub[f"s{sr}"].map(dict(zip(g.cluster, g.label)))
-        assert s.notna().all(), f"{src}: subclusters without a label"
+        assert set(g.cluster) <= set(sub[f"s{sr}"]), f"{src}: subcluster not in the split"
+        s = sub[f"s{sr}"].map(dict(zip(g.cluster, g.label))).dropna()
         lab.loc[s.index] = s
     assert lab.notna().all(), "cells without a label"
 

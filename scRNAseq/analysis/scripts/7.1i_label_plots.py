@@ -36,7 +36,7 @@ FEAT_CMAP = matplotlib.colors.LinearSegmentedColormap.from_list("feat", [ZERO_GR
 # Key markers per label (user decisions in DECISIONS.md / the annotation file), in label order.
 MARKERS = {
     "D22": [("SC_alpha", ["ARX", "GCG", "IRX2"]), ("SC_beta", ["INS", "ISL1", "PCP4", "NKX6-1"]),
-            ("SC_delta", ["SST", "HHEX"]), ("ENP", ["NEUROG3", "GHRL", "CDKN1C"]),
+            ("SC_delta", ["SST", "HHEX"]), ("ENP", ["NEUROG3", "CDKN1C", "NEUROD1"]), ("GHRL+", ["GHRL"]),
             ("SC_EC1", ["PLCL1", "RUNX1T1"]), ("SC_EC2", ["TPH1", "LMX1A", "FEV"]),
             ("non-endocrine", ["AFP", "SOX9", "PDX1"]), ("all endocrine", ["CHGA"])],
 }
