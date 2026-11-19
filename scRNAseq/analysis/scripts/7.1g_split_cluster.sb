@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_split_cluster
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-testing
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=30G
+#SBATCH --time=00:50:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/split_cluster.%j.out
+
+# Step 7.1g: split one 7.1b cluster on the day's SCT B graph -- see the .py docstring. Needs 7.1b first.
+# Submit from the repo root: sbatch analysis/scripts/7.1g_split_cluster.sb D22 1.0 1 SST HHEX ...
+
+set -euo pipefail
+DAY="${1:?usage: sbatch analysis/scripts/7.1g_split_cluster.sb <day> <resolution> <cluster> <genes...>}"
+RES="${2:?resolution}"; CL="${3:?cluster}"; shift 3
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1g_split_cluster.py" "${DAY}" "${RES}" "${CL}" "$@"
