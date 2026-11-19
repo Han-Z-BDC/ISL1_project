@@ -66,7 +66,11 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     GHRL, ARX, NEUROG3, NEUROD1, CDKN1C). These cells take these labels over their r0.2 label.
   - Not labelled separately: the NEUROG3+ cells on the KO side (mostly r1.0 cluster 4, inside SC_EC1 / SC_EC2);
     the small SST + GCG + INS polyhormonal end of the delta arm (61 cells at sub-resolution 0.5).
-  - Caveat: ambient INS is strong on D22 (INS log1p > 1 in 60-100% of cells in the KO clusters).
+  - Caveat: ambient INS is strong on D22 (INS log1p > 1 in 60-100% of cells in the KO clusters). GCG shows the
+    same low-level background in KO cells (detected in 64% of KO cells, at low values, vs 28% of control cells).
+  - Plots split by genotype (step 7.1i, 2026-11-19): `day_analysis/D22/labels/` umap_labels_split.png (labels: all /
+    control / KO) and feature_split_markers.png (2-4 key markers per label, control | KO on one colour scale);
+    D22_labels.html.
 - Next: D40 (overview resolution, then annotation), or back to D15.
 
 ## Open items
