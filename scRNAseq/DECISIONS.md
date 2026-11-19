@@ -109,6 +109,16 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     CASR, PAX6, TOX3). Noted when the labels were given: SST and HHEX are not detected above log1p 1 in the SC_delta
     group, and the GHRL+ group also holds the SST+ delta-like cells and 41 KO EC-like cells; the user kept 0.1.
     These cells take these labels over their r0.2 label.
+- D22 vs D40 label match (step 7.1k, 2026-11-19; `day_analysis/compare_D22_D40/`): days clustered separately, so
+  (1) shared top-50 Wilcoxon markers per label pair and (2) Pearson r of gene-centred label mean profiles on 1,745
+  genes highly variable in both days (all cells; also control-only and KO-only).
+  - Match (same label is the best partner by both measures): SC_alpha (26 shared markers, r 0.71), SC_beta (24,
+    0.72), SC_EC2 (19, 0.68), SC_EC1 (13, 0.56; D22 SC_EC2 also has r 0.53 with D40 SC_EC1), GHRL+ (20, 0.51).
+  - SC_delta does not match: D22 SC_delta vs D40 SC_delta 5 shared markers, r 0.13; both are closest to the other
+    day's SC_alpha (D22 SC_delta -> D40 SC_alpha 13, r 0.35; D40 SC_delta -> D22 SC_alpha 8, r 0.29).
+  - D22 ENP has no clear D40 partner (best: GHRL+, 9 shared, r 0.21). D40 acinar, hepatic, pancreatic progenitor
+    and fibroblast all map to D22 non-endocrine (hepatic best, 14 / r 0.60). D40 proliferating is closest to D22
+    SC_alpha (r 0.37); D40 neural has no D22 partner.
 
 ## Open items
 
