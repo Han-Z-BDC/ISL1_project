@@ -1,0 +1,6 @@
+rule	source	cluster	label	description	status
+base	r0.2	0	proliferating	cycling endocrine cells, mostly control (MKI67, TOP2A; CHGA, INS, GCG)	confirmed
+base	r0.2	1	SC_EC2	KO-enriched (TPH1, FEV, LMX1A, AFF3); 19 of top 50 markers shared with D22 SC_EC2	confirmed
+base	r0.2	2	SC_EC1	KO-enriched (PLCL1, NKX6-1, PRKCH); 12 of top 50 markers shared with D22 SC_EC1	confirmed
+base	r0.2	3	SC_beta	control only (INS, ERO1B, ACVR1C)	confirmed
+base	r0.2	4	SC_alpha	control only (GCG, ARX, DPP4, ALDH1A1)	confirmed

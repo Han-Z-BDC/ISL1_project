@@ -77,7 +77,21 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     control / KO) and feature_split_markers.png (2-4 key markers per label, control | KO on one colour scale);
     D22_labels.html. Feature-plot style (user, 2026-11-19, chosen from two versions): all cells drawn, the other
     genotype in very light grey, lighter than the shown genotype's non-expressing cells.
-- Next: D40 (overview resolution, then annotation), or back to D15.
+- D40 (in progress, 2026-11-19). Overview resolution **0.2** (7 clusters). Labels (user;
+  `study_config/annotation/D40_annotation.tsv`): 0 **proliferating** (MKI67 / TOP2A 75%, CHGA+ with INS / GCG;
+  cycling endocrine cells, mostly control), 1 **SC_EC2**, 2 **SC_EC1**, 3 **SC_beta**, 4 **SC_alpha**. The EC names
+  follow D22: D40 cluster 1 shares 19 of its top 50 markers with D22 SC_EC2 (TPH1, LMX1A, AFF3, HDAC9, SYT13) and 1
+  with SC_EC1; cluster 2 shares 12 with D22 SC_EC1 (PLCL1, RUNX1T1, PRKCH, PDE4B) and 1 with SC_EC2.
+  - Cluster overview report: step 7.1j (`day_analysis/D40/clustering/overview/`); gene checks at r0.2 / r0.4 (7.1f).
+  - Not labelled yet: r0.2 cluster 5 (516 cells, 92% control; SOX2 / NES / VIM progenitor-like + SOX11 / STMN2 /
+    ELAVL4 neuron-like: off-target neural) and cluster 6 (285 cells, 96% control; ONECUT1 / GATA6 / KRT19 / SOX9
+    epithelium with hepatic-like features + a COL1A2 / COL3A1 fibroblast-like group). Next: split each with 7.1g.
+  - No separate delta cluster and no NEUROG3+ progenitors at D40 (NEUROG3 log1p > 1 in at most 0.1% of any cluster).
+    SST+ cells are scattered in SC_alpha and concentrated in r0.4 cluster 9 (166 cells, between SC_alpha and the KO
+    lobe). 7.1g split of r0.4 cluster 9 (same groups at sub-resolution 0.2, 0.3, 0.5): 0 SST+ delta-like (52 cells,
+    50 control; SST 60%, HHEX 15%, PBX3, MEIS1), 1 GHRL+ (36; 18 control / 18 KO; GHRL 89%), 2 GC / PDK3 / CASR /
+    PAX6 (35; no SST / GHRL, alpha-lineage-like?), 3 KO EC-like (43, 41 KO; SLC18A1, TPH1, MNX1). Labels for these
+    groups: not decided yet.
 
 ## Open items
 
