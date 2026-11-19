@@ -86,6 +86,15 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   - Not labelled yet: r0.2 cluster 5 (516 cells, 92% control; SOX2 / NES / VIM progenitor-like + SOX11 / STMN2 /
     ELAVL4 neuron-like: off-target neural) and cluster 6 (285 cells, 96% control; ONECUT1 / GATA6 / KRT19 / SOX9
     epithelium with hepatic-like features + a COL1A2 / COL3A1 fibroblast-like group). Next: split each with 7.1g.
+  - Cluster 6 labelled (user, 2026-11-19): 7.1g split at sub-resolution **0.2** (4 groups; at 0.1 the hepatic and
+    progenitor groups are still merged): 0 **acinar** (35 cells; PTF1A detected in 71%, CPA2 86% and CTRB2 57% with
+    log1p > 1, PRSS1, CPA1, RBPJL; NR5A2, DLK1; 40% cycling: pre-acinar / tip-like), 1 **hepatic** (68; AFP 49%, FGB
+    52%, HNF4A 54%; also CDX2 / CDH17, so hepatic- and gut-like), 2 **pancreatic progenitor** (104; ONECUT1 96%, SOX9
+    57%, HNF1B, KRT19, NKX6-1; PDX1 detected in 73% but low), 3 **fibroblast** (78; COL3A1 96%, PDGFRA 85%, COL1A1
+    83%). User's choice for group 1: "hepatic, or matching the D22 name"; D22 has no hepatic-only label (its
+    non-endocrine cluster mixes hepatic-like and progenitor cells), so "hepatic" is used.
+  - Cluster 5 (7.1g, not labelled yet): at sub-resolution 0.1, cycling early neural progenitors (102), immature
+    neurons (174; DCX, SOX11, STMN2, ELAVL4) and radial-glia-like cells (240; SOX2, VIM, FABP7, SLC1A3, NFIA).
   - No separate delta cluster and no NEUROG3+ progenitors at D40 (NEUROG3 log1p > 1 in at most 0.1% of any cluster).
     SST+ cells are scattered in SC_alpha and concentrated in r0.4 cluster 9 (166 cells, between SC_alpha and the KO
     lobe). 7.1g split of r0.4 cluster 9 (same groups at sub-resolution 0.2, 0.3, 0.5): 0 SST+ delta-like (52 cells,
