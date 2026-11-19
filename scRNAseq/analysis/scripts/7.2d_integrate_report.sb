@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=isl1_int_report
-#SBATCH --partition=acpu
-#SBATCH --qos=cpu-normal
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=30G
+#SBATCH --cpus-per-task=13
+#SBATCH --mem=256G
 #SBATCH --time=02:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/isl1_int_report.%j.out
 
