@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=isl1_tradeseq
 #SBATCH --partition=amem
-#SBATCH --qos=mem-normal
+#SBATCH --qos=mem-long
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=13
+#SBATCH --cpus-per-task=32
 #SBATCH --mem=256G
-#SBATCH --time=24:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/tradeseq.%j.out
 
 # Step 7.3e: tradeSeq on the D15 endocrine trajectory, control vs KO -- see the .R header. Needs 7.3a.

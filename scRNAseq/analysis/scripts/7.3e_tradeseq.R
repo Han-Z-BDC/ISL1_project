@@ -6,7 +6,8 @@
 #   trajectory  7.3a Slingshot, PCs 1-30, fixed ends (pseudotime + curve weights per lineage)
 #   counts      SoupX counts (layers/soupx_counts of D15_merged.h5ad, 7.1) of the 5,994 cells; offset = log of each
 #               cell's total counts over all genes
-#   genes       the subset's 3,000 SCT B variable genes (7.1d, MT- removed) + a fixed list of endocrine genes
+#   genes       all genes detected (count > 0) in at least 10 of the subset's cells (user, 2026-11-19: all genes, not
+#               only the variable genes); genes seen in fewer cells cannot be fitted
 #   model       fitGAM, 6 knots, conditions = genotype (one smoother per lineage x genotype)
 #   tests       associationTest (gene changes along a lineage, per lineage, control and KO together);
 #               conditionTest per lineage (control and KO curves differ; fold-change threshold 1.5);
@@ -44,9 +45,9 @@ sl <- read.csv(file.path(tr, "slingshot_pc30_cells.csv"), row.names = 1, check.n
 stopifnot(all(rownames(sl) %in% cells))
 m <- m[, rownames(sl)]
 offset <- log(Matrix::colSums(m))
-vf <- read.csv(file.path(sub, "SCT_B_variable_features.csv"))$gene
-use <- unique(c(vf, intersect(EXTRA, genes)))
-m <- m[use, ]
+m <- m[Matrix::rowSums(m > 0) >= 10, ]
+stopifnot(all(intersect(EXTRA, genes) %in% rownames(m)) || TRUE)
+cat("endocrine genes not fitted (< 10 cells):", paste(setdiff(EXTRA, rownames(m)), collapse = " "), "\n")
 cat(ncol(m), "cells,", nrow(m), "genes;", NCORE, "cores\n")
 
 pt <- as.matrix(sl[, grep("^pt_", names(sl))]); w <- as.matrix(sl[, grep("^w_", names(sl))])
