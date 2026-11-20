@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_int_scvelo
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=13
+#SBATCH --mem=256G
+#SBATCH --time=16:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/int_scvelo.%j.out
+
+# Step 7.4c: scVelo on the D15 + D22 integration -- see the .py docstring. Needs 7.4 prep and velocyto (7.3b) for D15 and D22. Runs in CELLRANK_ENV.
+# Normally submitted by analysis/scripts/7.4_submit.sh (with dependencies).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.4c_scvelo.py"

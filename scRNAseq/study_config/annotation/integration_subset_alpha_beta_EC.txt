@@ -1,0 +1,14 @@
+# Subset of the D15 + D22 endocrine integration for the alpha / beta / EC trajectory (user, 2026-11-19).
+# One 7.2a label per line. Dropped: D15 pre_delta, KO_only, ENP_PHOX2A+; D22 SC_delta, ENP, GHRL+.
+D15 ENP1
+D15 ENP2
+D15 ENP_FEV_high
+D15 pre_EC
+D15 pre_beta1
+D15 pre_beta2
+D15 pre_alpha
+D15 pre_alpha_KO
+SC_alpha
+SC_beta
+SC_EC1
+SC_EC2

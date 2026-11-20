@@ -9,27 +9,32 @@
 #SBATCH --array=0-3
 #SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/velocyto.%A_%a.out
 
-# Step 7.3b: spliced / unspliced counts (velocyto run) for one D15 sample per array task (user, 2026-11-19: RNA
-# velocity on D15 next to Slingshot). Input: the sample's Cell Ranger multi BAM (per_sample_outs/<sample>/count/
-# sample_alignments.bam) and the reference GTF; barcodes = that sample's cells kept in the D15 per-day object (7.1),
-# so the loom covers every D15 cell and the endocrine subset is taken later (7.3c). No repeat mask.
-# The BAM is linked into the output folder, so velocyto's barcode-sorted copy (cellsorted_*.bam) is written there,
-# not into the Cell Ranger folder; it is deleted after the loom is written.
-# Writes ${OUT_DIR}/velocity/D15/<sample>/: <sample>.loom, barcodes.tsv
-# Run from the repo root: sbatch analysis/scripts/7.3b_velocyto.sb
+# Step 7.3b: spliced / unspliced counts (velocyto run) for one sample of a day per array task (user, 2026-11-19: RNA
+# velocity on D15 next to Slingshot; D22 added for the D15 + D22 integration, 7.4). Day = first argument (D15 or
+# D22; default D15; both are differentiation 37, channel HZ_Diff37_<day>_scRNA). Input: the sample's Cell Ranger
+# multi BAM (per_sample_outs/<sample>/count/sample_alignments.bam) and the reference GTF; barcodes = that sample's
+# cells kept in the day's per-day object (7.1), so the loom covers every cell of the day and subsets are taken later
+# (7.3c, 7.4c). No repeat mask.
+# velocyto resolves the BAM link and writes its barcode-sorted copy (cellsorted_sample_alignments.bam) next to the
+# Cell Ranger BAM, not into the output folder; those copies are kept (user, 2026-11-19), so a rerun skips the sort.
+# Writes ${OUT_DIR}/velocity/<day>/<sample>/: <sample>.loom, barcodes.tsv
+# Run from the repo root: sbatch analysis/scripts/7.3b_velocyto.sb [D15|D22]
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
-OLD=(Diff37_D15_ctr_1 Diff37_D15_ctr_2 Diff37_D15_KO_1 Diff37_D15_KO_2)
+DAY="${1:-D15}"
+case "${DAY}" in D15|D22) ;; *) echo "day must be D15 or D22" >&2; exit 1 ;; esac
+OLD=(Diff37_${DAY}_ctr_1 Diff37_${DAY}_ctr_2 Diff37_${DAY}_KO_1 Diff37_${DAY}_KO_2)
 NEW=(ctr_rep1 ctr_rep2 KO_rep1 KO_rep2)
 S="${OLD[$SLURM_ARRAY_TASK_ID]}"; N="${NEW[$SLURM_ARRAY_TASK_ID]}"
-BAM="${CELLRANGER_OUT}/HZ_Diff37_D15_scRNA/outs/per_sample_outs/${S}/count/sample_alignments.bam"
-OUT="${OUT_DIR}/velocity/D15/${N}"
+BAM="${CELLRANGER_OUT}/HZ_Diff37_${DAY}_scRNA/outs/per_sample_outs/${S}/count/sample_alignments.bam"
+OUT="${OUT_DIR}/velocity/${DAY}/${N}"
 mkdir -p "${OUT}"; rm -f "${OUT}"/*.loom "${OUT}"/cellsorted_* "${OUT}"/sample_alignments.bam*
 ln -s "${BAM}" "${OUT}/sample_alignments.bam"; ln -s "${BAM}.bai" "${OUT}/sample_alignments.bam.bai"
-# kept D15 cells of this sample (7.1 per-day object; cell names Diff37_D15-<sample>#<barcode>)
-awk -F, -v p="Diff37_D15-${N}#" 'NR > 1 && index($1, p) == 1 {sub(p, "", $1); print $1}' \
-  "${OUT_DIR}/day_analysis/D15/clustering/clusters.csv" > "${OUT}/barcodes.tsv"
+# kept cells of this sample (7.1 per-day object; cell names Diff37_<day>-<sample>#<barcode>)
+awk -F, -v p="Diff37_${DAY}-${N}#" 'NR > 1 && index($1, p) == 1 {sub(p, "", $1); print $1}' \
+  "${OUT_DIR}/day_analysis/${DAY}/clustering/clusters.csv" > "${OUT}/barcodes.tsv"
+test -s "${OUT}/barcodes.tsv"
 echo "${S} -> ${N}: $(wc -l < "${OUT}/barcodes.tsv") barcodes"
 export PATH="/projects/hzhu10@xsede.org/software/anaconda/envs/bulkRNAseq/bin:${TOOLS}:${PATH}"   # samtools
 samtools --version | head -1

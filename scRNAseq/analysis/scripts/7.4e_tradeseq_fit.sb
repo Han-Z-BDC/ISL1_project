@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_int_tradeseq
+#SBATCH --partition=amem
+#SBATCH --qos=mem-long
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=18
+#SBATCH --mem=240G
+#SBATCH --time=5-00:00:00
+#SBATCH --array=0-7
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/int_tradeseq.%A_%a.out
+
+# Step 7.4e fit: tradeSeq, one gene chunk per array task (8 chunks; mem-long allows 185 CPUs per user) -- see the .R header. Needs 7.4a.
+# Normally submitted by analysis/scripts/7.4_submit.sh (with dependencies).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+N=8
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.4e_tradeseq_fit.R" "${SLURM_ARRAY_TASK_ID}" "${N}"

@@ -6,6 +6,7 @@ removed), batch_key = stage, S - G2M as a continuous covariate (the cell-cycle r
 pipeline's step 5.5: 2 layers, negative binomial; 30 latent dimensions (the 30 dimensions used for every method).
 Writes ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine/emb_scvi.csv.gz (cells x 30; reruns overwrite)
        and scvi_history.csv (training / validation ELBO per epoch).
+With INT_SUBSET=<name>: the subset folder integration_D15_D22_endocrine_<name> (see 7.2a).
 Run on a GPU (7.2c_integrate_scvi.sb).
 """
 import os
@@ -17,7 +18,8 @@ import pandas as pd
 import scvi
 import torch
 
-OUT = Path(os.environ["OUT_DIR"]) / "day_analysis" / "integration_D15_D22_endocrine"
+SUBSET = os.environ.get("INT_SUBSET", "")
+OUT = Path(os.environ["OUT_DIR"]) / "day_analysis" / ("integration_D15_D22_endocrine" + (f"_{SUBSET}" if SUBSET else ""))
 SEED, N_LATENT = 1234, 30
 
 

@@ -14,6 +14,7 @@ Gene plots: log1p of SoupX counts normalised to 10,000 per cell (unregressed), a
 Writes ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine/ (reruns overwrite these files):
   umap_{method}.csv, metrics_*.csv, d15_to_d22_{method}.csv, umap_overview.png, genes_{method}.png,
   D15_D22_endocrine_integration.html
+With INT_SUBSET=<name>: the subset folder integration_D15_D22_endocrine_<name> (see 7.2a).
 Run: sbatch analysis/scripts/7.2d_integrate_report.sb [uncorrected,harmony,rpca,scvi]   (default: all four)
 """
 import base64
@@ -34,7 +35,8 @@ import scanpy as sc
 from sklearn.neighbors import NearestNeighbors
 
 OUT_DIR, REPO_DIR = Path(os.environ["OUT_DIR"]), Path(os.environ["REPO_DIR"])
-OUT = OUT_DIR / "day_analysis" / "integration_D15_D22_endocrine"
+SUBSET = os.environ.get("INT_SUBSET", "")
+OUT = OUT_DIR / "day_analysis" / ("integration_D15_D22_endocrine" + (f"_{SUBSET}" if SUBSET else ""))
 METHODS = [("uncorrected", "Uncorrected (SCT B PCA)"), ("harmony", "Harmony"), ("rpca", "RPCA"), ("scvi", "scVI")]
 SEED, K = 1234, 30
 GREY = "#e6e6e6"
@@ -196,7 +198,8 @@ main{{max-width:1400px;margin:0 auto;padding:24px 16px 60px}} h1{{font-size:24px
 table{{border-collapse:collapse;font-size:12.5px}} th,td{{padding:3px 7px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}}
 th:first-child,td:first-child{{text-align:left}} img{{max-width:100%;height:auto;background:#fff;border-radius:4px;margin:6px 0}}
 </style></head><body><main>
-<h1>D15 + D22 endocrine cells: batch correction on stage</h1>
+<h1>D15 + D22 endocrine cells{f" (subset: {SUBSET})" if SUBSET else ""}: batch correction on stage</h1>
+{f"<p class=sub>Subset {SUBSET}: only the labels in study_config/annotation/integration_subset_{SUBSET}.txt; SCT B, Harmony, RPCA and scVI all refitted on these cells.</p>" if SUBSET else ""}
 <p class=sub>{n:,} cells: D15 endocrine subset (7.1d, {int(is15.sum()):,} cells, draft r0.6 labels) and D22 endocrine
 cells (7.1h, every label except non-endocrine, {int((~is15).sum()):,} cells). SoupX counts; SCT B on the merged cells
 (SCTransform v2, S &minus; G2M regressed, 3,000 variable genes without MT- genes). Batch = stage only; genotype not
@@ -218,7 +221,7 @@ should stay near the uncorrected value).</p><div class=tw>{gk.to_html(border=0)}
 <h2>Marker genes</h2><p class=sub>log1p (SoupX counts normalised to 10,000), unregressed; one colour scale per gene,
 capped at the 99th percentile of expressing cells.</p>{genes_html}
 </main></body></html>"""
-    (OUT / "D15_D22_endocrine_integration.html").write_text(html)
+    (OUT / f"D15_D22_endocrine_integration{'_' + SUBSET if SUBSET else ''}.html").write_text(html)
     print(mix.to_string()); print(keep.to_string()); print(gk.to_string())
     for m, _ in METHODS:
         print(m); print(d15[m].to_string())

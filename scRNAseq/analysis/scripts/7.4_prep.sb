@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_traj_prep
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=30G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/traj_prep.%j.out
+
+# Step 7.4 prep: cells, scVI latent and scVI 2D / 3D UMAP for the D15 + D22 trajectory -- see the .py docstring.
+# Normally submitted by analysis/scripts/7.4_submit.sh (with dependencies).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.4_prep.py"

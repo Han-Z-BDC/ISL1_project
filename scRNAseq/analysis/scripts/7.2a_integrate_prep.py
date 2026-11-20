@@ -13,7 +13,10 @@ Writes ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine/ (reruns overwrite)
                       day's 7.1 object)
   cells.tsv           the same obs as a table (read by 7.2b)
   composition.csv     cells per stage x genotype x label
-Run: bash analysis/scripts/7.2_integrate_submit.sh   (submits 7.2a-d in order)
+Subset (optional): with INT_SUBSET=<name> set, only the cells whose label is listed in
+  study_config/annotation/integration_subset_<name>.txt are kept, and every 7.2a-d output goes to
+  ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine_<name>/ instead (the full run is untouched).
+Run: bash analysis/scripts/7.2_integrate_submit.sh [subset]   (submits 7.2a-d in order)
 """
 import os
 from pathlib import Path
@@ -25,7 +28,8 @@ import scipy.sparse as sp
 
 OUT_DIR, REPO_DIR = Path(os.environ["OUT_DIR"]), Path(os.environ["REPO_DIR"])
 DA = OUT_DIR / "day_analysis"
-OUT = DA / "integration_D15_D22_endocrine"
+SUBSET = os.environ.get("INT_SUBSET", "")
+OUT = DA / ("integration_D15_D22_endocrine" + (f"_{SUBSET}" if SUBSET else ""))
 OBS = ["sample", "genotype", "S_score", "G2M_score", "S_minus_G2M", "phase"]
 
 
@@ -64,6 +68,14 @@ def main():
     a22 = take("D22", list(lab22.index), lab22.label.astype(str).to_numpy())
     assert list(a15.var_names) == list(a22.var_names), "the two days have different gene lists"
     a = ad.concat([a15, a22], join="inner", merge="same")
+    if SUBSET:
+        f = REPO_DIR / "study_config" / "annotation" / f"integration_subset_{SUBSET}.txt"
+        keep = [l.strip() for l in open(f) if l.strip() and not l.startswith("#")]
+        missing = set(keep) - set(a.obs.label)
+        assert not missing, f"labels in {f.name} not found: {missing}"
+        print(f"subset {SUBSET}: keeping {len(keep)} labels; dropped:",
+              a.obs.label[~a.obs.label.isin(keep)].value_counts().to_dict())
+        a = a[a.obs.label.isin(keep).to_numpy()].copy()
     for c in ["stage", "sample", "genotype", "label", "phase"]:
         a.obs[c] = a.obs[c].astype(str).astype("category")
     assert np.allclose(a.X.data, np.round(a.X.data))

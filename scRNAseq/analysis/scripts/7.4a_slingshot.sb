@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_int_slingshot
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=40G
+#SBATCH --time=06:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/int_slingshot.%j.out
+
+# Step 7.4a: Slingshot on the D15 + D22 integration (scVI latent) -- see the .R header. Needs 7.4 prep.
+# Normally submitted by analysis/scripts/7.4_submit.sh (with dependencies).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.4a_slingshot.R"

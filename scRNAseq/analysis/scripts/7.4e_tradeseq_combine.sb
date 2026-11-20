@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_int_tradeseq_comb
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=256G
+#SBATCH --time=12:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/int_tradeseq_comb.%j.out
+
+# Step 7.4e combine: FDR over all genes, smoothed curves, modules -- see the .R header. Needs every 7.4e fit task.
+# Normally submitted by analysis/scripts/7.4_submit.sh (with dependencies).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.4e_tradeseq_combine.R" 8

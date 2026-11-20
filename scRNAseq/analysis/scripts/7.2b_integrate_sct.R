@@ -12,12 +12,15 @@
 # Writes (same folder; reruns overwrite):
 #   SCT_B_variable_features.csv   gene (original name), rank, residual_variance (merged model)
 #   emb_uncorrected.csv.gz, emb_harmony.csv.gz, emb_rpca.csv.gz   cells x 30 dimensions
+# With INT_SUBSET=<name>: the subset folder integration_D15_D22_endocrine_<name> (see 7.2a).
 # Usage: Rscript 7.2b_integrate_sct.R   (via 7.2b_integrate_sct.sb)
 suppressPackageStartupMessages({
   library(rhdf5); library(Matrix); library(Seurat); library(glmGamPoi); library(harmony)
 })
 options(future.globals.maxSize = 20 * 1024^3)
-out <- file.path(Sys.getenv("OUT_DIR"), "day_analysis", "integration_D15_D22_endocrine")
+SUBSET <- Sys.getenv("INT_SUBSET")
+out <- file.path(Sys.getenv("OUT_DIR"), "day_analysis",
+                 paste0("integration_D15_D22_endocrine", if (nzchar(SUBSET)) paste0("_", SUBSET) else ""))
 f <- file.path(out, "merged_counts.h5ad")
 SEED <- 1234; N_VF <- 3000; N_PC <- 50; N_DIM <- 30
 

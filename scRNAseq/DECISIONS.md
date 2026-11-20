@@ -91,6 +91,22 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     env (`CELLRANK_ENV`; CellRank 2.0.7 pins Jinja2 < 3.1, single.cell has 3.1.5). Running on 2026-11-19.
   - Next: comparison report (Slingshot curves, velocity, CellRank fates, KO drop-off per lineage, tradeSeq modules);
     then cross the candidate genes with ISL1 CUT&RUN and bulk KO.
+- D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the
+  7.2 integration, scVI latent as the space, scVI UMAP as the primary UMAP; start D15 ENP1, ends fixed to D22 labels;
+  tradeSeq on all genes detected in >= 10 cells, conditions = genotype, stage (D15 / D22) as a fixed covariate.
+  - First run on all 21,063 cells (ends SC_beta / SC_alpha / SC_delta / SC_EC1 / SC_EC2): 8 lineages, with orderings
+    the D15 run did not have (pre_delta after pre_beta2 on the way to SC_delta; the beta and delta lineages through
+    pre_EC before pre_beta1; free ends D15 KO_only, D15 ENP_PHOX2A+, D22 GHRL+). tradeSeq, scVelo and CellRank were
+    cancelled before they started.
+  - **Focus on alpha, beta and EC only** (user, 2026-11-19): drop D15 pre_delta, KO_only, ENP_PHOX2A+ and D22
+    SC_delta, ENP, GHRL+ (labels kept: `study_config/annotation/integration_subset_alpha_beta_EC.txt`), and
+    **retrain** the integration on the kept cells so the UMAP is made from them alone: the whole 7.2a-d chain
+    (SCT B with new variable genes, Harmony, RPCA, scVI, report) with `INT_SUBSET=alpha_beta_EC`, outputs in
+    `day_analysis/integration_D15_D22_endocrine_alpha_beta_EC/`; the full integration is left as it was. The new
+    scVI is to be checked in its 7.2d report before 7.4 runs on it (`bash analysis/scripts/7.4_submit.sh
+    alpha_beta_EC <velocyto jobs> slingshot` first, so the lineages are seen before tradeSeq).
+  - Velocyto D22 (7.3b with a day argument) writes the cellsorted BAMs next to the Cell Ranger BAMs; they are kept
+    (user, 2026-11-19).
 - D22 **annotated** (user, 2026-11-18). Rules: `study_config/annotation/D22_annotation.tsv`; per-cell labels from
   step 7.1h (`day_analysis/D22/labels/`: labels.csv, composition.csv, umap_labels.png).
   - Base: overview resolution **0.2**: 0 **SC_alpha**, 1 **SC_beta**, 2 **non-endocrine**, 3 **SC_EC1**, 4 **SC_EC2**.
