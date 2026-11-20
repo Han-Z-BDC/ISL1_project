@@ -62,8 +62,13 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   (one SCT B model per stage; anchor genes = the merged model's genes present in both stage models, 2,996 of 3,000),
   scVI (counts of the same 3,000 genes, batch = stage, S - G2M covariate). No clustering. Report
   `day_analysis/integration_D15_D22_endocrine/D15_D22_endocrine_integration.html` (UMAPs by stage / genotype /
-  labels, stage mixing, labels and genotype kept, nearest D22 label per D15 state, marker genes). Method not chosen
-  yet. D15 pre_delta lands next to D22 SC_delta (Harmony 74%, RPCA 84%, scVI 58% of its cells).
+  labels, stage mixing, labels and genotype kept, nearest D22 label per D15 state, marker genes). D15 pre_delta
+  lands next to D22 SC_delta (Harmony 74%, RPCA 84%, scVI 58% of its cells).
+  - Method: **scVI** (user, 2026-11-19: less over-correction, keeps most of the D15 structure). Its numbers in the
+    report (30 nearest neighbours): stage mixing D15 32.3% / D22 7.9% (Harmony 36.6 / 6.1, RPCA 22.6 / 11.1);
+    same-label neighbours D15 68.3% / D22 90.9% (Harmony 77.5 / 95.1, RPCA 82.3 / 95.9); genotype kept as
+    uncorrected. All three agree on pre_alpha -> SC_alpha, pre_beta2 -> SC_beta, pre_delta -> SC_delta,
+    pre_EC -> SC_EC2; under scVI 29% of pre_alpha_KO sits next to SC_alpha (Harmony 2%, RPCA 2%).
 - D15 trajectory (step 7.3, user, 2026-11-19): question = where the KO stops on the way to alpha / beta and which
   genes switch on right after (candidates for ISL1-controlled steps).
   - 7.3a Slingshot in PCA space (SCT B PCs 1-30 and 1-15, never on a UMAP; curves only drawn on the 2D / 3D UMAPs),
