@@ -35,6 +35,19 @@ import pandas as pd
 import scanpy as sc
 from scipy import sparse, stats
 
+# CellRank 2.0.7 (VelocityKernel) calls np.testing.assert_array_equal(x=..., y=...); numpy >= 2 names these
+# actual / desired, so pass them on by position (the env has numpy 2.4.6; left unchanged).
+_assert_array_equal = np.testing.assert_array_equal
+
+
+def _assert_array_equal_xy(*args, x=None, y=None, **kw):
+    if x is not None or y is not None:
+        args = (x, y) + args
+    return _assert_array_equal(*args, **kw)
+
+
+np.testing.assert_array_equal = _assert_array_equal_xy
+
 OUT_DIR = Path(os.environ["OUT_DIR"])
 SUBSET = os.environ.get("INT_SUBSET", "")   # 7.2 subset run (see 7.2a); empty = the full integration
 INT = OUT_DIR / "day_analysis" / ("integration_D15_D22_endocrine" + (f"_{SUBSET}" if SUBSET else ""))
