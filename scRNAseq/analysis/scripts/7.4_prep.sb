@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=isl1_traj_prep
+#SBATCH --job-name=isl1_int_traj_prep
 #SBATCH --partition=acpu
 #SBATCH --qos=cpu-normal
 #SBATCH --nodes=1
