@@ -21,7 +21,7 @@ echo "${SUB:-full}: prep ${prep} | slingshot ${sling}"
 [ "$STOP" = "slingshot" ] && exit 0
 fit=$(sbatch --parsable $EXP --dependency=afterok:${sling} $K "$S/7.4e_tradeseq_fit.sb")
 comb=$(sbatch --parsable $EXP --dependency=afterok:${fit} $K "$S/7.4e_tradeseq_combine.sb")
-[ -z "$VELO" ] && VELO=$(sbatch --parsable "$S/7.3b_velocyto.sb" D22)
+[ -z "$VELO" ] && VELO=$(sbatch --parsable --job-name=isl1_int_velocyto "$S/7.3b_velocyto.sb" D22)   # isl1_int_ = D15+D22 run
 scv=$(sbatch --parsable $EXP --dependency=afterok:${prep}:${VELO//,/:} $K "$S/7.4c_scvelo.sb")
 cr=$(sbatch --parsable $EXP --dependency=afterok:${scv}:${sling} $K "$S/7.4d_cellrank.sb")
 echo "tradeSeq fit ${fit} (array 0-7) -> combine ${comb} | velocyto ${VELO} -> scVelo ${scv} -> CellRank ${cr}"
