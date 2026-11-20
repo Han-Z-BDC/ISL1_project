@@ -3,7 +3,7 @@
 Decisions (user, 2026-11-19): velocity next to Slingshot on D15; arrows on both the 2D and the 3D UMAP.
   counts     spliced / unspliced from the 4 velocyto looms (7.3b), the 5,994 cells of the D15 endocrine subset
   graph      the subset's own SCT B PCs 1-30 (as 7.1d and Slingshot), 30 neighbours for the moments
-  genes      scVelo filter_and_normalize: >= 20 shared counts, top 2,000 genes
+  genes      scVelo filter_and_normalize (>= 20 shared counts), log1p, top 2,000 genes (scanpy)
   model      dynamical model (recover_dynamics), velocity, velocity graph, latent time, velocity confidence
   layouts    velocities projected onto the 7.1d 2D UMAP and 3D UMAP (same graph as the clustering)
 Writes ${OUT_DIR}/day_analysis/D15/trajectory/ (reruns overwrite):
@@ -84,7 +84,9 @@ def main():
     TR.mkdir(parents=True, exist_ok=True)
     a = load()
     print(a)
-    scv.pp.filter_and_normalize(a, min_shared_counts=20, n_top_genes=2000)
+    scv.pp.filter_and_normalize(a, min_shared_counts=20)       # scvelo 0.3.4: filter + normalise only
+    sc.pp.log1p(a)                                              # so log1p and the top 2,000 genes as before
+    sc.pp.highly_variable_genes(a, n_top_genes=2000, subset=True)
     sc.pp.neighbors(a, use_rep="X_pca", n_neighbors=30, random_state=SEED)
     scv.pp.moments(a, n_pcs=None, n_neighbors=None)
     scv.tl.recover_dynamics(a, n_jobs=NCPU)
