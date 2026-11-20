@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tradeseq
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=13
+#SBATCH --mem=256G
+#SBATCH --time=24:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/tradeseq.%j.out
+
+# Step 7.3e: tradeSeq on the D15 endocrine trajectory, control vs KO -- see the .R header. Needs 7.3a.
+# Run from the repo root: sbatch analysis/scripts/7.3e_tradeseq.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3e_tradeseq.R"
