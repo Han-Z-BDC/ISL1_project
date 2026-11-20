@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_slingshot
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=15G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/slingshot.%j.out
+
+# Step 7.3a: Slingshot on the D15 endocrine cells -- see the .R header. Needs the 7.1d rerun and the r0.6 names.
+# Run from the repo root: sbatch analysis/scripts/7.3a_slingshot.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3a_slingshot.R"
