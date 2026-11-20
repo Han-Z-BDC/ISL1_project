@@ -44,7 +44,7 @@ PAL = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d
 def load():
     looms = []
     for s in SAMPLES:
-        l = scv.read(OUT_DIR / "velocity" / "D15" / s / f"{s}.loom", cache=False)
+        l = ad.read_loom(OUT_DIR / "velocity" / "D15" / s / f"{s}.loom")   # spliced as X; scvelo 0.3 has no scv.read
         # velocyto names cells "<sample>:<barcode without -1>x"
         l.obs_names = [f"Diff37_D15-{s}#" + n.split(":")[1][:-1] + "-1" for n in l.obs_names]
         l.var_names_make_unique()

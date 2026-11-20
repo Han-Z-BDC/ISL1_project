@@ -55,7 +55,7 @@ def load():
     looms = []
     for day in ["D15", "D22"]:
         for s in SAMPLES:
-            l = scv.read(OUT_DIR / "velocity" / day / s / f"{s}.loom", cache=False)
+            l = ad.read_loom(OUT_DIR / "velocity" / day / s / f"{s}.loom")   # spliced as X; scvelo 0.3 has no scv.read
             # velocyto names cells "<sample>:<barcode without -1>x"
             l.obs_names = [f"Diff37_{day}-{s}#" + n.split(":")[1][:-1] + "-1" for n in l.obs_names]
             l.var_names_make_unique()
