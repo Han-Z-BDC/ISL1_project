@@ -57,6 +57,7 @@ OUT_DIR="${SCRATCH_DIR}/out_all"                          # all pipeline outputs
 SAMPLE_SHEET="${REPO_DIR}/study_config/samples.tsv"
 CONFIG_DIR="${REPO_DIR}/pipeline/configs"
 TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/single.cell/bin   # same env as diff-multiome
+CELLRANK_ENV=/projects/hzhu10@xsede.org/software/anaconda/envs/cellrank   # CellRank 2 + scVelo + scanpy (step 7.3d)
 # single.cell needs these when its binaries are called by full path (no conda activate in
 # jobs): otherwise pandas loads the system libstdc++ (GLIBCXX_3.4.29 not found), and the
 # rpy2-based steps (SoupX, scDblFinder, SCTransform) need R_HOME. Same as diff-multiome.

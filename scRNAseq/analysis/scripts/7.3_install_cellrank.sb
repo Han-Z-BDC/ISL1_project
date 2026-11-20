@@ -1,40 +1,24 @@
 #!/bin/bash
-#SBATCH --job-name=isl1_install_cellrank
+#SBATCH --job-name=isl1_env_cellrank
 #SBATCH --partition=acompile
 #SBATCH --qos=compile
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=15G
-#SBATCH --time=01:00:00
-#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/install_cellrank.%j.out
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=30G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/env_cellrank.%j.out
 
-# One-off (user, 2026-11-19): add CellRank 2 to the single.cell env for step 7.3d (fate probabilities, terminal states,
-# driver genes on the D15 endocrine cells). pip, only-if-needed. A dry run first: if pip would change any package that
-# is already installed, nothing is installed and the job stops (the env's scanpy / anndata / scvelo stay as they are).
-# Run from the repo root: sbatch analysis/scripts/7.3_install_cellrank.sb
+# One-off (user, 2026-11-19): a separate env for CellRank 2 (step 7.3d), so the single.cell env is not changed
+# (CellRank 2.0.7 pins Jinja2 < 3.1; single.cell has 3.1.5). Built with the lab micromamba bootstrap (no miniforge
+# module on Alpine), conda-forge + bioconda only. Env path: CELLRANK_ENV in study_config/config.sh.
+# Run from the repo root: sbatch analysis/scripts/7.3_install_cellrank.sb   (rerun rebuilds the env from scratch)
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
-PY="${TOOLS}/python"
-"${PY}" -m pip --version
-REP=$(mktemp)
-"${PY}" -m pip install --dry-run --upgrade-strategy only-if-needed --report "${REP}" "cellrank>=2" >/dev/null
-"${PY}" - "${REP}" <<'PYEOF'
-import json, sys
-from importlib.metadata import version, PackageNotFoundError
-rep = json.load(open(sys.argv[1]))
-new, changed = [], []
-for it in rep["install"]:
-    n, v = it["metadata"]["name"], it["metadata"]["version"]
-    try:
-        cur = version(n)
-        changed.append(f"{n} {cur} -> {v}")
-    except PackageNotFoundError:
-        new.append(f"{n} {v}")
-print("new packages:", ", ".join(new) or "none")
-print("would change installed packages:", ", ".join(changed) or "none")
-if changed:
-    sys.exit("STOP: pip would change installed packages; nothing installed")
-PYEOF
-"${PY}" -m pip install --upgrade-strategy only-if-needed "cellrank>=2"
-"${PY}" -c "import cellrank as cr, scvelo as scv, scanpy as sc; print('cellrank', cr.__version__, 'scvelo', scv.__version__, 'scanpy', sc.__version__)"
+export MAMBA_ROOT_PREFIX=/projects/hzhu10@xsede.org/software/micromamba_bootstrap
+MM="${MAMBA_ROOT_PREFIX}/bin/micromamba"
+rm -rf "${CELLRANK_ENV}"
+"${MM}" create -y -p "${CELLRANK_ENV}" --override-channels -c conda-forge -c bioconda \
+  "python=3.11" "cellrank>=2" scvelo scanpy anndata loompy plotly matplotlib pandas numpy scipy h5py
+"${CELLRANK_ENV}/bin/python" -c "import cellrank as cr, scvelo as scv, scanpy as sc, anndata as ad, plotly; \
+print('cellrank', cr.__version__, '| scvelo', scv.__version__, '| scanpy', sc.__version__, '| anndata', ad.__version__)"
