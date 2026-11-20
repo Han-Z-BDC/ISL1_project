@@ -38,21 +38,47 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
 ## Compartment subclustering (step 7.1d)
 
 - D15 overview at **resolution 0.2** (7 clusters, 2026-11-18). Endocrine compartment = r0.2 clusters **0, 1, 5**
-  (CHGA+/FEV+ endocrine; control-only ISL1+/SCG5+; DCC+/TOX+ endocrine progenitors): 6,284 cells.
+  (CHGA+/FEV+ endocrine; control-only ISL1+/SCG5+; DCC+/TOX+ endocrine progenitors), minus 290 non-endocrine
+  carry-over cells (user, 2026-11-19; first-run r0.6 subcluster 9: FN1, VIM, AFP, FGB, low counts, cycling; barcodes
+  in `study_config/annotation/D15_endocrine_excluded_cells.txt`, 7.1d exclusion option): **5,994 cells**.
 - The compartment is re-processed on its own: SCT B refit on its cells only (`7.1c_day_sct.R` subset mode, same
   settings), 30 PCs, 15 neighbours, UMAP in 2D and 3D, Leiden 0.2-1.2. Markers vs the rest of the compartment.
   Output: `day_analysis/D15/subcluster_endocrine/` (report, `umap3d.html` interactive 3D UMAP).
 
-## Current state (2026-11-18)
+## Current state (2026-11-19)
 
 - 7.1b clustering on SCT B done for D15, D22 and D40.
-- D15: overview resolution 0.2; endocrine subclustering (7.1d) done. Report with interactive 3D UMAP (7.1e) at
-  subcluster resolution 0.6 with **draft** labels (`study_config/annotation/D15_endocrine_r0.6.tsv`; status column
-  = draft until confirmed). The report has interactive 2D (all / control / KO) and 3D UMAPs.
-- D15 is **paused** here (2026-11-18, user: complicated, come back later). Not decided yet: the subcluster
-  resolution (0.6 is a working choice), the endocrine labels (all draft), and whether to subcluster the other D15
-  compartments. Summary so far: hormone+ cells (beta-, alpha-, delta-like) are almost control-only; KO cells sit in
-  FEV+, EC-like (LMX1A+) and two KO-only states.
+- D15: overview resolution 0.2; endocrine subset (7.1d) rerun without the non-endocrine cells (2026-11-19), 11
+  subclusters at r0.6. Names (user, 2026-11-19; `study_config/annotation/D15_endocrine_r0.6.tsv`, no groups):
+  0 **pre_beta2**, 1 **ENP2**, 2 **ENP1**, 3 **ENP_PHOX2A+**, 4 **ENP_FEV_high**, 5 **pre_alpha**, 6 **pre_delta**,
+  7 **pre_EC**, 8 **pre_beta1**, 9 **pre_alpha_KO**, 10 **KO_only**. The first run's draft labels were removed (the
+  rerun renumbered the subclusters); each cell's previous label is kept on scratch
+  (`day_analysis/D15/subcluster_endocrine_previous_labels.csv`) and shown in the 7.1e report next to the new
+  subclusters. Report: `D15_endocrine_r0.6_report.html` (2D UMAP split by genotype with subcluster numbers and
+  names at the centres). Not decided yet: whether to subcluster the other D15 compartments.
+- D15 + D22 endocrine integration (step 7.2, user, 2026-11-19): D15 endocrine subset (5,994) + D22 endocrine cells
+  (every 7.1h label except non-endocrine, 15,069). SCT B on the merged cells (S - G2M regressed, MT- genes out of the
+  3,000 variable genes); batch = stage only, genotype not corrected; Harmony (PCs 1-30 of the merged model), RPCA
+  (one SCT B model per stage; anchor genes = the merged model's genes present in both stage models, 2,996 of 3,000),
+  scVI (counts of the same 3,000 genes, batch = stage, S - G2M covariate). No clustering. Report
+  `day_analysis/integration_D15_D22_endocrine/D15_D22_endocrine_integration.html` (UMAPs by stage / genotype /
+  labels, stage mixing, labels and genotype kept, nearest D22 label per D15 state, marker genes). Method not chosen
+  yet. D15 pre_delta lands next to D22 SC_delta (Harmony 74%, RPCA 84%, scVI 58% of its cells).
+- D15 trajectory (step 7.3, user, 2026-11-19): question = where the KO stops on the way to alpha / beta and which
+  genes switch on right after (candidates for ISL1-controlled steps).
+  - 7.3a Slingshot in PCA space (SCT B PCs 1-30 and 1-15, never on a UMAP; curves only drawn on the 2D / 3D UMAPs),
+    start ENP1, ends fixed to pre_beta2, pre_alpha, pre_delta, pre_EC, ENP_PHOX2A+ (user: the free-ended tree put
+    pre_delta after pre_beta2). Lineages (same for 30 and 15 PCs): ENP1 -> ENP2 -> ENP_FEV_high -> pre_beta1 ->
+    pre_beta2 | -> pre_alpha_KO -> pre_alpha | -> pre_beta1 -> pre_EC | -> ENP_PHOX2A+ | -> KO_only;
+    ENP1 -> ENP2 -> pre_delta. condiments: KO progression differs on every lineage (strongest alpha, beta, delta;
+    weakest PHOX2A, p 0.03), and KO splits between lineages differently (p < 1e-58).
+  - 7.3b velocyto per D15 sample (spliced / unspliced, Cell Ranger BAMs); 7.3c scVelo dynamical model with arrows on
+    the 2D and 3D UMAPs; 7.3d CellRank 2 with a velocity kernel and a Slingshot-pseudotime kernel (fates, terminal
+    states, driver genes for pre_alpha / pre_beta2); 7.3e tradeSeq on all genes detected in >= 10 cells (control
+    vs KO condition tests per lineage, early DE at branches, gene modules by curve shape). CellRank runs in its own
+    env (`CELLRANK_ENV`; CellRank 2.0.7 pins Jinja2 < 3.1, single.cell has 3.1.5). Running on 2026-11-19.
+  - Next: comparison report (Slingshot curves, velocity, CellRank fates, KO drop-off per lineage, tradeSeq modules);
+    then cross the candidate genes with ISL1 CUT&RUN and bulk KO.
 - D22 **annotated** (user, 2026-11-18). Rules: `study_config/annotation/D22_annotation.tsv`; per-cell labels from
   step 7.1h (`day_analysis/D22/labels/`: labels.csv, composition.csv, umap_labels.png).
   - Base: overview resolution **0.2**: 0 **SC_alpha**, 1 **SC_beta**, 2 **non-endocrine**, 3 **SC_EC1**, 4 **SC_EC2**.
