@@ -11,12 +11,22 @@ Decisions (user, 2026-11-19): the 7.3 set on the 7.2 integration (scVI). Same de
              by one (12 -> 11 -> ...); the bound used is in the macrostates table (search_max)
              fixed:       terminal states = the clusters that end the 7.4a Slingshot lineages (D22 SC_beta, SC_alpha,
                           SC_delta, SC_EC1, SC_EC2 by design, plus any free ends Slingshot chose)
+             per genotype (ctr / KO runs): the Slingshot ends with >= 50 cells of that genotype; KO also
+             D15 pre_alpha_KO (as in 7.3d). alpha_beta_EC: ctr SC_beta, SC_alpha, SC_EC1, SC_EC2;
+             KO SC_EC1, SC_EC2, D15 pre_alpha_KO (SC_alpha 2 and SC_beta 1 KO cells)
+  cells      (user, 2026-11-20, as 7.3d) all cells (shared graph), and a control-only and a KO-only run: 30-neighbour
+             graph rebuilt on that genotype's cells (same scVI latent); velocities from the shared scVelo model (7.4c);
+             pseudotime = the shared Slingshot pseudotime. The shared graph lets KO cells borrow control paths; the
+             per-genotype data-driven terminal states show where each genotype's flow ends.
   fates      fate probabilities toward the fixed terminal states; summary = mean per label x genotype
   drivers    Pearson r between log1p expression (SoupX counts normalised to 10,000 per cell; genes detected in
-             >= 10 cells) and the fate probability toward SC_alpha and toward SC_beta, in the early D15 cells
-             (ENP1, ENP2, ENP_FEV_high), control cells only and all cells; p from Fisher z, FDR (BH)
-Writes ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine/trajectory/ (reruns overwrite):
-  cellrank_{kernel}_fates.csv, _fate_summary.csv, _macrostates.csv, _drivers.csv, _fates.png (scVI 2D UMAP)
+             >= 10 cells) and a fate probability, in the early D15 cells (ENP1, ENP2, ENP_FEV_high); p from Fisher z,
+             FDR (BH). all: SC_alpha and SC_beta, control early cells and all early cells; ctr / KO: every fixed
+             terminal state, that genotype's early cells
+Writes ${OUT_DIR}/day_analysis/integration_D15_D22_endocrine/trajectory/ (reruns overwrite); {run} = {kernel} (all
+cells) or {kernel}_ctr / {kernel}_KO:
+  cellrank_{run}_fates.csv (with the data-driven macrostate per cell), _fate_summary.csv, _macrostates.csv (cells per
+  state, by genotype), _drivers.csv, _fates.png (scVI 2D UMAP)
 Run: sbatch analysis/scripts/7.4d_cellrank.sb
 With INT_SUBSET=<name> (user, 2026-11-19: alpha_beta_EC), everything reads and writes the 7.2 subset folder
 integration_D15_D22_endocrine_<name>/ instead: its cells, scVI latent and scVI UMAP.
@@ -56,6 +66,9 @@ INT = OUT_DIR / "day_analysis" / ("integration_D15_D22_endocrine" + (f"_{SUBSET}
 TR = INT / "trajectory"
 EARLY = ["D15 ENP1", "D15 ENP2", "D15 ENP_FEV_high"]
 DRIVE = ["SC_alpha", "SC_beta"]
+MIN_END = 50                                  # per-genotype fixed ends: >= 50 cells of that genotype
+GENO_EXTRA = {"KO": ["D15 pre_alpha_KO"]}     # where KO alpha-side cells stop (as 7.3d)
+SEED, NCPU = 1234, int(os.environ.get("SLURM_CPUS_PER_TASK", "4"))
 FEAT_CMAP = matplotlib.colors.LinearSegmentedColormap.from_list("feat", ["#e8e8e8", "#fdbb84", "#e34a33", "#7f0000"])
 
 
@@ -71,13 +84,13 @@ def slingshot_time(a):
     return t / t.max()
 
 
-def drivers(expr, genes, fates, mask, tag):
+def drivers(expr, genes, fates, mask, tag, lineages=DRIVE):
     rows = []
     X = expr[mask]
     X = X.toarray() if sparse.issparse(X) else np.asarray(X)
     Xc = X - X.mean(0); sx = np.sqrt((Xc ** 2).sum(0))
     n = mask.sum()
-    for l in DRIVE:
+    for l in lineages:
         if l not in fates:
             continue
         f = fates[l].to_numpy()[mask]; fc = f - f.mean()
@@ -102,15 +115,19 @@ def macrostates(g):
     raise ValueError("no macrostate number between 4 and 5 avoids splitting complex-conjugate eigenvalues")
 
 
-def run(name, a, kernel, full, ends):
+def run(name, a, kernel, full, ends, cells):
     g = cr.estimators.GPCCA(kernel)
     g.compute_schur(n_components=20)
+    a.obs["macrostate"] = pd.Series(np.nan, index=a.obs_names, dtype=object)
     try:
         hi = macrostates(g)
         g.predict_terminal_states()
-        ms = a.obs.assign(m=g.macrostates).dropna(subset=["m"])
-        mt = ms.groupby("m", observed=True).agg(cells=("label", "size"),
-                                                 main_label=("label", lambda x: x.value_counts().index[0]))
+        a.obs["macrostate"] = g.macrostates.astype(object).to_numpy()
+        ms = a.obs.dropna(subset=["macrostate"])
+        mt = ms.groupby("macrostate").agg(cells=("label", "size"),
+                                         ctr=("genotype", lambda x: int((x == "ctr").sum())),
+                                         KO=("genotype", lambda x: int((x == "KO").sum())),
+                                         main_label=("label", lambda x: x.value_counts().index[0]))
         mt["terminal"] = mt.index.isin(g.terminal_states.cat.categories)
         mt["search_max"] = hi
         mt.to_csv(TR / f"cellrank_{name}_macrostates.csv")
@@ -120,10 +137,10 @@ def run(name, a, kernel, full, ends):
         print(name, "macrostates failed:", e)
     lab = a.obs.label.astype(str)
     g.set_terminal_states(states=lab.where(lab.isin(ends)).astype("category"), cluster_key="label")
-    g.compute_fate_probabilities(n_jobs=int(os.environ.get("SLURM_CPUS_PER_TASK", "4")), use_petsc=False)   # petsc4py in the env lacks Mat.getVecs (CellRank 2.0.7); scipy solver instead
+    g.compute_fate_probabilities(n_jobs=NCPU, use_petsc=False)   # petsc4py in the env lacks Mat.getVecs (CellRank 2.0.7); scipy solver instead
     fp = g.fate_probabilities
     fates = pd.DataFrame(np.asarray(fp), index=a.obs_names, columns=list(fp.names))
-    out = pd.concat([a.obs[["label", "stage", "genotype"]], fates.round(4)], axis=1)
+    out = pd.concat([a.obs[["label", "stage", "genotype", "macrostate"]], fates.round(4)], axis=1)
     out.to_csv(TR / f"cellrank_{name}_fates.csv")
     summ = out.groupby(["label", "genotype"], observed=True)[list(fates.columns)].mean().round(3)
     summ.insert(0, "cells", out.groupby(["label", "genotype"], observed=True).size())
@@ -131,26 +148,42 @@ def run(name, a, kernel, full, ends):
     print(name, "mean fate probability by label x genotype:\n", summ.to_string())
     ko = (a.obs.genotype == "KO").to_numpy()
     early = lab.isin(EARLY).to_numpy()
-    dr = pd.concat([drivers(full.X, full.var_names, fates, early & ~ko, "control early"),
-                    drivers(full.X, full.var_names, fates, early, "all early")])
+    if cells == "all":
+        dr = pd.concat([drivers(full.X, full.var_names, fates, early & ~ko, "control early"),
+                        drivers(full.X, full.var_names, fates, early, "all early")])
+        show = [(l, "control early") for l in DRIVE if l in fates]
+    else:
+        tag = f"{cells} early"
+        dr = drivers(full.X, full.var_names, fates, early, tag, list(fates.columns))
+        show = [(l, tag) for l in fates.columns]
     dr = dr.sort_values(["lineage", "cells", "r"], ascending=[True, True, False], kind="stable")
     dr.to_csv(TR / f"cellrank_{name}_drivers.csv", index=False)
-    for l in DRIVE:
-        top = dr[(dr.lineage == l) & (dr.cells == "control early")].head(20).gene.tolist()
-        print(name, l, "top drivers (control early D15 cells):", ", ".join(top))
+    for l, t in show:
+        top = dr[(dr.lineage == l) & (dr.cells == t)].head(20).gene.tolist()
+        print(name, l, f"top drivers ({t} D15 cells):", ", ".join(top))
     u = a.obsm["X_umap_2d"]
-    fig, axs = plt.subplots(len(fates.columns), 2, figsize=(11, 4.6 * len(fates.columns)), squeeze=False)
+    panels = [("control", ~ko), ("ISL1 KO", ko)] if cells == "all" else \
+             [("control" if cells == "ctr" else "ISL1 KO", np.ones(a.n_obs, bool))]
+    nc = len(panels)
+    fig, axs = plt.subplots(len(fates.columns), nc, figsize=(5.5 * nc, 4.6 * len(fates.columns)), squeeze=False)
     for i, l in enumerate(fates.columns):
-        for j, (t, m) in enumerate([("control", ~ko), ("ISL1 KO", ko)]):
+        for j, (t, m) in enumerate(panels):
             ax = axs[i, j]
             ax.scatter(u[~m, 0], u[~m, 1], c="#f0f0f0", s=2, linewidths=0, rasterized=True)
             v = fates[l].to_numpy(); o = np.where(m)[0]; o = o[np.argsort(v[o], kind="stable")]
             s_ = ax.scatter(u[o, 0], u[o, 1], c=v[o], s=3, cmap=FEAT_CMAP, vmin=0, vmax=1, linewidths=0,
                             rasterized=True)
             ax.set_title(f"{name}: fate -> {l}, {t}", fontsize=10); ax.set_xticks([]); ax.set_yticks([])
-            if j == 1:
+            if j == nc - 1:
                 plt.colorbar(s_, ax=ax, fraction=0.04)
     fig.tight_layout(); fig.savefig(TR / f"cellrank_{name}_fates.png", dpi=80); plt.close(fig)
+
+
+def kernels(a):
+    ck = cr.kernels.ConnectivityKernel(a).compute_transition_matrix()
+    vk = cr.kernels.VelocityKernel(a).compute_transition_matrix()
+    pk = cr.kernels.PseudotimeKernel(a, time_key="slingshot_time").compute_transition_matrix()
+    return {"velocity": 0.8 * vk + 0.2 * ck, "pseudotime": 0.8 * pk + 0.2 * ck}
 
 
 def main():
@@ -164,11 +197,17 @@ def main():
     sc.pp.normalize_total(full, target_sum=1e4); sc.pp.log1p(full)     # totals over all genes, then filter
     full = full[:, keep].copy()
     print(a, "\ndriver genes tested:", full.n_vars)
-    ck = cr.kernels.ConnectivityKernel(a).compute_transition_matrix()
-    vk = cr.kernels.VelocityKernel(a).compute_transition_matrix()
-    pk = cr.kernels.PseudotimeKernel(a, time_key="slingshot_time").compute_transition_matrix()
-    run("velocity", a, 0.8 * vk + 0.2 * ck, full, ends)
-    run("pseudotime", a, 0.8 * pk + 0.2 * ck, full, ends)
+    for k, kern in kernels(a).items():
+        run(k, a, kern, full, ends, "all")
+    for gt in ["ctr", "KO"]:
+        b = a[(a.obs.genotype == gt).to_numpy()].copy()
+        sc.pp.neighbors(b, use_rep="X_scvi", n_neighbors=30, random_state=SEED)   # graph within the genotype
+        n = b.obs.label.astype(str).value_counts()
+        e = [x for x in ends if n.get(x, 0) >= MIN_END] + [x for x in GENO_EXTRA.get(gt, []) if n.get(x, 0) >= MIN_END]
+        print(f"\n== {gt} only: {b.n_obs} cells; fixed ends: {e}; labels:", n.to_dict())
+        fb = full[b.obs_names]
+        for k, kern in kernels(b).items():
+            run(f"{k}_{gt}", b, kern, fb, list(dict.fromkeys(e)), gt)
     print("wrote", TR)
 
 
