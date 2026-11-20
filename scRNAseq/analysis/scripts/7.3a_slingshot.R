@@ -5,7 +5,8 @@
 #   input   day_analysis/D15/subcluster_endocrine/: SCT_B_pca.csv.gz (SCT B refit on the 5,994 cells, 50 PCs),
 #           subclusters.csv (sub_r0p6, UMAP1/2, UMAP3D_1-3); names from study_config/annotation/D15_endocrine_r0.6.tsv
 #   runs    PCs 1-30 (the clustering's PCs) and PCs 1-15 (less noise); clusters = the r0.6 names; start = ENP1;
-#           ends not fixed (Slingshot finds them from the cluster tree)
+#           ends fixed (user, 2026-11-19) to pre_beta2, pre_alpha, pre_delta, pre_EC, ENP_PHOX2A+ (each must end its own
+#           lineage, so pre_delta is not placed after pre_beta2 as in the free-ended tree); KO_only and pre_alpha_KO free
 #   tests   condiments (if installed): progressionTest (does KO progress less far along each lineage?) and
 #           differentiationTest (do control and KO split between lineages differently?)
 # Writes ${OUT_DIR}/day_analysis/D15/trajectory/ (reruns overwrite):
@@ -16,6 +17,7 @@
 # Run: sbatch analysis/scripts/7.3a_slingshot.sb
 suppressPackageStartupMessages({ library(slingshot) })
 SEED <- 1234; set.seed(SEED)
+END <- c("pre_beta2", "pre_alpha", "pre_delta", "pre_EC", "ENP_PHOX2A+")
 od <- Sys.getenv("OUT_DIR"); rd <- Sys.getenv("REPO_DIR")
 sub <- file.path(od, "day_analysis", "D15", "subcluster_endocrine")
 out <- file.path(od, "day_analysis", "D15", "trajectory"); dir.create(out, showWarnings = FALSE, recursive = TRUE)
@@ -44,7 +46,8 @@ curves_out <- function(emb, f) {
 
 for (n in c(30, 15)) {
   set.seed(SEED)
-  sds <- slingshot(pca[, seq_len(n)], clusterLabels = lab, start.clus = "ENP1", approx_points = 150)
+  sds <- slingshot(pca[, seq_len(n)], clusterLabels = lab, start.clus = "ENP1", end.clus = END,
+                   approx_points = 150)
   ln <- slingLineages(sds)
   cat("\nPCs 1-", n, ": ", length(ln), " lineages\n", sep = "")
   for (l in names(ln)) cat(" ", l, ":", paste(ln[[l]], collapse = " -> "), "\n")
