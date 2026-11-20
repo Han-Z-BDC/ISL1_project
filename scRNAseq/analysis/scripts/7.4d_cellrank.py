@@ -6,7 +6,9 @@ Decisions (user, 2026-11-19): the 7.3 set on the 7.2 integration (scVI). Same de
              pseudotime 0.8 PseudotimeKernel on Slingshot pseudotime (7.4a, scVI latent; one value per cell =
                         lineage-weight-averaged pseudotime, scaled to 0-1) + 0.2 ConnectivityKernel
              (same 30-neighbour graph on the scVI latent for both)
-  states     data-driven: GPCCA macrostates (Schur vectors, n 4-12) and predicted terminal states
+  states     data-driven: GPCCA macrostates (Schur vectors, n 4-12) and predicted terminal states; when the chosen
+             n would split a complex-conjugate eigenvalue pair, the search is retried with the upper bound lowered
+             by one (12 -> 11 -> ...); the bound used is in the macrostates table (search_max)
              fixed:       terminal states = the clusters that end the 7.4a Slingshot lineages (D22 SC_beta, SC_alpha,
                           SC_delta, SC_EC1, SC_EC2 by design, plus any free ends Slingshot chose)
   fates      fate probabilities toward the fixed terminal states; summary = mean per label x genotype
@@ -87,19 +89,34 @@ def drivers(expr, genes, fates, mask, tag):
     return pd.concat(rows)
 
 
+def macrostates(g):
+    """Eigengap search over 4..hi states; lower hi when the chosen n would split a complex-conjugate pair."""
+    for hi in range(12, 4, -1):
+        try:
+            g.compute_macrostates(n_states=[4, hi], cluster_key="label")
+            return hi
+        except ValueError as e:
+            if "complex conjugate" not in str(e):
+                raise
+            print("  macrostates: upper bound", hi, "splits a complex-conjugate pair; retrying with", hi - 1)
+    raise ValueError("no macrostate number between 4 and 5 avoids splitting complex-conjugate eigenvalues")
+
+
 def run(name, a, kernel, full, ends):
     g = cr.estimators.GPCCA(kernel)
     g.compute_schur(n_components=20)
     try:
-        g.compute_macrostates(n_states=[4, 12], cluster_key="label")
+        hi = macrostates(g)
         g.predict_terminal_states()
         ms = a.obs.assign(m=g.macrostates).dropna(subset=["m"])
         mt = ms.groupby("m", observed=True).agg(cells=("label", "size"),
                                                  main_label=("label", lambda x: x.value_counts().index[0]))
         mt["terminal"] = mt.index.isin(g.terminal_states.cat.categories)
+        mt["search_max"] = hi
         mt.to_csv(TR / f"cellrank_{name}_macrostates.csv")
-        print(name, "data-driven macrostates:\n", mt.to_string())
+        print(name, f"data-driven macrostates ({len(mt)}, search 4-{hi}):\n", mt.to_string())
     except Exception as e:   # keep going to the fixed terminal states
+        (TR / f"cellrank_{name}_macrostates.csv").unlink(missing_ok=True)
         print(name, "macrostates failed:", e)
     lab = a.obs.label.astype(str)
     g.set_terminal_states(states=lab.where(lab.isin(ends)).astype("category"), cluster_key="label")
