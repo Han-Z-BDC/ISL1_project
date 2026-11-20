@@ -55,7 +55,8 @@ def main():
     cl_ids = sorted(comp.index.astype(int))
     labelled = False
     if lab_f.exists():
-        lab = pd.read_csv(lab_f, sep="\t", index_col=0)
+        lab = pd.read_csv(lab_f, sep="\t", index_col=0, keep_default_na=False)
+        lab["group"] = lab["group"].replace("", "no group")
         lab.index = lab.index.astype(int)
         labelled = set(lab.index) == set(cl_ids)
         if not labelled:
@@ -134,7 +135,7 @@ def main():
     def esc(s):
         return html.escape(str(s))
     trs = "".join(
-        f"<tr><td class=n>{d['id']}</td><td><span class=sw data-g=\"{groups.index(d['group'])}\"></span>{esc(d['label'])}</td>"
+        f"<tr><td class=n>{d['id']}</td><td><span class=sw data-s=\"{d['id']}\"></span>{esc(d['label'])}</td>"
         f"<td>{esc(d['group'])}</td><td class=n>{d['cells']:,}</td><td class=n>{d['ctr']:.1f}</td>"
         f"<td class=n>{d['ko']:.1f}</td><td class=n>{(d['ko'] / d['ctr']) if d['ctr'] > 0 else float('inf'):.2f}</td>"
         f"<td class=mk>{esc(d['markers'])}</td><td class=mk>{esc(d['prev'])}</td></tr>" for d in order)
@@ -152,7 +153,7 @@ def main():
         "@@KCTR@@": str(kpi["koonly_ctr"]), "@@KKO@@": str(kpi["koonly_ko"]),
         "@@DOT@@": b64(out / f"dotplot_genes_r{res}.png"),
         "@@DATA@@": json.dumps(data, separators=(",", ":")), "@@PREV@@": prev_html,
-        "@@KPISTYLE@@": "" if labelled else "display:none",
+        "@@KPISTYLE@@": "" if hormone else "display:none",   # the summary boxes need label groups
     }.items():
         page = page.replace(k, v)
     dest = out / f"{day}_{name}_r{res}_report.html"
@@ -259,15 +260,15 @@ const subLabel = {}; D.clusters.forEach(c => subLabel[c.id] = c.label);
 const PAL = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948', '#17becf',
   '#8c564b', '#7f7f7f', '#bcbd22', '#393b79', '#ad494a'];
 const subIdx = {}; D.clusters.forEach((c, i) => subIdx[c.id] = i);
-const subCol = id => D.labelled ? gcol(subGroup[id]) : PAL[subIdx[id] % PAL.length];
+const subCol = id => PAL[subIdx[id] % PAL.length];   // one colour per subcluster
 const subName = id => id + (D.labelled ? ' ' + subLabel[id] : '');
 const prevTxt = i => D.prevs.length ? '<br>previous: ' + D.prevs[D.prev[i]] : '';
-let filt = 'all', mode = D.labelled ? 'group' : 'sub';
+let filt = 'all', mode = D.labelled && D.groups.length > 1 ? 'group' : 'sub';
 
 const sel = document.getElementById('col');
 [['group', 'Label group'], ['sub', 'Subcluster'], ['prev', 'Previous draft label'], ['geno', 'Genotype'], ['sample', 'Sample'],
   ['parent', 'Overview cluster']]
-  .filter(([v]) => (v !== 'group' || D.labelled) && (v !== 'prev' || D.prevs.length))
+  .filter(([v]) => (v !== 'group' || (D.labelled && D.groups.length > 1)) && (v !== 'prev' || D.prevs.length))
   .forEach(([v, t]) => sel.add(new Option(t, v)));
 const og = document.createElement('optgroup'); og.label = 'Gene (log1p)';
 D.genes.forEach(g => og.appendChild(new Option(g, 'gene:' + g))); sel.appendChild(og);
@@ -414,7 +415,7 @@ function comp() {
   }, { responsive: true, displaylogo: false });
 }
 
-document.querySelectorAll('.sw').forEach(s => s.style.background = gcol(+s.dataset.g));
+document.querySelectorAll('.sw').forEach(s => s.style.background = subCol(+s.dataset.s));
 sel.value = mode;
 sel.onchange = () => { mode = sel.value; draw(); draw2d(); };
 document.getElementById('lbl').onchange = () => { draw(); draw2d(); };
