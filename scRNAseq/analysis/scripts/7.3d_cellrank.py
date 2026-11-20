@@ -100,7 +100,7 @@ def run(name, a, kernel, full):
         print(name, "macrostates failed:", e)
     term = a.obs.label.astype(str).where(a.obs.label.astype(str).isin(ENDS))
     g.set_terminal_states(states=term.astype("category"), cluster_key="label")
-    g.compute_fate_probabilities(n_jobs=int(os.environ.get("SLURM_CPUS_PER_TASK", "4")))
+    g.compute_fate_probabilities(n_jobs=int(os.environ.get("SLURM_CPUS_PER_TASK", "4")), use_petsc=False)   # petsc4py in the env lacks Mat.getVecs (CellRank 2.0.7); scipy solver instead
     fp = g.fate_probabilities
     fates = pd.DataFrame(np.asarray(fp), index=a.obs_names, columns=list(fp.names))
     out = pd.concat([a.obs[["label", "genotype"]], fates.round(4)], axis=1)

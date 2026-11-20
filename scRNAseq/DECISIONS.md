@@ -107,6 +107,47 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     alpha_beta_EC <velocyto jobs> slingshot` first, so the lineages are seen before tradeSeq).
   - Velocyto D22 (7.3b with a day argument) writes the cellsorted BAMs next to the Cell Ranger BAMs; they are kept
     (user, 2026-11-19).
+  - alpha_beta_EC subset (2026-11-20): the user checked the 7.2d report of the retrained scVI ("looks good") and
+    asked for Slingshot on it. Slingshot: 4 lineages, start D15 ENP1, all through ENP2 -> ENP_FEV_high:
+    1 -> pre_EC -> pre_beta1 -> pre_beta2 -> SC_beta; 2 -> pre_alpha_KO -> pre_alpha -> SC_alpha;
+    3 -> pre_EC -> SC_EC2; 4 -> SC_EC1. The beta lineage still passes pre_EC before pre_beta1 (in this scVI 82% of
+    pre_beta1 cells sit next to SC_EC2); the user accepted the lineages and asked to submit tradeSeq, scVelo and
+    CellRank on them (2026-11-20). condiments: progression All 16.2 (p 1e-59; beta 0.76, alpha 0.68, EC2 0.22,
+    EC1 0.26); differentiation All 0.78 (p 0), EC2 vs EC1 0.52 (p 0.01).
+  - Job names: every D15 + D22 job starts with `isl1_int_` (D15-only jobs `isl1_`), user 2026-11-19.
+  - Environment fixes (CELLRANK_ENV: scvelo 0.3.4, cellrank 2.0.7, numpy 2.4.6), 2026-11-20, in 7.3c/d and 7.4c/d:
+    looms read with anndata.read_loom (no scv.read); filter_and_normalize only filters + normalises, so log1p and
+    the top 2,000 genes are done with scanpy; CellRank's VelocityKernel passes x= / y= to
+    np.testing.assert_array_equal (wrapped in the scripts); fate probabilities with use_petsc=False (the env's
+    petsc4py has no Mat.getVecs). The env itself is unchanged.
+- **Competency question** (user, 2026-11-20). PLAN ONLY -- the user is still reviewing it; nothing is run.
+  - Experimental findings (user): the progenitors competent for alpha and for beta differ, and competency changes
+    over time: **alpha competency lasts until ~D18 and is then lost; beta competency lasts until ~D26**. In the
+    **ISL1 KO, alpha-competent cells turn on NKX6-1** (not seen in control alpha-competent cells) but keep alpha
+    competency until D18.
+  - Goal: use the D15 + D22 (alpha_beta_EC) trajectory to define alpha-competent and beta-competent progenitors and
+    say why their competency differs. D15 is inside both windows; D22 is after the alpha window and inside the beta
+    window, so D22 progenitors should be beta-competent only. D15 and D22 only, so the D18 boundary itself cannot be
+    placed. Fate probabilities are model predictions; the gene lists are hypotheses for experiments.
+  - **D22 progenitors by expression only** (user, 2026-11-20): the D22 "ENP" cells (135, 128 control) stay out of the
+    integration and trajectory; they enter only the competency step (program scores, classifier). The running
+    tradeSeq / scVelo / CellRank stay valid.
+  - Proposed steps (draft script `analysis/scripts/7.4f_competency.py`, not run):
+    1. groups among early D15 progenitors (ENP1, ENP2, ENP_FEV_high), per genotype, from CellRank fates only (both
+       kernels must agree): alpha-biased, beta-biased, mixed, EC-directed (proposed: alpha bias = P(alpha) /
+       (P(alpha) + P(beta)) >= 2/3, or <= 1/3, and P(alpha) + P(beta) >= 0.2). Never from markers: in KO, NKX6-1
+       does not mean beta competence.
+    2. checks against the experiments: NKX6-1 on in KO alpha-biased cells, off in control alpha-biased cells; D22 ENP
+       should look beta-biased and lack the alpha program.
+    3. where / when: D15 state, cell-cycle phase, latent time, Slingshot time per group.
+    4. why: per-sample pseudobulk edgeR -- alpha- vs beta-biased (control, paired by sample; and in KO), KO vs
+       control within alpha-biased and within beta-biased cells. Alpha / beta programs from the control test; core
+       alpha genes = also alpha-up in KO (separates the alpha program from the KO-only NKX6-1 response). Plus
+       tradeSeq early-DE (alpha vs beta lineage near the branch) and CellRank drivers.
+    5. time: alpha-program genes that drop in D22 ENP (candidates for losing alpha competency); beta-program genes
+       kept in D22 ENP (candidates for the longer beta window). D15 vs D22 is also a batch difference: descriptive.
+    6. later: TF activity (decoupler + CollecTRI, not installed), cross with ISL1 CUT&RUN and the bulk KO, report.
+  - Open: the user to check the plan (thresholds, groups, contrasts) before anything runs.
 - D22 **annotated** (user, 2026-11-18). Rules: `study_config/annotation/D22_annotation.tsv`; per-cell labels from
   step 7.1h (`day_analysis/D22/labels/`: labels.csv, composition.csv, umap_labels.png).
   - Base: overview resolution **0.2**: 0 **SC_alpha**, 1 **SC_beta**, 2 **non-endocrine**, 3 **SC_EC1**, 4 **SC_EC2**.
