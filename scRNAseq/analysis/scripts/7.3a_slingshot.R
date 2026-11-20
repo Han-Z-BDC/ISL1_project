@@ -35,12 +35,17 @@ u2 <- as.matrix(sc[, c("UMAP1", "UMAP2")]); u3 <- as.matrix(sc[, c("UMAP3D_1", "
 has_cond <- requireNamespace("condiments", quietly = TRUE)
 cat(nrow(pca), "cells;", table(geno), "; condiments:", has_cond, "\n")
 
-curves_out <- function(emb, f) {
+curves_out <- function(emb, f, lineages) {
   cv <- slingCurves(emb, as.df = FALSE)
+  # embedCurves (slingshot 2.14) returns the curves in lineage order but without names; looping over names(cv)
+  # then wrote an empty file (2026-11-19). Name them from the trajectory's lineages and refuse an empty table.
+  stopifnot(length(cv) == length(lineages))
+  if (is.null(names(cv))) names(cv) <- lineages
   d <- do.call(rbind, lapply(names(cv), function(l) {
     s <- cv[[l]]$s[cv[[l]]$ord, , drop = FALSE]
     data.frame(lineage = l, point = seq_len(nrow(s)), s, check.names = FALSE)
   }))
+  stopifnot(!is.null(d), nrow(d) > 0)
   write.csv(d, f, row.names = FALSE)
 }
 
@@ -57,8 +62,8 @@ for (n in c(30, 15)) {
   colnames(pt) <- paste0("pt_", colnames(pt)); colnames(w) <- paste0("w_", colnames(w))
   write.csv(data.frame(label = lab, genotype = geno, pt, w, check.names = FALSE),
             file.path(out, sprintf("slingshot_pc%d_cells.csv", n)))
-  curves_out(embedCurves(sds, u2), file.path(out, sprintf("slingshot_pc%d_curves_2d.csv", n)))
-  curves_out(embedCurves(sds, u3), file.path(out, sprintf("slingshot_pc%d_curves_3d.csv", n)))
+  curves_out(embedCurves(sds, u2), file.path(out, sprintf("slingshot_pc%d_curves_2d.csv", n)), names(ln))
+  curves_out(embedCurves(sds, u3), file.path(out, sprintf("slingshot_pc%d_curves_3d.csv", n)), names(ln))
   if (has_cond) {
     tests <- list()
     pr <- tryCatch(condiments::progressionTest(sds, conditions = geno, lineages = TRUE),

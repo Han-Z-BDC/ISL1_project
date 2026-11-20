@@ -72,6 +72,13 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     pre_beta2 | -> pre_alpha_KO -> pre_alpha | -> pre_beta1 -> pre_EC | -> ENP_PHOX2A+ | -> KO_only;
     ENP1 -> ENP2 -> pre_delta. condiments: KO progression differs on every lineage (strongest alpha, beta, delta;
     weakest PHOX2A, p 0.03), and KO splits between lineages differently (p < 1e-58).
+    Fix (2026-11-19): the embedded-curve files (`slingshot_pc{n}_curves_2d/3d.csv`) were empty, because embedCurves
+    (slingshot 2.14) returns the curves without lineage names; curves are now named from the lineages and an empty
+    table stops the job. 7.3a rerun: 6 lineages x 150 points in each file. Pseudotimes and weights unchanged (two
+    reruns identical; the first run differed only at floating-point level, progression statistic 17.204174 vs
+    17.204169), so 7.3e tradeSeq (started on the first run's `slingshot_pc30_cells.csv`) was not rerun. The
+    differentiation test is classifier-based and varies between runs (PCs 1-30, all lineages: 0.700 / p 3e-66 first
+    run, 0.692 / p 2e-61 rerun).
   - 7.3b velocyto per D15 sample (spliced / unspliced, Cell Ranger BAMs); 7.3c scVelo dynamical model with arrows on
     the 2D and 3D UMAPs; 7.3d CellRank 2 with a velocity kernel and a Slingshot-pseudotime kernel (fates, terminal
     states, driver genes for pre_alpha / pre_beta2); 7.3e tradeSeq on all genes detected in >= 10 cells (control
