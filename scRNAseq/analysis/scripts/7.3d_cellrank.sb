@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_cellrank
+#SBATCH --partition=amem
+#SBATCH --qos=mem-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=13
+#SBATCH --mem=256G
+#SBATCH --time=08:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/cellrank.%j.out
+
+# Step 7.3d: CellRank 2 (velocity and Slingshot pseudotime kernels) on the D15 endocrine cells -- see the .py docstring. Needs 7.3a and 7.3c.
+# Runs in the separate CellRank env (CELLRANK_ENV in study_config/config.sh).
+# Run from the repo root: sbatch analysis/scripts/7.3d_cellrank.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.3d_cellrank.py"
