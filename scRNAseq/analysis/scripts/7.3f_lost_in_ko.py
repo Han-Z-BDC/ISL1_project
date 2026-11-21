@@ -26,11 +26,20 @@ curve-based genes. Thresholds as proposed and accepted:
                    control early cells of the same runs
   profile          mean expression of the program genes (both + one kernel) along each lineage, control and KO, in
                    12 equal-width pseudotime bins (cells on the lineage), for later plots
+  on after stop    (user, 2026-11-20) genes control cells switch on right after the point where KO stops, per
+                   lineage: control cells on the lineage in the first half of the control path past the stop window
+                   (pseudotime from the window's end to the median of the control cells beyond it) vs control cells in
+                   the stop window; rises = log2FC >= 0.5, FDR < 0.05, and higher after the stop in each control
+                   replicate (pseudobulk); missing in KO = rises and KO cells in the stop window are below the control
+                   cells after it (log2FC <= -0.5, FDR < 0.05, both KO replicates below both control replicates);
+                   all genes tested, control-program membership flagged
 Genes: detected (SoupX counts > 0) in >= 10 of the 5,994 cells (the 7.3d driver gene set).
 Writes ${OUT_DIR}/day_analysis/D15/trajectory/ (reruns overwrite):
   cellrank_lost_in_KO.csv          gene x lineage x match x comparison: program membership and r per kernel,
                                    expression stats, replicate pseudobulk, call (lost / lost (one kernel) / gained / -)
   cellrank_lost_in_KO_profile.csv  gene, lineage, genotype, bin, pseudotime (bin centre), cells, mean log1p
+  cellrank_on_after_KO_stop.csv    gene x lineage: control stop / after and KO stop expression, rise in control,
+                                   KO vs control after, replicate pseudobulk, call
 Run: sbatch analysis/scripts/7.3f_lost_in_ko.sb   (CELLRANK_ENV python)
 """
 import os
@@ -124,6 +133,66 @@ def compare(a, mk, mc, rep, prog, lin, match, step, ko_desc, ctr_desc):
     return d
 
 
+def wilcox_lfc(X1, X0):
+    """log2FC (mean normalised expression, +0.01) and Wilcoxon FDR of X1 vs X0 (cells x genes, log1p)."""
+    lfc = np.log2((np.expm1(X1).mean(0) + 0.01) / (np.expm1(X0).mean(0) + 0.01))
+    p = stats.mannwhitneyu(X1, X0, axis=0, alternative="two-sided").pvalue
+    p = np.where(np.isnan(p), 1.0, p)
+    return lfc, stats.false_discovery_control(p)
+
+
+def pseudobulk(a, m):
+    c = np.asarray(a.layers["soupx_counts"][m].sum(0)).ravel()
+    return np.log2(c / max(c.sum(), 1) * 1e6 + 1)
+
+
+def on_after(a, pt, on, geno, label, rep, prog, lin, L, lo_, hi_):
+    """Genes control cells switch on right after the KO stop window, and whether KO cells express them."""
+    genes = a.var_names
+    beyond = on & (geno == "ctr") & (pt > hi_)
+    mid = np.median(pt[beyond])
+    ca = beyond & (pt <= mid)                                   # control, first half of the path past the KO stop
+    cs = on & (geno == "ctr") & (pt >= lo_) & (pt <= hi_)        # control, stop window
+    ks = on & (geno == "KO") & (pt >= lo_) & (pt <= hi_)         # KO, stop window
+    kb = on & (geno == "KO") & (pt > hi_)                        # the few KO cells past the stop
+    print(f"\n== {lin}: control after the KO stop, pseudotime {hi_:.1f}-{mid:.1f}: {ca.sum()} cells; labels:",
+          pd.Series(label[ca]).value_counts().to_dict(), f"| KO cells past the stop: {kb.sum()}")
+    Xa, Xs, Xk = dense(a.X[ca]), dense(a.X[cs]), dense(a.X[ks])
+    lfc_up, q_up = wilcox_lfc(Xa, Xs)                            # rise in control after vs at the stop
+    lfc_ko, q_ko = wilcox_lfc(Xk, Xa)                            # KO at the stop vs control after
+    reps = sorted(set(rep[ca | cs]))
+    pa = {r_: pseudobulk(a, ca & (rep == r_)) for r_ in reps}
+    ps = {r_: pseudobulk(a, cs & (rep == r_)) for r_ in reps}
+    rise_rep = np.logical_and.reduce([pa[r_] > ps[r_] for r_ in reps])
+    pk = {r_: pseudobulk(a, ks & (rep == r_)) for r_ in sorted(set(rep[ks]))}
+    ko_low = np.maximum.reduce(list(pk.values())) < np.minimum.reduce(list(pa.values()))
+    rises = (lfc_up >= LFC) & (q_up < FDR_MAX) & rise_rep
+    missing = rises & (lfc_ko <= -LFC) & (q_ko < FDR_MAX) & ko_low
+    d = pd.DataFrame({"gene": genes, "lineage": lin, "slingshot_lineage": L,
+                      "window_stop": f"{lo_:.1f}-{hi_:.1f}", "window_after": f"{hi_:.1f}-{mid:.1f}",
+                      "mean_ctr_stop": Xs.mean(0).round(3), "mean_ctr_after": Xa.mean(0).round(3),
+                      "mean_KO_stop": Xk.mean(0).round(3),
+                      "pct_ctr_stop": (100 * (Xs > 0).mean(0)).round(1), "pct_ctr_after": (100 * (Xa > 0).mean(0)).round(1),
+                      "pct_KO_stop": (100 * (Xk > 0).mean(0)).round(1),
+                      "log2FC_ctr_after_vs_stop": lfc_up.round(3), "FDR_ctr_after_vs_stop": q_up,
+                      "log2FC_KO_stop_vs_ctr_after": lfc_ko.round(3), "FDR_KO_stop_vs_ctr_after": q_ko,
+                      "rep_rise_in_ctr": rise_rep, "rep_KO_below_ctr_after": ko_low,
+                      "call": np.select([missing, rises], ["on after stop, missing in KO", "on after stop"], "-")})
+    for r_ in reps:
+        d[f"pb_after_{r_}"] = pa[r_].round(3); d[f"pb_stop_{r_}"] = ps[r_].round(3)
+    for r_, v in pk.items():
+        d[f"pb_stop_{r_}"] = v.round(3)
+    cols = [c for c in prog.columns if c.startswith(lin + "_")]
+    d = pd.concat([d.reset_index(drop=True), prog.loc[genes, cols].reset_index(drop=True)], axis=1)
+    d = d.sort_values(["call", "log2FC_ctr_after_vs_stop"], ascending=[True, False], kind="stable")
+    for call in ["on after stop, missing in KO", "on after stop"]:
+        s = d[d.call == call]
+        print(f"{lin}: {call}: {len(s)} (control program both kernels: "
+              f"{int((s[f'{lin}_program'] == 'both').sum())})")
+        print("  ", ", ".join(f"{g} ({v:+.2f})" for g, v in zip(s.gene.head(50), s.log2FC_ctr_after_vs_stop.head(50))))
+    return d
+
+
 def main():
     a = ad.read_h5ad(SUB / "D15_endocrine.h5ad")
     keep = np.asarray((a.layers["soupx_counts"] > 0).sum(0)).ravel() >= 10
@@ -157,7 +226,7 @@ def main():
     ln = pd.read_csv(TR / "slingshot_pc30_lineages.csv")
     end = {r.lineage: r.clusters.split(" -> ")[-1] for r in ln.itertuples()}
     prof_genes = np.isin(genes, prog.index[(prog.beta_program != "-") | (prog.alpha_program != "-")])
-    profile = []
+    profile, after = [], []
     for lin, fate in LINEAGES.items():
         L = [k for k, v in end.items() if v == fate]
         assert len(L) == 1, f"{fate}: lineages {L}"
@@ -173,6 +242,7 @@ def main():
             print(f"   {g} cells in window: {m.sum()}; labels:", pd.Series(label[m]).value_counts().to_dict())
         rows.append(compare(a, mk, mc, rep, prog, lin, "pseudotime", "stop",
                             f"KO {L} pt {lo_:.0f}-{hi_:.0f}", f"ctr {L} pt {lo_:.0f}-{hi_:.0f}"))
+        after.append(on_after(a, pt, on, geno, label, rep, prog, lin, L, lo_, hi_))
         # profile along the lineage
         edges = np.linspace(np.nanmin(pt[on]), np.nanmax(pt[on]), NBIN + 1)
         b = np.clip(np.digitize(pt, edges) - 1, 0, NBIN - 1)
@@ -193,6 +263,7 @@ def main():
     out = out.sort_values(["lineage", "match", "step", "call", "log2FC"], kind="stable")
     out.to_csv(TR / "cellrank_lost_in_KO.csv", index=False)
     pd.concat(profile).to_csv(TR / "cellrank_lost_in_KO_profile.csv", index=False)
+    pd.concat(after).to_csv(TR / "cellrank_on_after_KO_stop.csv", index=False)
     # agreement of the two matchings at the stop
     for lin in LINEAGES:
         s = {m: set(out[(out.lineage == lin) & (out.match == m) & (out.step == "stop") & (out.call == "lost")].gene)
