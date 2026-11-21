@@ -177,7 +177,18 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       EC, KO never reaches them (GCG, SCG5, SCG3, GNAS, TTR, TENM2); C2 602: early progenitor genes falling on every
       lineage (SOX4, DLK1, CDKN1C, TOX, DCC); C3 826: rise toward the EC end and mid beta / alpha, KO the same on EC
       (CHGA, INS, CRYBA2); C4 426: transient mid-path peak that control turns off late on beta / alpha while KO stays
-      high (RUNX1T1, NEGR1, SCG2, C9orf16). Finer k (seed-stable up to k = 10) to be looked at with the user.
+      high (RUNX1T1, NEGR1, SCG2, C9orf16).
+    - Finer cuts (user, 2026-11-21: try k 8-10): `gene_patterns_k{8,9,10}.csv` (+ clusters, heatmaps, curves, and
+      `gene_pattern_split_k4_to_k*.csv`); k-means agreement across seeds 0.97 / 0.97 / 0.95. At k = 10: C1 370 rise late
+      toward beta (less alpha, little EC), KO flat (TTR, APOA2, ISL1, SCGN, CALB2, PTPRN2, TENM2); C2 148 lower in KO on
+      all three lineages from the start (13 line-wide; VIM, AFP, ID2, S100A11); C3 343 early progenitor genes falling in
+      both genotypes (SOX4, DLK1, CDKN1C, TOX, RFX6); C4 216 dip then late rise on alpha in control, KO no recovery
+      (CPE, RGS4, NPAS3, PTPRG); C5 324 alpha-only rise in control, KO starts but stops (GCG, SCG5, SCG3, GNAS, SLC30A8,
+      ALDH1A1, GAST); C6 130 high early in KO only (LDHA, SLC2A1, ZEB2, JPT1); C7 427 rise toward beta and the EC end in
+      both genotypes, KO follows (INS, CRYBA2, STMN2, APOA1); C8 255 mid-path rise that control turns off late on beta /
+      alpha while KO keeps rising, higher in KO on EC (CHGA, LMX1A, MNX1, FEV, NR0B1); C9 241 transient mid-path peak in
+      both, turned off late (RUNX1T1, SCG2, cilia genes); C10 202 rise on the EC branch, stronger in KO and up in KO at
+      the beta / alpha stop (PTHLH, NETO1, NTM, KCNJ3, BHMT, DUSP4) = "switched to EC in KO". Choice of k open.
   - Next: cross the 7.3f lists with ISL1 CUT&RUN and bulk KO; comparison report (Slingshot, velocity, CellRank,
     KO drop-off, tradeSeq).
 - D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the

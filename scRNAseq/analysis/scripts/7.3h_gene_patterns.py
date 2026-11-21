@@ -28,9 +28,13 @@ Writes ${OUT_DIR}/day_analysis/D15/trajectory/ (reruns overwrite):
   gene_pattern_clusters.csv   cluster: genes, mean silhouette, source / program / line-wide composition, top genes
   gene_pattern_k.csv          k, silhouette, ARI vs Ward, ARI vs other seeds
   gene_patterns_heatmap.png, gene_patterns_curves.png
-Run: sbatch analysis/scripts/7.3h_gene_patterns.sb   (CELLRANK_ENV python)
+  extra k   (user, 2026-11-21: try k 8-10) optional argument, comma-separated k values: each writes its own
+            files with the suffix _k<k> (the silhouette-best k keeps the plain names) and a table of how the
+            silhouette-best clusters split into it (gene_pattern_split_k<best>_to_k<k>.csv)
+Run: sbatch analysis/scripts/7.3h_gene_patterns.sb [k,k,...]   (CELLRANK_ENV python)
 """
 import os
+import sys
 import warnings
 from pathlib import Path
 
@@ -150,73 +154,92 @@ def main():
         krows.append({"k": k, "silhouette": round(s, 4), "ARI_vs_ward": round(ari_w, 3), "ARI_vs_seeds": round(ari_s, 3)})
     kt = pd.DataFrame(krows); kt.to_csv(TR / "gene_pattern_k.csv", index=False)
     print(kt.to_string(index=False))
-    k = int(kt.sort_values(["silhouette", "k"], ascending=[False, True]).k.iloc[0])
-    lab_ = fits[k]
-    # order clusters by where the control curves peak (beta, alpha, EC order of columns)
-    order = pd.Series(np.argmax(Z, axis=1)).groupby(lab_).median().sort_values().index
-    remap = {old: i + 1 for i, old in enumerate(order)}
-    cl = np.array([remap[x] for x in lab_])
-    sil = silhouette_samples(Z, cl)
-    print(f"chosen k = {k}")
+    best = int(kt.sort_values(["silhouette", "k"], ascending=[False, True]).k.iloc[0])
+    ks = [int(x) for x in sys.argv[1].split(",")] if len(sys.argv) > 1 else [best]
+    print(f"silhouette-best k = {best}; writing k = {ks}")
+    ref = None
+    for k in ks:
+        sfx = "" if k == best else f"_k{k}"   # the silhouette-best k keeps the plain file names
+        lab_ = fits[k]
+        # order clusters by where the control curves peak (beta, alpha, EC order of columns)
+        order = pd.Series(np.argmax(Z, axis=1)).groupby(lab_).median().sort_values().index
+        remap = {old: i + 1 for i, old in enumerate(order)}
+        cl = np.array([remap[x] for x in lab_])
+        sil = silhouette_samples(Z, cl)
+        print(f"\n===== k = {k}")
 
-    gp = pd.DataFrame({"gene": gk, "cluster": cl, "silhouette": sil.round(3), "level_max": level[ok].round(3),
-                       "line_wide": np.isin(gk, list(line_wide)), "sources": tags.reindex(gk).to_numpy()})
-    gp = gp.merge(prog, left_on="gene", right_index=True, how="left")
-    gp = gp.sort_values(["cluster", "silhouette"], ascending=[True, False], kind="stable")
-    gp.to_csv(TR / "gene_patterns.csv", index=False)
-    crow = []
-    for c, d in gp.groupby("cluster"):
-        r = {"cluster": c, "genes": len(d), "mean_silhouette": round(d.silhouette.mean(), 3),
-             "line_wide": int(d.line_wide.sum())}
-        for p in ["beta_program", "alpha_program", "EC_program", "EC_KO_program"]:
-            r[p] = int((d[p] == "both").sum())
-        st = pd.Series([t for s in d.sources for t in s.split("; ")]).value_counts()
-        r["top_sources"] = "; ".join(f"{t} {v}" for t, v in st.head(6).items())
-        r["top_genes"] = ", ".join(d.sort_values("level_max", ascending=False).gene.head(20))
-        crow.append(r)
-    ct = pd.DataFrame(crow); ct.to_csv(TR / "gene_pattern_clusters.csv", index=False)
-    print(ct.drop(columns=["top_sources"]).to_string(index=False))
-    for r in crow:
-        print(f"\ncluster {r['cluster']} ({r['genes']}): {r['top_sources']}\n  {r['top_genes']}")
+        gp = pd.DataFrame({"gene": gk, "cluster": cl, "silhouette": sil.round(3), "level_max": level[ok].round(3),
+                           "line_wide": np.isin(gk, list(line_wide)), "sources": tags.reindex(gk).to_numpy()})
+        gp = gp.merge(prog, left_on="gene", right_index=True, how="left")
+        gp = gp.sort_values(["cluster", "silhouette"], ascending=[True, False], kind="stable")
+        gp.to_csv(TR / f"gene_patterns{sfx}.csv", index=False)
+        crow = []
+        for c, d in gp.groupby("cluster"):
+            r = {"cluster": c, "genes": len(d), "mean_silhouette": round(d.silhouette.mean(), 3),
+                 "line_wide": int(d.line_wide.sum())}
+            for p in ["beta_program", "alpha_program", "EC_program", "EC_KO_program"]:
+                r[p] = int((d[p] == "both").sum())
+            st = pd.Series([t for s in d.sources for t in s.split("; ")]).value_counts()
+            r["top_sources"] = "; ".join(f"{t} {v}" for t, v in st.head(6).items())
+            r["top_genes"] = ", ".join(d.sort_values("level_max", ascending=False).gene.head(20))
+            crow.append(r)
+        ct = pd.DataFrame(crow); ct.to_csv(TR / f"gene_pattern_clusters{sfx}.csv", index=False)
+        print(ct.drop(columns=["top_sources"]).to_string(index=False))
+        for r in crow:
+            print(f"\ncluster {r['cluster']} ({r['genes']}): {r['top_sources']}\n  {r['top_genes']}")
 
-    # ---- figures
-    Zfull = np.full((len(gk), len(fnames)), np.nan)
-    Zfull[:, keepcol] = Z
-    o = np.lexsort((-sil, cl))
-    fig, ax = plt.subplots(figsize=(14, 11))
-    im = ax.imshow(np.ma.masked_invalid(Zfull[o]), aspect="auto", cmap="RdBu_r", vmin=-2.5, vmax=2.5,
-                   interpolation="nearest")
-    im.cmap.set_bad("#d9d9d9")
-    for j in range(1, 6):
-        ax.axvline(j * NBIN - 0.5, c="k", lw=1.2 if j % 2 == 0 else 0.5)
-    ax.set_xticks([NBIN * j + NBIN / 2 - 0.5 for j in range(6)])
-    ax.set_xticklabels([f"{lin} {g}" for lin in LINEAGES for g in GENOS])
-    bounds = np.cumsum(np.bincount(cl[o])[1:])
-    for y in bounds[:-1]:
-        ax.axhline(y - 0.5, c="k", lw=0.6)
-    ax.set_yticks(bounds - np.bincount(cl[o])[1:] / 2); ax.set_yticklabels([f"C{c}" for c in range(1, k + 1)])
-    ax.set_title(f"{len(gk)} trajectory genes, k-means k = {k} (z-score per gene across the 6 curves; grey = KO not "
-                 "reached; pseudotime left to right within each curve)", fontsize=10)
-    plt.colorbar(im, ax=ax, fraction=0.02); fig.tight_layout()
-    fig.savefig(TR / "gene_patterns_heatmap.png", dpi=90); plt.close(fig)
-    nc = 4; nr = int(np.ceil(k / nc))
-    fig, axs = plt.subplots(nr, nc, figsize=(5 * nc, 3.6 * nr), squeeze=False)
-    x = np.arange(NBIN)
-    for c in range(1, k + 1):
-        ax = axs.flat[c - 1]; m = cl == c
-        for j, (lin, g) in enumerate([(lin, g) for lin in LINEAGES for g in GENOS]):
-            y = np.nanmean(Zfull[m, j * NBIN:(j + 1) * NBIN], axis=0)
-            ax.plot(x + (0 if lin == "beta" else NBIN + 1 if lin == "alpha" else 2 * NBIN + 2), y, c=COL[(g, lin)],
-                    lw=2, ls="-" if g == "ctr" else "--", label=f"{lin} {g}")
-        ax.axhline(0, c="#ccc", lw=0.6)
-        ax.set_title(f"C{c}: {m.sum()} genes (line-wide {int(gp[gp.cluster == c].line_wide.sum())})", fontsize=10)
-        ax.set_xticks([NBIN / 2, 1.5 * NBIN + 1, 2.5 * NBIN + 2]); ax.set_xticklabels(["beta", "alpha", "EC"])
-    axs.flat[0].legend(fontsize=7, ncol=2)
-    for ax in list(axs.flat)[k:]:
-        ax.axis("off")
-    fig.suptitle("Mean z-scored curves per cluster (solid = control, dashed = KO)", fontsize=12)
-    fig.tight_layout(); fig.savefig(TR / "gene_patterns_curves.png", dpi=85); plt.close(fig)
-    print("\nwrote", TR / "gene_patterns.csv", "and the cluster table, curves, heatmap")
+        # ---- figures
+        Zfull = np.full((len(gk), len(fnames)), np.nan)
+        Zfull[:, keepcol] = Z
+        o = np.lexsort((-sil, cl))
+        fig, ax = plt.subplots(figsize=(14, 11))
+        im = ax.imshow(np.ma.masked_invalid(Zfull[o]), aspect="auto", cmap="RdBu_r", vmin=-2.5, vmax=2.5,
+                       interpolation="nearest")
+        im.cmap.set_bad("#d9d9d9")
+        for j in range(1, 6):
+            ax.axvline(j * NBIN - 0.5, c="k", lw=1.2 if j % 2 == 0 else 0.5)
+        ax.set_xticks([NBIN * j + NBIN / 2 - 0.5 for j in range(6)])
+        ax.set_xticklabels([f"{lin} {g}" for lin in LINEAGES for g in GENOS])
+        bounds = np.cumsum(np.bincount(cl[o])[1:])
+        for y in bounds[:-1]:
+            ax.axhline(y - 0.5, c="k", lw=0.6)
+        ax.set_yticks(bounds - np.bincount(cl[o])[1:] / 2); ax.set_yticklabels([f"C{c}" for c in range(1, k + 1)])
+        ax.set_title(f"{len(gk)} trajectory genes, k-means k = {k} (z-score per gene across the 6 curves; grey = KO not "
+                     "reached; pseudotime left to right within each curve)", fontsize=10)
+        plt.colorbar(im, ax=ax, fraction=0.02); fig.tight_layout()
+        fig.savefig(TR / f"gene_patterns_heatmap{sfx}.png", dpi=90); plt.close(fig)
+        nc = 4; nr = int(np.ceil(k / nc))
+        fig, axs = plt.subplots(nr, nc, figsize=(5 * nc, 3.6 * nr), squeeze=False)
+        x = np.arange(NBIN)
+        for c in range(1, k + 1):
+            ax = axs.flat[c - 1]; m = cl == c
+            for j, (lin, g) in enumerate([(lin, g) for lin in LINEAGES for g in GENOS]):
+                y = np.nanmean(Zfull[m, j * NBIN:(j + 1) * NBIN], axis=0)
+                ax.plot(x + (0 if lin == "beta" else NBIN + 1 if lin == "alpha" else 2 * NBIN + 2), y, c=COL[(g, lin)],
+                        lw=2, ls="-" if g == "ctr" else "--", label=f"{lin} {g}")
+            ax.axhline(0, c="#ccc", lw=0.6)
+            ax.set_title(f"C{c}: {m.sum()} genes (line-wide {int(gp[gp.cluster == c].line_wide.sum())})", fontsize=10)
+            ax.set_xticks([NBIN / 2, 1.5 * NBIN + 1, 2.5 * NBIN + 2]); ax.set_xticklabels(["beta", "alpha", "EC"])
+        axs.flat[0].legend(fontsize=7, ncol=2)
+        for ax in list(axs.flat)[k:]:
+            ax.axis("off")
+        fig.suptitle("Mean z-scored curves per cluster (solid = control, dashed = KO)", fontsize=12)
+        fig.tight_layout(); fig.savefig(TR / f"gene_patterns_curves{sfx}.png", dpi=85); plt.close(fig)
+        if k == best:
+            ref = pd.Series(cl, index=gk)
+    # how each finer k splits the silhouette-best clusters (needs the best k among ks or computed here)
+    lab_b = fits[best]
+    order = pd.Series(np.argmax(Z, axis=1)).groupby(lab_b).median().sort_values().index
+    rb = {old: i + 1 for i, old in enumerate(order)}
+    ref = pd.Series([rb[x] for x in lab_b], index=gk)
+    for k in ks:
+        if k == best:
+            continue
+        g = pd.read_csv(TR / f"gene_patterns_k{k}.csv").set_index("gene").cluster.reindex(gk)
+        x = pd.crosstab(ref.rename(f"k{best} cluster"), g.rename(f"k{k} cluster"))
+        x.to_csv(TR / f"gene_pattern_split_k{best}_to_k{k}.csv")
+        print(f"\nk = {best} clusters (rows) split into k = {k} clusters (columns):\n", x.to_string())
+    print("\nwrote", TR, "gene_patterns*.csv, gene_pattern_clusters*.csv, heatmaps, curves")
 
 
 if __name__ == "__main__":
