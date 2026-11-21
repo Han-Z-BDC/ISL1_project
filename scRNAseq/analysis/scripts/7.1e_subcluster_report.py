@@ -16,6 +16,17 @@ The 3D and 2D coordinates are stored once and recoloured in the browser (7.1d's 
 2D UMAP (user, 2026-11-18): interactive, larger points, panels all / control / KO with the other genotype in grey.
 2D annotation (user, 2026-11-19): subcluster number (and label, when labelled) written at each subcluster's centre in
 every panel.
+Trajectory gene groups (user, 2026-11-20): when ${OUT_DIR}/day_analysis/{day}/trajectory/ has the 7.3f tables
+(cellrank_on_after_KO_stop.csv, cellrank_lost_in_KO.csv), the colour menu gets these groups next to the endocrine markers:
+  beta: on after KO stop, missing in KO   transcription factors (TF list below) + CellRank control-program genes (both
+                                          kernels) with call "on after stop, missing in KO" on the beta lineage
+  beta: lost in KO at the stop            call "lost" (both kernels) at the beta stop, label or pseudotime match, not
+                                          already in the group above
+  alpha: on after KO stop, TFs            TFs with call "on after stop, missing in KO" on the alpha lineage
+  alpha: on after KO stop, program        control-program genes (both kernels) with that call, top 40 by mean expression
+                                          in the control cells after the stop
+  gained in KO                            NKX6-1, PAX4, GCG, CCK, NEUROD4
+A search box takes any gene in the menu.
 Run: sbatch analysis/scripts/7.1e_subcluster_report.sb D15 endocrine 0.6
 """
 import base64
@@ -36,6 +47,35 @@ GENES = ["CHGA", "NEUROG3", "NKX2-2", "NEUROD1", "INSM1", "PAX4", "ARX", "IRX2",
          "INS", "GCG", "SST", "GHRL", "PPY", "PDX1", "NKX6-1", "FEV", "LMX1A", "TPH1", "SLC18A1", "DDC",
          "PHOX2A", "SCGN", "FOXP2", "TOX", "DCC", "MKI67"]
 SAMPLE_ORDER = ["ctr_rep1", "ctr_rep2", "KO_rep1", "KO_rep2"]
+# transcription factors looked for in the 7.3f "on after KO stop" lists (endocrine / pancreatic development)
+TFS = ["MAFA", "MAFB", "NKX6-1", "PDX1", "PAX6", "PAX4", "NKX2-2", "ISL1", "ARX", "IRX1", "IRX2", "IRX3", "MNX1",
+       "HHEX", "ETV1", "TWIST1", "LMO2", "GLIS3", "RFX6", "NEUROD1", "ESRRG", "MEIS1", "MEIS2", "HDAC9", "FOXA2",
+       "FOXO1", "ONECUT1", "POU3F4", "TSHZ1", "GLI3", "MSC", "MEF2C", "TLE1", "TFEB", "LMX1A", "ZNF503", "SOX4",
+       "SOX9", "ID1", "ID2", "ID4", "HES1", "HEY1", "FEV", "INSM1", "ST18", "MYT1L"]
+GAINED = ["NKX6-1", "PAX4", "GCG", "CCK", "NEUROD4"]
+
+
+def trajectory_sets(day):
+    """Gene groups from the 7.3f tables (empty when they are not there)."""
+    tr = OUT_DIR / "day_analysis" / day / "trajectory"
+    fa, fl = tr / "cellrank_on_after_KO_stop.csv", tr / "cellrank_lost_in_KO.csv"
+    if not (fa.exists() and fl.exists()):
+        return []
+    af = pd.read_csv(fa, low_memory=False)
+    lo = pd.read_csv(fl, low_memory=False)
+    miss = af[af.call == "on after stop, missing in KO"]
+    b = miss[miss.lineage == "beta"]
+    b1 = [g for g in TFS if g in set(b.gene)] + list(b[b.beta_program == "both"].gene)
+    b2 = lo[(lo.lineage == "beta") & (lo.step == "stop") & (lo.call == "lost")].gene
+    b2 = [g for g in dict.fromkeys(b2) if g not in b1]
+    al = miss[miss.lineage == "alpha"]
+    a1 = [g for g in TFS if g in set(al.gene)]
+    a2 = list(al[al.alpha_program == "both"].sort_values("mean_ctr_after", ascending=False, kind="stable").gene.head(40))
+    return [("β: on after KO stop, missing in KO (TFs + CellRank program)", list(dict.fromkeys(b1))),
+            ("β: lost in KO at the stop", b2),
+            ("α: on after KO stop, missing in KO (TFs)", a1),
+            ("α: on after KO stop, missing in KO (CellRank program, top 40)", a2),
+            ("Gained in KO", GAINED)]
 
 
 def b64(p):
@@ -71,7 +111,11 @@ def main():
     # ---- per-cell data, stored once
     u = a.obsm["X_umap_3d"]; u2 = a.obsm["X_umap_2d"]
     sub = a.obs[rk].astype(int).to_numpy()
-    genes = [g for g in GENES if g in a.var_names]
+    sets = [("Endocrine markers", GENES)] + trajectory_sets(day)
+    sets = [(t, [g for g in gs if g in a.var_names]) for t, gs in sets]
+    for t, gs in sets:
+        print(f"gene group {t}: {len(gs)} genes")
+    genes = list(dict.fromkeys(g for _, gs in sets for g in gs))
     X = a[:, genes].X
     X = X.toarray() if sp.issparse(X) else np.asarray(X)
     data = {
@@ -82,6 +126,7 @@ def main():
         "sample": [SAMPLE_ORDER.index(s) for s in a.obs["sample"].astype(str)],
         "parent": a.obs["parent"].astype(int).tolist(),
         "genes": genes,
+        "genesets": [{"name": t, "genes": gs} for t, gs in sets if gs],
         "expr": {g: np.round(X[:, i], 1).tolist() for i, g in enumerate(genes)},
         "clusters": [{"id": int(c), "label": str(lab.loc[c, "label"]), "group": str(lab.loc[c, "group"])}
                      for c in cl_ids],
@@ -185,7 +230,7 @@ p{margin:6px 0} .sub{color:var(--fg2)} .mut{color:var(--mut);font-size:13px}
 .kpi .v{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums} .kpi .l{color:var(--fg2);font-size:13px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
 .ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:4px 0 10px;font-size:14px}
-.ctl label{color:var(--fg2)} select{font:inherit;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+.ctl label{color:var(--fg2)} select,input{font:inherit;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .seg button{font:inherit;font-size:13px;padding:4px 10px;border:0;background:transparent;color:var(--fg2);cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
@@ -215,6 +260,9 @@ img{max-width:100%;height:auto;background:#fff;border-radius:6px;display:block}
 <div class=ctl>
  <label for=col>Colour by</label>
  <select id=col></select>
+ <label for=gsearch>Gene</label>
+ <input id=gsearch list=glist placeholder="type a gene" autocomplete=off size=12>
+ <datalist id=glist></datalist>
  <span class=seg role=group aria-label="Cells shown">
   <button data-f=all aria-pressed=true>All cells</button><button data-f=0 aria-pressed=false>Control</button><button data-f=1 aria-pressed=false>KO</button>
  </span>
@@ -270,8 +318,12 @@ const sel = document.getElementById('col');
   ['parent', 'Overview cluster']]
   .filter(([v]) => (v !== 'group' || (D.labelled && D.groups.length > 1)) && (v !== 'prev' || D.prevs.length))
   .forEach(([v, t]) => sel.add(new Option(t, v)));
-const og = document.createElement('optgroup'); og.label = 'Gene (log1p)';
-D.genes.forEach(g => og.appendChild(new Option(g, 'gene:' + g))); sel.appendChild(og);
+D.genesets.forEach(s => {
+  const og = document.createElement('optgroup'); og.label = s.name + ' (' + s.genes.length + ')';
+  s.genes.forEach(g => og.appendChild(new Option(g, 'gene:' + g))); sel.appendChild(og);
+});
+const gl = document.getElementById('glist');
+D.genes.forEach(g => gl.appendChild(new Option(g)));
 
 function idx() { const r = []; for (let i = 0; i < N; i++) if (filt === 'all' || D.geno[i] == filt) r.push(i); return r; }
 function pick(a, ix) { return ix.map(i => a[i]); }
@@ -418,6 +470,12 @@ function comp() {
 document.querySelectorAll('.sw').forEach(s => s.style.background = subCol(+s.dataset.s));
 sel.value = mode;
 sel.onchange = () => { mode = sel.value; draw(); draw2d(); };
+const gs = document.getElementById('gsearch');
+gs.onchange = () => {
+  const q = gs.value.trim().toUpperCase(), g = D.genes.find(x => x.toUpperCase() === q);
+  gs.setCustomValidity(g ? '' : 'not in the menu');
+  if (g) { mode = 'gene:' + g; sel.value = mode; draw(); draw2d(); }
+};
 document.getElementById('lbl').onchange = () => { draw(); draw2d(); };
 document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
   filt = b.dataset.f; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b)); draw();
