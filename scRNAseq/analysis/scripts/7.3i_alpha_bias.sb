@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_alpha_bias
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=00:30:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/alpha_bias.%j.out
+
+# Step 7.3i: alpha vs beta bias of the progenitors from the existing CellRank fates (D15 and D15 + D22) --
+# see the .py docstring. Needs 7.3d and 7.4d.
+# Runs in the separate CellRank env (CELLRANK_ENV in study_config/config.sh).
+# Run from the repo root: sbatch analysis/scripts/7.3i_alpha_bias.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.3i_alpha_bias.py"
