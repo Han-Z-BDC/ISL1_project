@@ -257,7 +257,10 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       TWIST1). Overlap with the D15 k = 10 clusters (1,972 shared genes) is consistent: D15 C1 -> C1, C5 -> C2, C3 -> C7,
       C9 -> C4, C2 -> C6, C6 -> C8, C8 -> C3 / C5; D15 C10 ("switched to EC in KO") -> C10: at D22 control EC2 cells also
       express these genes, so in KO the EC program comes on early (at D15), not a KO-only program.
-      Lists and TFs per cluster: scRNAseq/reports/trajectory/D15_D22/ (local). Choice of k for D15 + D22 open.
+      Lists and TFs per cluster: scRNAseq/reports/trajectory/D15_D22/ (local).
+      **Working classification for D15 + D22: k = 10** (user, 2026-11-21), as for D15: `gene_patterns_k10.csv`,
+      `gene_pattern_clusters_k10.csv`, `gene_patterns_{curves,heatmap}_k10.png` in the subset trajectory folder (rerun:
+      `sbatch --export=ALL,INT_SUBSET=alpha_beta_EC analysis/scripts/7.4i_gene_patterns.sb 8,9,10`).
   - Job names: every D15 + D22 job starts with `isl1_int_` (D15-only jobs `isl1_`), user 2026-11-19.
   - Environment fixes (CELLRANK_ENV: scvelo 0.3.4, cellrank 2.0.7, numpy 2.4.6), 2026-11-20, in 7.3c/d and 7.4c/d:
     looms read with anndata.read_loom (no scv.read); filter_and_normalize only filters + normalises, so log1p and
