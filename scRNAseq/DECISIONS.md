@@ -141,6 +141,35 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     markers (beta on after the stop and missing in KO: TFs + program genes; beta lost at the stop; alpha on after the
     stop: TFs; alpha program genes, top 40 by expression after the stop; gained in KO: NKX6-1, PAX4, GCG, CCK,
     NEUROD4), read from the 7.3f tables, and a gene search box.
+  - 7.3g **KO vs control along the beta, alpha and EC lineages** (user, 2026-11-21: use the trajectory version of the
+    control vs KO comparison and add the pre_EC lineage; plan accepted as proposed). KO cells do not stop on the EC
+    lineage (Slingshot Lineage3, ENP1 -> ENP2 -> ENP_FEV_high -> pre_beta1 -> pre_EC), so each lineage is cut into 8
+    windows of equal cell numbers (curve weight >= 0.5), tested when >= 30 cells of each genotype; KO vs control per
+    window with the 7.3f rules (log2FC 0.5, Wilcoxon FDR < 0.05, both KO replicates beyond both control replicates);
+    window part = shared path / branch (>= half of the cells also on another of the three lineages). Programs: control
+    beta / alpha / EC (control-only CellRank runs) and KO EC (KO-only runs). `ko_windows.csv`,
+    `ko_vs_ctr_windows.csv.gz`, `ec_programs.csv`, `ko_lineage_profile.csv`.
+    - 7.3f gained an EC-program flag (EC_program, EC_r / FDR per kernel) on every row (user, 2026-11-21); its calls were
+      checked identical to the earlier run.
+    - Results. Beta: KO never reaches the beta branch (window 8, 0 KO cells), so every tested beta window is shared
+      path; the beta-program score is lower in KO from ENP2 on (e.g. 0.79 vs 0.95, 0.97 vs 1.11) and the pre_beta2
+      fate 2-6x lower while the pre_EC fate is higher (0.92 vs 0.68 in window 7). Alpha: KO reaches window 7
+      (pre_alpha_KO) but not 8 (pre_alpha); in window 7 the KO alpha fate is 0.35 vs 0.64 and EC fate 0.44 vs 0.18.
+      EC: the control EC-program score is about the same in KO (slightly lower at the end); control EC-program genes
+      are more often lower than higher in KO on the EC branch, KO-only EC-program genes more often higher (e.g.
+      NEUROD4, MYCN, GAL, VEGFA): KO reaches an EC-like state with its own program rather than an exaggerated control EC
+      state. Beta-program genes on the EC lineage are only ever lower in KO (14-19 per window), so KO cells on the EC
+      branch do not carry more beta program than control cells there. EC programs (any kernel): 291 genes in both
+      genotypes, 202 control only, 164 KO only (both kernels: 112 / 43 / 27).
+    - **KO-line-wide genes**: 42 genes are called in >= 15 of the 22 tested windows, from ENP1 on (higher in KO: TSPYL5,
+      CTSF, RBM46, LINC00884, BHMT2, ...; lower: GRIN3A, SMC2, SLC7A2, AC109466.1, FGB, FGG, AFP, H19, CXCL11, ...).
+      4 of the 8 genes 7.3f called beta-lost in both matchings (GRIN3A, SMC2, SLC7A2, AC109466.1) are among them, so
+      they are line-wide differences rather than beta-specific (PDX1, ACVR1C, FOXO1, TENM2 are not). Window
+      differences also partly reflect different label mixes of KO and control cells at the same pseudotime.
+  - Gene-pattern classification (proposed 2026-11-21, waiting for the user): all genes with a call in 7.3f / 7.3g or in
+    a program; 6 curves per gene (3 lineages x 2 genotypes); rule classes (where control turns it on; what KO does;
+    stopped everywhere vs switched to EC) plus unsupervised clustering; tradeSeq curves to replace the binned ones
+    when 7.3e finishes.
   - Next: cross the 7.3f lists with ISL1 CUT&RUN and bulk KO; comparison report (Slingshot, velocity, CellRank,
     KO drop-off, tradeSeq).
 - D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the

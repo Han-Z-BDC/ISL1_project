@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ko_windows
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=30G
+#SBATCH --time=03:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ko_windows.%j.out
+
+# Step 7.3g: KO vs control in matched pseudotime windows along the beta, alpha and EC lineages --
+# see the .py docstring. Needs 7.3a and 7.3d.
+# Runs in the separate CellRank env (CELLRANK_ENV in study_config/config.sh).
+# Run from the repo root: sbatch analysis/scripts/7.3g_ko_along_lineages.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.3g_ko_along_lineages.py"

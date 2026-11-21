@@ -22,6 +22,9 @@ curve-based genes. Thresholds as proposed and accepted:
   lost in KO       control-program gene with log2FC <= -0.5, FDR < 0.05 and the replicate check passed
   gained in KO     any gene with log2FC >= +0.5, FDR < 0.05 and the replicate check passed (side table; control
                    program membership flagged)
+  EC flag          (user, 2026-11-21) every row also carries the control EC program (r >= 0.2, FDR < 0.05 toward
+                   pre_EC in the control-only runs; EC_program both / one / -), e.g. genes gained in KO at the
+                   beta stop that belong to the EC program; calls unchanged
   extra            r toward the same fate in KO early cells in the shared (all-cell) CellRank runs, next to r in
                    control early cells of the same runs
   profile          mean expression of the program genes (both + one kernel) along each lineage, control and KO, in
@@ -61,6 +64,7 @@ EARLY = ["ENP1", "ENP2", "ENP_FEV_high"]
 R_MIN, FDR_MAX, LFC = 0.2, 0.05, 0.5
 W_MIN, Q_LO, Q_HI, NBIN = 0.5, 0.75, 0.95, 12
 LINEAGES = {"beta": "pre_beta2", "alpha": "pre_alpha"}
+PROGRAMS = {**LINEAGES, "EC": "pre_EC"}   # EC: flag only (user, 2026-11-21); EC lineage comparisons are in 7.3g
 COMPARE = [("beta", "stop", "pre_beta1", "pre_beta1"),
            ("alpha", "stop", "pre_alpha_KO", "pre_alpha"),
            ("beta", "early", "ENP_FEV_high", "ENP_FEV_high"),
@@ -79,7 +83,7 @@ def corr(X, f):
 def program(genes):
     """Control-program membership and r per kernel (control-only runs, control early cells)."""
     out = pd.DataFrame(index=genes)
-    for lin, fate in LINEAGES.items():
+    for lin, fate in PROGRAMS.items():
         hit = []
         for k in KERNELS:
             d = pd.read_csv(TR / f"cellrank_{k}_ctr_drivers.csv")
@@ -123,7 +127,7 @@ def compare(a, mk, mc, rep, prog, lin, match, step, ko_desc, ctr_desc):
     lost_one = (pr == "one") & (lfc <= -LFC) & (q < FDR_MAX) & lo
     gained = (lfc >= LFC) & (q < FDR_MAX) & hi
     d["call"] = np.select([lost, lost_one, gained], ["lost", "lost (one kernel)", "gained"], "-")
-    cols = [c for c in prog.columns if c.startswith(lin + "_")]
+    cols = [c for c in prog.columns if c.startswith(lin + "_") or c.startswith("EC_")]
     d = pd.concat([d.reset_index(drop=True), prog.loc[genes, cols].reset_index(drop=True)], axis=1)
     for call in ["lost", "lost (one kernel)", "gained"]:
         s = d[d.call == call].sort_values("log2FC", ascending=(call != "gained"), kind="stable")
@@ -182,7 +186,7 @@ def on_after(a, pt, on, geno, label, rep, prog, lin, L, lo_, hi_):
         d[f"pb_after_{r_}"] = pa[r_].round(3); d[f"pb_stop_{r_}"] = ps[r_].round(3)
     for r_, v in pk.items():
         d[f"pb_stop_{r_}"] = v.round(3)
-    cols = [c for c in prog.columns if c.startswith(lin + "_")]
+    cols = [c for c in prog.columns if c.startswith(lin + "_") or c.startswith("EC_")]
     d = pd.concat([d.reset_index(drop=True), prog.loc[genes, cols].reset_index(drop=True)], axis=1)
     d = d.sort_values(["call", "log2FC_ctr_after_vs_stop"], ascending=[True, False], kind="stable")
     for call in ["on after stop, missing in KO", "on after stop"]:
