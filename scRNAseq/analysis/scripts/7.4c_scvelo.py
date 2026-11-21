@@ -19,6 +19,7 @@ integration_D15_D22_endocrine_<name>/ instead: its cells, scVI latent and scVI U
 """
 import json
 import os
+import time
 import warnings
 from pathlib import Path
 
@@ -51,6 +52,10 @@ def palette(labels):
     return [known.get(l) or D15_PAL[d15.index(l) % len(D15_PAL)] for l in labels]
 
 
+def log(msg):
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+
+
 def load():
     looms = []
     for day in ["D15", "D22"]:
@@ -60,7 +65,9 @@ def load():
             l.obs_names = [f"Diff37_{day}-{s}#" + n.split(":")[1][:-1] + "-1" for n in l.obs_names]
             l.var_names_make_unique()
             looms.append(l)
+            log(f"read {day} {s}: {l.n_obs} cells")
     lo = ad.concat(looms, join="inner")
+    log(f"concatenated: {lo.n_obs} cells")
     ce = pd.read_csv(TR / "cells.csv", index_col=0)
     lat = pd.read_csv(TR / "scvi_latent.csv.gz", index_col=0).reindex(ce.index)
     missing = ce.index.difference(lo.obs_names)
@@ -93,22 +100,32 @@ def grid_arrows(X, V, n=16, min_cells=8):
 
 def main():
     TR.mkdir(parents=True, exist_ok=True)
+    log("start")
     a = load()
-    print(a)
+    log("looms loaded"); print(a)
     scv.pp.filter_and_normalize(a, min_shared_counts=20)       # scvelo 0.3.4: filter + normalise only
     sc.pp.log1p(a)                                              # so log1p and the top 2,000 genes as before
     sc.pp.highly_variable_genes(a, n_top_genes=2000, subset=True)
-    sc.pp.neighbors(a, use_rep="X_scvi", n_neighbors=30, random_state=SEED)
+    log("genes filtered and normalised")
+    # scanpy 1.11.5 + scipy 1.17.1 (CELLRANK_ENV): the default pynndescent neighbours fail above a few thousand cells
+    # (csr_array has no getnnz), so exact neighbours with sklearn (user, 2026-11-21)
+    sc.pp.neighbors(a, use_rep="X_scvi", n_neighbors=30, random_state=SEED, transformer="sklearn")
+    log("neighbours")
     scv.pp.moments(a, n_pcs=None, n_neighbors=None)
+    log("moments")
     scv.tl.recover_dynamics(a, n_jobs=NCPU)
+    log("dynamics recovered")
     scv.tl.velocity(a, mode="dynamical")
     scv.tl.velocity_graph(a, n_jobs=NCPU)
+    log("velocity graph")
     scv.tl.latent_time(a)
     scv.tl.velocity_confidence(a)
     for b in ["umap_2d", "umap_3d"]:
         scv.tl.velocity_embedding(a, basis=b)
     print("velocity genes:", int(a.var["velocity_genes"].sum()))
+    log("latent time, confidence, embeddings")
     a.write_h5ad(TR / "scvelo.h5ad")
+    log("written")
     a.obs[["label", "stage", "genotype", "latent_time", "velocity_confidence", "velocity_length"]].to_csv(
         TR / "scvelo_cells.csv")
 

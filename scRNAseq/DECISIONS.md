@@ -176,6 +176,11 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     the top 2,000 genes are done with scanpy; CellRank's VelocityKernel passes x= / y= to
     np.testing.assert_array_equal (wrapped in the scripts); fate probabilities with use_petsc=False (the env's
     petsc4py has no Mat.getVecs). The env itself is unchanged.
+    2026-11-21: the D15 + D22 scVelo (7.4c) failed at the 30-neighbour graph after 7.5 h (scanpy 1.11.5's default
+    pynndescent path calls csr_array.getnnz, gone in scipy 1.17.1; only above a few thousand cells, so the D15
+    runs were not affected). 7.4c and the per-genotype graphs of 7.4d now use exact neighbours
+    (`transformer="sklearn"`); the D15 scripts are unchanged. 7.4c prints a timestamp per step to find
+    where the 7.5 h went (user, 2026-11-21: fix and resubmit scVelo + CellRank).
 - **Competency question** (user, 2026-11-20). PLAN ONLY -- the user is still reviewing it; nothing is run.
   - Experimental findings (user): the progenitors competent for alpha and for beta differ, and competency changes
     over time: **alpha competency lasts until ~D18 and is then lost; beta competency lasts until ~D26**. In the

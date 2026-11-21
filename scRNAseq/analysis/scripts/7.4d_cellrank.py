@@ -201,7 +201,9 @@ def main():
         run(k, a, kern, full, ends, "all")
     for gt in ["ctr", "KO"]:
         b = a[(a.obs.genotype == gt).to_numpy()].copy()
-        sc.pp.neighbors(b, use_rep="X_scvi", n_neighbors=30, random_state=SEED)   # graph within the genotype
+        # scanpy 1.11.5 + scipy 1.17.1 (CELLRANK_ENV): the default pynndescent neighbours fail above a few thousand cells
+        # (csr_array has no getnnz), so exact neighbours with sklearn (user, 2026-11-21)
+        sc.pp.neighbors(b, use_rep="X_scvi", n_neighbors=30, random_state=SEED, transformer="sklearn")   # graph within genotype
         n = b.obs.label.astype(str).value_counts()
         e = [x for x in ends if n.get(x, 0) >= MIN_END] + [x for x in GENO_EXTRA.get(gt, []) if n.get(x, 0) >= MIN_END]
         print(f"\n== {gt} only: {b.n_obs} cells; fixed ends: {e}; labels:", n.to_dict())
