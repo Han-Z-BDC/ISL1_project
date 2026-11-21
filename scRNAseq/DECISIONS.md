@@ -166,10 +166,18 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       4 of the 8 genes 7.3f called beta-lost in both matchings (GRIN3A, SMC2, SLC7A2, AC109466.1) are among them, so
       they are line-wide differences rather than beta-specific (PDX1, ACVR1C, FOXO1, TENM2 are not). Window
       differences also partly reflect different label mixes of KO and control cells at the same pseudotime.
-  - Gene-pattern classification (proposed 2026-11-21, waiting for the user): all genes with a call in 7.3f / 7.3g or in
-    a program; 6 curves per gene (3 lineages x 2 genotypes); rule classes (where control turns it on; what KO does;
-    stopped everywhere vs switched to EC) plus unsupervised clustering; tradeSeq curves to replace the binned ones
-    when 7.3e finishes.
+  - 7.3h **gene patterns** (user, 2026-11-21): unbiased clustering only (no rule-based classes), binned curves now
+    (tradeSeq smoothers can replace them later), genes = **only the KO vs control trajectory results**: 7.3f stop calls
+    (pseudotime match), 7.3f "on after stop, missing in KO", 7.3g window calls (2,656 genes; CellRank programs are labels,
+    not a source; the 42 line-wide genes stay in, flagged). Curves: 10 equal-width pseudotime bins per lineage,
+    curve-weighted mean log1p, 3-bin moving average; bins with < 15 cells of a genotype left out (KO never reaches beta
+    / alpha bins 8-10). Features z-scored per gene across the 6 curves; k-means, k 4-20 by silhouette.
+    - First pass: silhouette is low at every k (0.23 at k = 4 down to 0.13), so the patterns are a continuum; k = 4
+      chosen (stable across seeds, ARI 0.995). C1 802 genes: rise late on the control beta and alpha lineages, not on
+      EC, KO never reaches them (GCG, SCG5, SCG3, GNAS, TTR, TENM2); C2 602: early progenitor genes falling on every
+      lineage (SOX4, DLK1, CDKN1C, TOX, DCC); C3 826: rise toward the EC end and mid beta / alpha, KO the same on EC
+      (CHGA, INS, CRYBA2); C4 426: transient mid-path peak that control turns off late on beta / alpha while KO stays
+      high (RUNX1T1, NEGR1, SCG2, C9orf16). Finer k (seed-stable up to k = 10) to be looked at with the user.
   - Next: cross the 7.3f lists with ISL1 CUT&RUN and bulk KO; comparison report (Slingshot, velocity, CellRank,
     KO drop-off, tradeSeq).
 - D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the

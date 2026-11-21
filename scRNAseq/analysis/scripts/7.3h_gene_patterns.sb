@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_gene_patterns
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=30G
+#SBATCH --time=03:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/gene_patterns.%j.out
+
+# Step 7.3h: unbiased clustering of the KO vs control trajectory genes by their curves on 3 lineages x 2 genotypes --
+# see the .py docstring. Needs 7.3f and 7.3g.
+# Runs in the separate CellRank env (CELLRANK_ENV in study_config/config.sh).
+# Run from the repo root: sbatch analysis/scripts/7.3h_gene_patterns.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.3h_gene_patterns.py"
