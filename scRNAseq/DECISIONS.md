@@ -45,7 +45,7 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   settings), 30 PCs, 15 neighbours, UMAP in 2D and 3D, Leiden 0.2-1.2. Markers vs the rest of the compartment.
   Output: `day_analysis/D15/subcluster_endocrine/` (report, `umap3d.html` interactive 3D UMAP).
 
-## Current state (2026-11-19)
+## Current state (2026-11-20)
 
 - 7.1b clustering on SCT B done for D15, D22 and D40.
 - D15: overview resolution 0.2; endocrine subset (7.1d) rerun without the non-endocrine cells (2026-11-19), 11
@@ -84,13 +84,65 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     17.204169), so 7.3e tradeSeq (started on the first run's `slingshot_pc30_cells.csv`) was not rerun. The
     differentiation test is classifier-based and varies between runs (PCs 1-30, all lineages: 0.700 / p 3e-66 first
     run, 0.692 / p 2e-61 rerun).
-  - 7.3b velocyto per D15 sample (spliced / unspliced, Cell Ranger BAMs); 7.3c scVelo dynamical model with arrows on
-    the 2D and 3D UMAPs; 7.3d CellRank 2 with a velocity kernel and a Slingshot-pseudotime kernel (fates, terminal
-    states, driver genes for pre_alpha / pre_beta2); 7.3e tradeSeq on all genes detected in >= 10 cells (control
-    vs KO condition tests per lineage, early DE at branches, gene modules by curve shape). CellRank runs in its own
-    env (`CELLRANK_ENV`; CellRank 2.0.7 pins Jinja2 < 3.1, single.cell has 3.1.5). Running on 2026-11-19.
-  - Next: comparison report (Slingshot curves, velocity, CellRank fates, KO drop-off per lineage, tradeSeq modules);
-    then cross the candidate genes with ISL1 CUT&RUN and bulk KO.
+  - **Slingshot stays one shared trajectory for control and KO** (user, 2026-11-20): separate per-genotype
+    trajectories would give pseudotimes that cannot be compared and would break the condiments and tradeSeq
+    control-vs-KO tests; condiments topologyTest is the formal check if ever needed (not run).
+  - 7.3b velocyto per D15 sample (spliced / unspliced, Cell Ranger BAMs) and 7.3c scVelo dynamical model with arrows
+    on the 2D and 3D UMAPs: done. **Velocity runs backwards on D15**: latent time is highest in ENP1 (median 0.78) and
+    lowest in pre_alpha_KO; Spearman with Slingshot pseudotime -0.43 / -0.82 (beta lineage, control / KO), -0.08 /
+    -0.89 (alpha). Not followed up yet.
+  - 7.3d CellRank 2 (own env `CELLRANK_ENV`; CellRank 2.0.7 pins Jinja2 < 3.1, single.cell has 3.1.5): kernels
+    0.8 velocity + 0.2 connectivity and 0.8 Slingshot pseudotime + 0.2 connectivity; fixed terminal states for fates,
+    data-driven macrostates (eigengap 4-12, retried with a lower upper bound when the chosen number splits a
+    complex-conjugate eigenvalue pair). Runs (user, 2026-11-20): **all cells, control only and KO only**; the
+    per-genotype runs rebuild the 30-neighbour graph within the genotype (the shared graph lets KO cells borrow
+    control paths), keep the shared scVelo velocities and Slingshot pseudotime, and fix the ends the genotype has
+    (control: pre_beta2, pre_alpha, pre_delta, pre_EC, ENP_PHOX2A+; KO: pre_EC, ENP_PHOX2A+, KO_only, pre_alpha_KO).
+    Results:
+    - The velocity kernel's only data-driven terminal state is ENP1 in every run (the backwards velocity above), so
+      terminal states are read from the pseudotime kernel. KO (pseudotime kernel): 4 macrostates, all terminal:
+      ENP_PHOX2A+, KO_only, pre_EC, pre_alpha_KO; pre_beta1 is not an end in KO (KO pre_beta1 -> pre_EC 0.70).
+    - Both kernels: KO beta fate is 2-3x lower at ENP_FEV_high and pre_beta1 and goes to pre_EC (and PHOX2A+);
+      alpha fate does not differ between genotypes in the early cells. The kernels disagree on where ENP1 / ENP2
+      head (velocity: pre_alpha; pseudotime: PHOX2A+ / pre_EC).
+    - Drivers (Pearson r of log1p expression with a fate probability in the early cells ENP1, ENP2, ENP_FEV_high;
+      Fisher z, BH; the same statistic as CellRank's compute_lineage_drivers). Control program (control-only run,
+      r >= 0.2 and FDR < 0.05 in both kernels): pre_alpha 212 genes (FLRT2, ARX, DEPP1, RGS4, ...), pre_beta2 62
+      (INS, CRYBA2, HADH, ACVR1C, ...), pre_EC 222, pre_delta 23, ENP_PHOX2A+ 1 (kernels disagree). KO-only run:
+      KO_only drivers (TRPM3, CNTNAP2, TOX, DCC, SEMA6A, ...) overlap the control pre_delta drivers; NKX6-1 is a
+      KO driver toward PHOX2A+ (velocity kernel); pre_alpha_KO drivers are mostly cilia genes plus ARX.
+  - 7.3e tradeSeq on all genes detected in >= 10 cells (control vs KO condition tests per lineage, early DE at
+    branches, gene modules by curve shape): running.
+  - 7.3f **lost in KO** (user, 2026-11-20: CellRank drivers plus a lost-in-KO comparison; tradeSeq covers the
+    curve-based genes). `cellrank_lost_in_KO.csv`, `_profile.csv`, `cellrank_on_after_KO_stop.csv`.
+    - Candidate genes = the control program above (both kernels; one-kernel genes flagged).
+    - KO vs control by expression, two matchings (user, 2026-11-20: the label match with the proposed thresholds,
+      then "add the pseudotime-matched comparison"): by label (beta: KO vs
+      control pre_beta1; alpha: KO pre_alpha_KO vs control pre_alpha; both: ENP_FEV_high) and by **Slingshot
+      pseudotime** (user, 2026-11-20: Slingshot only, not velocity, which runs backwards): cells with curve weight
+      >= 0.5 on the beta / alpha lineage inside the stop window = KO's 75th-95th percentile of pseudotime (beta
+      143-151, alpha 140-158). Lost = log2FC <= -0.5, Wilcoxon FDR < 0.05, both KO replicates below both control
+      replicates (pseudobulk); gained = the same upward.
+    - **Genes control turns on after the KO stop** (user, 2026-11-20): control cells in the first half of the path past
+      the stop window vs control cells in the window (log2FC >= 0.5, FDR < 0.05, up in each control replicate);
+      missing in KO = KO cells in the window below the control cells after it (same rules).
+    - Results. At the stop window control cells are mostly ENP_FEV_high while many KO cells are already pre_EC (beta
+      lineage) or pre_alpha_KO (alpha): KO branches off at commitment. Beta lost in both matchings: PDX1, ACVR1C,
+      FOXO1, TENM2, GRIN3A, SMC2, SLC7A2, AC109466.1. On after the stop and missing in KO: beta 244 genes (TFs
+      TWIST1, HDAC9, LMO2, ISL1; program genes GRIN3A, SMC2, ITGA1, SLC17A6, ABCC8, ACVR1C, ALDH1A1, INS, ...),
+      alpha 809 (the after window is nearly all control pre_alpha; TFs ARX, ETV1, PAX6, HHEX, MEIS1, ESRRG, IRX3,
+      IRX2, LMO2, GLIS3, FOXO1, ID4, TLE1, ISL1). Gained in KO pre_alpha_KO: NKX6-1 (9% -> 58% of cells), PAX4.
+    - Caveats: the alpha pseudotime match compares KO cells that have moved on with uncommitted control cells, so
+      for alpha the label match and the after-stop lists are the useful ones; 53 genes are gained in all four label
+      comparisons and none lost in all four (e.g. TSPYL5, RBM46, CTSF, CDKN1C; H19 / DLK1 lower early): KO-line-wide
+      differences, possibly clonal imprinting, to be excluded or checked against the bulk KO; liver-type genes (ALB,
+      ITIH2, APOA2) in the beta after-stop list.
+  - D15 endocrine report (7.1e, user, 2026-11-20): the colour menu has the 7.3f gene groups next to the endocrine
+    markers (beta on after the stop and missing in KO: TFs + program genes; beta lost at the stop; alpha on after the
+    stop: TFs; alpha program genes, top 40 by expression after the stop; gained in KO: NKX6-1, PAX4, GCG, CCK,
+    NEUROD4), read from the 7.3f tables, and a gene search box.
+  - Next: cross the 7.3f lists with ISL1 CUT&RUN and bulk KO; comparison report (Slingshot, velocity, CellRank,
+    KO drop-off, tradeSeq).
 - D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the
   7.2 integration, scVI latent as the space, scVI UMAP as the primary UMAP; start D15 ENP1, ends fixed to D22 labels;
   tradeSeq on all genes detected in >= 10 cells, conditions = genotype, stage (D15 / D22) as a fixed covariate.
@@ -114,6 +166,10 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     pre_beta1 cells sit next to SC_EC2); the user accepted the lineages and asked to submit tradeSeq, scVelo and
     CellRank on them (2026-11-20). condiments: progression All 16.2 (p 1e-59; beta 0.76, alpha 0.68, EC2 0.22,
     EC1 0.26); differentiation All 0.78 (p 0), EC2 vs EC1 0.52 (p 0.01).
+  - CellRank (7.4d), as 7.3d (user, 2026-11-20): all cells plus control-only and KO-only runs (graph rebuilt within
+    the genotype on the scVI latent); per-genotype fixed ends = the Slingshot ends with >= 50 cells of the genotype,
+    KO also D15 pre_alpha_KO (alpha_beta_EC: control SC_beta, SC_alpha, SC_EC1, SC_EC2; KO SC_EC1, SC_EC2,
+    D15 pre_alpha_KO); same macrostate retry. Queued behind 7.4c scVelo.
   - Job names: every D15 + D22 job starts with `isl1_int_` (D15-only jobs `isl1_`), user 2026-11-19.
   - Environment fixes (CELLRANK_ENV: scvelo 0.3.4, cellrank 2.0.7, numpy 2.4.6), 2026-11-20, in 7.3c/d and 7.4c/d:
     looms read with anndata.read_loom (no scv.read); filter_and_normalize only filters + normalises, so log1p and
