@@ -192,6 +192,12 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     - **Working classification: k = 10** (user, 2026-11-21): `gene_patterns_k10.csv`, `gene_pattern_clusters_k10.csv`,
       `gene_patterns_{curves,heatmap}_k10.png` (rerun: `sbatch analysis/scripts/7.3h_gene_patterns.sb 4,8,9,10`; the
       plain-named files are the silhouette-best k = 4). To recheck with tradeSeq (7.3e) curves when they exist.
+    - TFs per cluster (user, 2026-11-21): human TF list = Lambert et al. 2018, Cell 172:650 ("The Human Transcription
+      Factors", humantfs.ccbr.utoronto.ca, TF_names_v_1.01.txt, 1,639 genes; downloaded 2026-11-21 with the user's OK,
+      CRLF removed) in `study_config/annotation/TF_names_v_1.01.txt`. 169 of the 2,656 genes are TFs (C1 19: ISL1, PDX1,
+      FOXO1, TBX3, PBX3, ...; C5 21: ARX, ETV1, PAX6, HHEX, MAF, NR2F1, ESRRG, MEF2C, ...; C8 16: FEV, LMX1A, MNX1, NR0B1,
+      ASCL1, CUX2, ...; C10 16: NEUROD4, TWIST1, HEY2, NFIA, TBX5, JUN, ...). LMO2 is not in the list (LIM-only, no
+      DNA-binding domain). Lists: scRNAseq/reports/trajectory/gene_patterns_k10/ (local, not in git).
   - Next: cross the 7.3f lists with ISL1 CUT&RUN and bulk KO; comparison report (Slingshot, velocity, CellRank,
     KO drop-off, tradeSeq).
 - D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the
