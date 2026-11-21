@@ -45,7 +45,7 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   settings), 30 PCs, 15 neighbours, UMAP in 2D and 3D, Leiden 0.2-1.2. Markers vs the rest of the compartment.
   Output: `day_analysis/D15/subcluster_endocrine/` (report, `umap3d.html` interactive 3D UMAP).
 
-## Current state (2026-11-20)
+## Current state (2026-11-21)
 
 - 7.1b clustering on SCT B done for D15, D22 and D40.
 - D15: overview resolution 0.2; endocrine subset (7.1d) rerun without the non-endocrine cells (2026-11-19), 11
@@ -198,6 +198,45 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       FOXO1, TBX3, PBX3, ...; C5 21: ARX, ETV1, PAX6, HHEX, MAF, NR2F1, ESRRG, MEF2C, ...; C8 16: FEV, LMX1A, MNX1, NR0B1,
       ASCL1, CUX2, ...; C10 16: NEUROD4, TWIST1, HEY2, NFIA, TBX5, JUN, ...). LMO2 is not in the list (LIM-only, no
       DNA-binding domain). Lists: scRNAseq/reports/trajectory/gene_patterns_k10/ (local, not in git).
+  - Genes along every lineage (helpers `plot_gene_lineages_D15.py`, 6 D15 lineages, and `plot_gene_lineages_D15_D22.py`,
+    8 lineages of the full D15 + D22 integration or 4 of the subset; from expression, any gene; user, 2026-11-21):
+    LMO2, ETV1, PAX4, PAX6, PDX1, FOXO1, MEIS3, PBX3, NEUROD1, NEUROD4, LHX1, FEV, MNX1, ARX, NKX6-1, MAFB; page
+    `results/trajectory/gene_lineages/index.html` (local). The user prefers the **D15-only data** for telling apart
+    genes that drive alpha or beta downstream of ISL1. User's reading (hypotheses): ARX rises in KO along the alpha
+    lineage and stops only because the KO trajectory stops (ISL1-independent); ETV1 is not switched on in KO (alpha,
+    ISL1-dependent); LMO2 beta; PAX6 beta (not alpha); PDX1 beta; FOXO1 both. Checked on the curves: ETV1 also rises on
+    the delta lineage and its control rise starts near the KO alpha stop (1-2 overlapping bins); LMO2's beta rise starts
+    after the KO beta stop, so not switched on and never reached cannot be told apart yet (LMO2 also rises on alpha and
+    delta); PAX6 is ISL1-dependent on beta but follows control on alpha; PDX1 and FOXO1 are lower in KO from the first
+    bins on every lineage; NKX6-1 switches off in control pre_alpha but stays on in KO. A systematic D15 classification
+    (switched on in control but not KO within the range KO reaches / follows control then truncated / lower from the
+    start / undetermined) is proposed, not run.
+  - 7.3i **alpha vs beta bias of the progenitors** (user, 2026-11-21). Experimental data (user): ISL1 overexpression,
+    even in KO cells, rescues alpha and beta cells and reduces EC, so D15 pre_EC cells are probably still competent
+    progenitors; EC is still kept as an end state, because without the manipulation cells do fall into EC (user: an
+    alpha / beta-only end set is not correct). **No trajectory rerun**: the existing 7.3d / 7.4d fate probabilities (runs on
+    all cells) are read as they are. Per cell bias = P(alpha) / (P(alpha) + P(beta)), S = P(alpha) + P(beta); pseudotime
+    kernel = main, velocity = check.
+    - D15: alpha = pre_alpha, beta = pre_beta2; cells ENP1, ENP2, ENP_FEV_high and pre_alpha_KO (user: include
+      pre_alpha_KO); pre_EC is a D15 end state, so its cells have no bias. D15 + D22: alpha = SC_alpha, beta = SC_beta,
+      EC = SC_EC1 + SC_EC2; cells D15 ENP1, ENP2, ENP_FEV_high, pre_alpha_KO and pre_EC (user).
+    - Check 1 (pseudotime kernel): every cell has a ratio (S = 0 only for 2 KO D15 + D22 ENP_FEV_high cells). S < 0.05 in
+      D15: ENP_FEV_high control 9 / KO 117; in D15 + D22 the D22 EC ends take most of the probability (P(EC) median
+      0.78-0.98): ENP_FEV_high control 65 / KO 408, pre_EC control 106 / KO 581 of 712.
+    - Median bias control -> KO, D15: ENP1 0.51 -> 0.51, ENP2 0.38 -> 0.41, ENP_FEV_high 0.21 -> 0.32, pre_alpha_KO
+      0.77 -> 0.84. D15 + D22: ENP1 0.72 -> 0.73, ENP2 0.51 -> 0.58, ENP_FEV_high 0.23 -> 0.41, pre_alpha_KO 0.96 -> 0.94,
+      pre_EC 0.21 -> 0.46 (control pre_EC is beta-leaning; KO pre_EC has mostly S < 0.05). Values are comparable
+      within a dataset, not between the two (different end states).
+    - No clear alpha / beta separation: one broad peak per subcluster. The bias follows position along the trunk
+      (Spearman with pseudotime, control: D15 -0.70, D15 + D22 -0.60; within ENP_FEV_high -0.33 / -0.30); within
+      ENP_FEV_high it is unrelated to the EC fate. KO lacks the strongly beta-leaning ENP_FEV_high cells: P(beta) about
+      halved, P(alpha) unchanged, so the KO shift toward alpha is lost beta potential. A small alpha-leaning group sits at
+      the earliest ENP1 tip in both genotypes. Velocity-kernel bias follows pseudotime almost entirely (velocity runs
+      backwards).
+    - Not decided: how to group the progenitors (proposed: rank the bias within pseudotime bins in control, check the
+      split in expression, place KO cells with an expression classifier).
+    - Outputs `day_analysis/D15/trajectory/alpha_bias/{D15,D15_D22}/`; report `results/trajectory/alpha_bias/index.html`
+      (`analysis/scripts/build_alpha_bias_report.py`, Mac).
   - Next: cross the 7.3f lists with ISL1 CUT&RUN and bulk KO; comparison report (Slingshot, velocity, CellRank,
     KO drop-off, tradeSeq).
 - D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the
