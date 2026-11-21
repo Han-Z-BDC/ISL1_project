@@ -221,6 +221,14 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     the genotype on the scVI latent); per-genotype fixed ends = the Slingshot ends with >= 50 cells of the genotype,
     KO also D15 pre_alpha_KO (alpha_beta_EC: control SC_beta, SC_alpha, SC_EC1, SC_EC2; KO SC_EC1, SC_EC2,
     D15 pre_alpha_KO); same macrostate retry. Queued behind 7.4c scVelo.
+    - Done 2026-11-21 (scVelo 36100688, 11 min; CellRank 36100689, 3 min; all 6 runs written; the PETSc "Broken Pipe"
+      lines are worker shutdown noise, no traceback; the KO-only pseudotime run found no data-driven macrostates).
+      **Velocity runs backwards again**: latent time highest in D15 ENP1 (median 0.84) and the velocity kernel's only
+      data-driven terminal state is ENP1 (all, ctr and KO runs); Spearman of latent time with Slingshot pseudotime is
+      mixed (control beta 0.35, KO beta -0.70; EC2 control -0.53). The pseudotime kernel finds SC_beta, SC_alpha,
+      SC_EC1, SC_EC2 as terminal, so fates and terminal states are read from the pseudotime kernel (as D15).
+      Pseudotime kernel, mean fate by label x genotype: beta fate at D15 ENP_FEV_high control 0.10 vs KO 0.03, at
+      pre_beta1 0.12 vs 0.03; alpha fate early unchanged (ENP_FEV_high 0.035 vs 0.033); KO early cells head to EC1 / EC2.
   - Job names: every D15 + D22 job starts with `isl1_int_` (D15-only jobs `isl1_`), user 2026-11-19.
   - Environment fixes (CELLRANK_ENV: scvelo 0.3.4, cellrank 2.0.7, numpy 2.4.6), 2026-11-20, in 7.3c/d and 7.4c/d:
     looms read with anndata.read_loom (no scv.read); filter_and_normalize only filters + normalises, so log1p and
