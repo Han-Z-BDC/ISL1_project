@@ -188,7 +188,10 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       both genotypes, KO follows (INS, CRYBA2, STMN2, APOA1); C8 255 mid-path rise that control turns off late on beta /
       alpha while KO keeps rising, higher in KO on EC (CHGA, LMX1A, MNX1, FEV, NR0B1); C9 241 transient mid-path peak in
       both, turned off late (RUNX1T1, SCG2, cilia genes); C10 202 rise on the EC branch, stronger in KO and up in KO at
-      the beta / alpha stop (PTHLH, NETO1, NTM, KCNJ3, BHMT, DUSP4) = "switched to EC in KO". Choice of k open.
+      the beta / alpha stop (PTHLH, NETO1, NTM, KCNJ3, BHMT, DUSP4) = "switched to EC in KO".
+    - **Working classification: k = 10** (user, 2026-11-21): `gene_patterns_k10.csv`, `gene_pattern_clusters_k10.csv`,
+      `gene_patterns_{curves,heatmap}_k10.png` (rerun: `sbatch analysis/scripts/7.3h_gene_patterns.sb 4,8,9,10`; the
+      plain-named files are the silhouette-best k = 4). To recheck with tradeSeq (7.3e) curves when they exist.
   - Next: cross the 7.3f lists with ISL1 CUT&RUN and bulk KO; comparison report (Slingshot, velocity, CellRank,
     KO drop-off, tradeSeq).
 - D15 + D22 trajectory (step 7.4, user, 2026-11-19): the 7.3 set (Slingshot, velocity, CellRank, tradeSeq) on the
