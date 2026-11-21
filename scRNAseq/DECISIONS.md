@@ -235,6 +235,29 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       SC_EC1, SC_EC2 as terminal, so fates and terminal states are read from the pseudotime kernel (as D15).
       Pseudotime kernel, mean fate by label x genotype: beta fate at D15 ENP_FEV_high control 0.10 vs KO 0.03, at
       pre_beta1 0.12 vs 0.03; alpha fate early unchanged (ENP_FEV_high 0.035 vs 0.033); KO early cells head to EC1 / EC2.
+  - **7.4g / 7.4h / 7.4i: the D15 trajectory analysis repeated on D15 + D22** (user, 2026-11-21: "Go ahead"). Changes from
+    D15: a cell is on a lineage only with curve weight >= 0.5 AND a label on the lineage's path (weight alone put many D22
+    EC cells on the beta / alpha curves: beta KO 6,218 vs 2,243 on the path); programs from the pseudotime-kernel drivers
+    only; every KO vs control test stays within one stage (D15 or D22 = separate batches); line-wide = called in >= 2/3 of
+    the 35 window tests (24 genes, the same ones as D15: TSPYL5, CTSF, GRIN3A, SMC2, SLC7A2, ...).
+    - 7.4g: beta stop window (D15 pre_EC / pre_beta1 / ENP_FEV_high) lost only ACVR1C, gained 105 (TBX5, OSR1, NFIA, ZEB2,
+      ...), on after the stop and missing in KO 38 (LMO2, SLC17A6, ITGA1, ALDH1A1, APOA2, ...); alpha stop lost 93 (ARX,
+      TLE4, RGS4, THRB, NPY, ...), gained 445, on after the stop and missing in KO 539 (GCG, CRH, UCN3, PAX3, PAX5, GAST,
+      KIT, LMO2, ...).
+    - 7.4h: KO never reaches the D22 beta / alpha branches (0-2 KO cells), so beta / alpha are tested on D15 only; EC2 and
+      EC1 are tested at D22 with many KO cells (e.g. EC2 KO 1,000 vs control 180 per window). EC programs control vs KO:
+      EC2 236 control only / 9 both / 0 KO only; EC1 45 / 7 / 18.
+    - 7.4i: 4,542 genes; silhouette low (0.20 at k = 4); k = 4, 8, 9, 10 written (seed agreement 0.99 / 0.99 / 0.95 / 0.90).
+      k = 10: C1 late beta rise at D22, KO flat (TTR, CALB2, SLC30A8, ACVR1C, PDX1); C2 late alpha rise, KO lags (GCG,
+      ISL1, ARX, ETV1, PAX6, HHEX, MAF); C3 mid rise, KO higher and still rising at the stop (FEV, LMX1A, MNX1, NKX6-1);
+      C4 mid-path peak turned off late on beta / alpha (NKX2-2, INSM1, FOXP2, SSTR2); C5 up in KO at the alpha stop
+      (GAST, AMBP, GAL, XBP1, CUX2, NR0B1); C6 early, lower in KO from the start; C7 early progenitor genes falling
+      (SOX4, DLK1, NEUROG3, PAX4); C8 high early in KO only (TBX5, SOX11, GATA3); C9 rise toward every end in both
+      genotypes (CHGA, CRYBA2, SCG3, ASCL1); C10 rise toward EC2 at D22, KO = control (TPH1, PCSK1, HIF1A, NEUROD4,
+      TWIST1). Overlap with the D15 k = 10 clusters (1,972 shared genes) is consistent: D15 C1 -> C1, C5 -> C2, C3 -> C7,
+      C9 -> C4, C2 -> C6, C6 -> C8, C8 -> C3 / C5; D15 C10 ("switched to EC in KO") -> C10: at D22 control EC2 cells also
+      express these genes, so in KO the EC program comes on early (at D15), not a KO-only program.
+      Lists and TFs per cluster: scRNAseq/reports/trajectory/D15_D22/ (local). Choice of k for D15 + D22 open.
   - Job names: every D15 + D22 job starts with `isl1_int_` (D15-only jobs `isl1_`), user 2026-11-19.
   - Environment fixes (CELLRANK_ENV: scvelo 0.3.4, cellrank 2.0.7, numpy 2.4.6), 2026-11-20, in 7.3c/d and 7.4c/d:
     looms read with anndata.read_loom (no scv.read); filter_and_normalize only filters + normalises, so log1p and

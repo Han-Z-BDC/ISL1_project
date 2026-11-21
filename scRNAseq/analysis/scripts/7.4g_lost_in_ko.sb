@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_int_lost_in_ko
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=60G
+#SBATCH --time=04:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/int_lost_in_ko.%j.out
+
+# Step 7.4g: D15 + D22 trajectory, KO vs control (see the .py docstring). INT_SUBSET (default alpha_beta_EC) via
+# sbatch --export=ALL,INT_SUBSET=<name>. Runs in the CellRank env (CELLRANK_ENV in study_config/config.sh).
+# Run from the repo root: sbatch analysis/scripts/7.4g_lost_in_ko.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.4g_lost_in_ko.py" "$@"
