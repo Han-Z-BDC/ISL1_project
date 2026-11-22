@@ -112,7 +112,76 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       KO_only drivers (TRPM3, CNTNAP2, TOX, DCC, SEMA6A, ...) overlap the control pre_delta drivers; NKX6-1 is a
       KO driver toward PHOX2A+ (velocity kernel); pre_alpha_KO drivers are mostly cilia genes plus ARX.
   - 7.3e tradeSeq on all genes detected in >= 10 cells (control vs KO condition tests per lineage, early DE at
-    branches, gene modules by curve shape): running.
+    branches, gene modules by curve shape): running (job 36009099, 23,279 genes x 6 lineages, 32 cores; past 2 days of
+    its 3-day limit on 2026-11-21, progress bar silent in parallel mode). **Cancelled** (user, 2026-11-21) together with
+    the D15 + D22 fits 36045487 (~45% after 35 h) and combine 36045488: parallel fitting is the slow part and both would
+    have stopped at the rowData bug before the tests; to be rerun serially in chunks (design pending).
+    - Timing test (user, 2026-11-21; `7.3e_tradeseq_timing.R`, same inputs): a 1-gene matrix crashes fitGAM ("invalid
+      row.names length"), so the smallest test is 2 genes; one core, 6 lineages: 2 genes 1.5 s / gene (ISL1, PDX1),
+      10 genes 3.1 s / gene, 50 genes 4.6 s / gene, 3.3 GB memory. All 23,279 genes would be ~30 core-hours, so the
+      2-day run is slower than the per-gene cost explains.
+  - 7.3j **alpha / beta / EC driver table** (user, 2026-11-21: alpha, beta and EC drivers, then which genes differ by
+    genotype along the three trajectories). pre_EC is a terminal state in every 7.3d run; the all-cell runs computed
+    drivers for pre_alpha and pre_beta2 only (set on 2026-11-20), the control-only runs for every fate, so the table
+    uses the control-only runs (as 7.3f): r >= 0.2, FDR < 0.05 in the control early cells, program both / one kernel.
+    No CellRank rerun. Drivers: alpha 212 both + 442 one kernel, beta 62 + 359, EC 222 + 271; 1,299 genes, 269 of them
+    drive both beta and EC, none alpha with beta or EC. `drivers_alpha_beta_EC.csv`.
+  - 7.3k **subset tradeSeq** (user, 2026-11-21: instead of the full genome, the drivers and the KO vs control genes;
+    chunked). Genes = 7.3j drivers (either kernel, any of the three fates) + the 2,656 KO vs control trajectory genes
+    of 7.3h + the 7.3e endocrine markers = 3,383 (`tradeseq_subset_genes.csv`); lineages = beta (Lineage1), alpha
+    (Lineage2), EC (Lineage3) only, cells with no weight on the three dropped; model and tests as 7.3e; FDR over the
+    subset genes. 16 one-core chunks (acpu, 16G) + combine (`7.3k_tradeseq_subset_submit.sh`). Outputs
+    `tradeseq_subset_{association,condition,earlyDE,condition_wide,smooth,modules}.csv` (lineage names, driver calls
+    and 7.3h cluster on every row).
+    - Run 2026-11-21: 5-core MulticoreParam fits took 28.5 min per 212-gene chunk (slower than one core, so the fit
+      step is now serial); the first pass stopped after saving the models at `rowData` (SingleCellExperiment not
+      loaded), the tests were rerun from the saved models (`reuse`). **The same `rowData` line is in 7.3e and 7.4e
+      fit**: those runs will save their models and stop before the tests (not edited while running).
+    - Result: 3,382 genes; condition test FDR < 0.05 on any lineage: **58 genes** (alpha 16 only, EC 15 only, beta 2
+      only, all three 13, alpha + EC 6, beta + alpha 3, beta + EC 3); 54 of them are in the 7.3h set, 20 are drivers.
+      Far fewer than the 7.3g window tests: the 1.5-fold threshold applies over the whole curve, and KO has almost no
+      cells on the late beta / alpha segments, where its curve is extrapolated.
+  - 7.3l **replicate pseudobulk KO vs control, all genes** (user, 2026-11-21: a simple but comprehensive test; the
+    7.3h set misses timing / shape shifts, non-driver genes at the stop and the KO-diverted states, and the both-
+    replicates rule is strict). Summed SoupX counts per replicate x position, edgeR quasi-likelihood (filterByExpr,
+    TMM, ~0 + group, robust), samples with < 10 cells dropped; call = FDR < 0.05 and |log2FC| >= 0.5.
+    - 1 curve: per lineage (beta, alpha, EC), the 8 equal-count windows of 7.3g, windows with all four replicates
+      (beta and alpha w8 untested: no KO cells); any (joint test of KO - control in every window), level (mean
+      difference), shape (difference changes along the lineage), per-window log2FC / FDR. Called: beta 884, alpha
+      1,091, EC 1,269 (1,722 genes) by the joint test; mostly level differences, shape in ~10%. Added (user,
+      2026-11-21): a gene is also called when any single window passes (FDR < 0.05, |log2FC| >= 0.5), since the joint
+      test dilutes narrow differences: +111 beta, +288 alpha, +155 EC (pattern "window only"); 2,125 genes.
+    - 2 past the stop (beta, alpha; 7.3f windows): missing in KO (control switches on right after the stop, KO at the
+      stop lacks it) beta 210 / alpha 979; kept on in KO (control switches off, KO keeps it) beta 92 / alpha 655
+      (NKX6-1, NEUROG3, FEV, LMX1A, MNX1 kept on in KO on alpha; INS, ISL1, ARX, GCG, SST missing in KO).
+    - 3 KO states vs nearest control state: KO_only vs ctr ENP_FEV_high 962 up / 600 down; pre_alpha_KO vs ctr
+      pre_alpha 1,395 / 1,629; ENP_PHOX2A+ KO vs ctr 59 / 55. KO-state-only genes (1,876) are a separate category.
+    - Re-clustering (7.3h with GENESET=pseudobulk, same curves, k = 10; silhouette-best k = 4): with the single-window
+      rule 3,089 genes (curve or past-stop calls), 993 of them new; old genes kept: window-only 1,042 of 1,532,
+      after-stop ~all (before the rule: 2,820 genes, ARI old vs new k = 10 on shared genes 0.61). Old genes not
+      kept (before the rule, 715): 385 not significant once replicate variance is modelled, 150 single-window only
+      (now recovered), 86 too few counts to test, 59 old stop / after-stop only, 35 effect < 0.5; mostly genes
+      called in one old window, at about half the expression of the kept genes.
+  - 7.3m **full tradeSeq, D15** (user, 2026-11-21; replaces 7.3e): 22,824 genes (detected in >= 10 of the 5,243 cells on
+    the beta / alpha / EC lineages), the three lineages only, 115 chunks of 200 genes, one acpu core (3.7 GB) each,
+    serial fit: 2 min and 1.3 GB per chunk (the parallel 7.3e ran > 2 days). Prep writes per-chunk counts so a task
+    never loads the whole matrix. Tests per chunk from the saved models: association; conditionTest per lineage,
+    l2fc = 0, over the **shared range** (knots up to the KO cells' 95th percentile of pseudotime: beta knots 1-3, alpha
+    1-4, EC 1-4) and over the whole curve; earlyDE. Wald eigenvalue threshold 1e-4 (the default 0.01 left 1,000-
+    2,000 genes per lineage, e.g. FEV, without a result). Effect = max |log2((KO + 1) / (ctr + 1))| of the smoothed
+    curves over the **well-populated KO range**: from the later of the two genotypes' 5th percentile of pseudotime on
+    the lineage to the KO 95th percentile (beta 74-151, alpha 73-158, EC 83-184). (user, 2026-11-21: the first
+    version measured from the curve start, where few cells sit; 255 of 362 beta calls peaked at pseudotime < 50, e.g.
+    INS and CHGA "higher in KO" at 23.) Call = shared FDR < 0.05 and effect >= 0.5; direction and pseudotime of the
+    maximum kept; TF flag (Lambert 2018).
+    - Result: shared-range FDR < 0.05 beta 863 / alpha 1,018 / EC 1,305 genes; with the effect cut **402 genes**, 342
+      of them also pseudobulk curve calls (of 2,125). ISL1 / PDX1 / FEV all three lineages, ARX alpha + EC, ETV1 and
+      MNX1 alpha; LMO2 and NKX6-1 not called (their difference lies past the stop: pseudobulk "missing" / "kept on in
+      KO").
+    - Beta lineage: 184 genes (96 lower in KO, 88 higher; 149 also pseudobulk beta calls). TFs lower in KO: ISL1,
+      PBX3, ETS2, PAX6, NPAS3, TSHZ2, PDX1, FOXO1; higher in KO: ESRRG, FEV, ZNF608. INS lower in KO (-1.28).
+      `trajectory/tradeseq_full/tradeseq_{association,condition,earlyDE,condition_wide,smooth}.csv`. Outputs `trajectory/pseudobulk/`
+      (`pb_curve.csv`, `pb_after_stop.csv`, `pb_ko_states.csv`, `pb_genes.csv`, `gene_patterns/`).
   - 7.3f **lost in KO** (user, 2026-11-20: CellRank drivers plus a lost-in-KO comparison; tradeSeq covers the
     curve-based genes). `cellrank_lost_in_KO.csv`, `_profile.csv`, `cellrank_on_after_KO_stop.csv`.
     - Candidate genes = the control program above (both kernels; one-kernel genes flagged).

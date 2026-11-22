@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ts_full
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=3700M
+#SBATCH --time=03:00:00
+#SBATCH --array=0-149%60
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ts_full.%A_%a.out
+
+# Step 7.3m fit: one gene chunk per array task, one acpu core (3.7 GB), serial fit -- see the .R header. Needs the
+# prep step. The array is sized generously; tasks past the last chunk (chunks.txt) exit at once.
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+FO="${OUT_DIR}/day_analysis/D15/trajectory/tradeseq_full"
+if [[ ! -f "${FO}/chunk${SLURM_ARRAY_TASK_ID}_counts.rds" ]]; then echo "no chunk ${SLURM_ARRAY_TASK_ID}"; exit 0; fi
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3m_tradeseq_fit.R" "${SLURM_ARRAY_TASK_ID}"

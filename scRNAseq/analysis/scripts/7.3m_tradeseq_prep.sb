@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ts_full_prep
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ts_full_prep.%j.out
+
+# Step 7.3m prep: gene chunks for the full D15 tradeSeq -- see the .R header. Needs 7.3a.
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3m_tradeseq_prep.R"

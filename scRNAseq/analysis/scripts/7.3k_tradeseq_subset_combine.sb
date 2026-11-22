@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tradeseq_sub_comb
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=32G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/tradeseq_sub_comb.%j.out
+
+# Step 7.3k combine: FDR over the subset genes, lineage names, driver calls, curves, modules -- see the .R header.
+# Needs every 7.3k fit task (submitted with a dependency by 7.3k_tradeseq_subset_submit.sh).
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3k_tradeseq_subset_combine.R" 16

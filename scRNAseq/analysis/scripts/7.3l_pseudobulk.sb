@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_pseudobulk
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=60G
+#SBATCH --time=04:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/pseudobulk.%j.out
+
+# Step 7.3l: D15 KO vs control on replicate pseudobulk (three comparisons, edgeR), then the 7.3h re-clustering of the
+# called genes (k = 10 plus the silhouette-best k) -- see the .py / .R headers. Needs 7.3a, 7.3d, 7.3h, 7.3j.
+# Run from the repo root: sbatch analysis/scripts/7.3l_pseudobulk.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+echo "[$(date '+%F %T')] prep"
+"${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.3l_pseudobulk_prep.py"
+echo "[$(date '+%F %T')] edgeR"
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3l_pseudobulk_edger.R"
+echo "[$(date '+%F %T')] re-clustering (7.3h, GENESET=pseudobulk)"
+GENESET=pseudobulk "${CELLRANK_ENV}/bin/python" "${REPO_DIR}/analysis/scripts/7.3h_gene_patterns.py" 10
+echo "[$(date '+%F %T')] done"

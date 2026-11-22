@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ts_full_comb
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=03:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ts_full_comb.%j.out
+
+# Step 7.3m combine: FDR, smoothed curves, effect sizes, comparison with 7.3l -- see the .R header. Needs every fit task.
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3m_tradeseq_combine.R"

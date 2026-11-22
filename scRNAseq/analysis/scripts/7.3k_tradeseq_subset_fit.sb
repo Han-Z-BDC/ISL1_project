@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_tradeseq_sub
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=16G
+#SBATCH --time=06:00:00
+#SBATCH --array=0-15
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/tradeseq_sub.%A_%a.out
+
+# Step 7.3k fit: D15 subset tradeSeq (beta / alpha / EC lineages; 7.3j gene set), one gene chunk per array task,
+# one core each (16 chunks of ~210 genes; ~4.5 s per gene on one core) -- see the .R header. Needs 7.3a, 7.3j.
+# Run from the repo root: bash analysis/scripts/7.3k_tradeseq_subset_submit.sh
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+N=16
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.3k_tradeseq_subset_fit.R" "${SLURM_ARRAY_TASK_ID}" "${N}" ${REUSE:-}

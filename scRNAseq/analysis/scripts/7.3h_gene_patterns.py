@@ -31,7 +31,12 @@ Writes ${OUT_DIR}/day_analysis/D15/trajectory/ (reruns overwrite):
   extra k   (user, 2026-11-21: try k 8-10) optional argument, comma-separated k values: each writes its own
             files with the suffix _k<k> (the silhouette-best k keeps the plain names) and a table of how the
             silhouette-best clusters split into it (gene_pattern_split_k<best>_to_k<k>.csv)
+  pseudobulk (user, 2026-11-21) with GENESET=pseudobulk: genes = the 7.3l pseudobulk calls with curves on the three
+            lineages (curve test on any lineage, or past-the-stop missing / kept on in KO; KO-state-only genes are a
+            separate category, not clustered); sources = those calls; line-wide = curve call on all three lineages
+            in the same direction; same curves and clustering; writes to trajectory/pseudobulk/gene_patterns/
 Run: sbatch analysis/scripts/7.3h_gene_patterns.sb [k,k,...]   (CELLRANK_ENV python)
+     GENESET=pseudobulk: sbatch --export=ALL,GENESET=pseudobulk analysis/scripts/7.3h_gene_patterns.sb 10
 """
 import os
 import sys
@@ -54,6 +59,8 @@ from sklearn.metrics import adjusted_rand_score, silhouette_samples, silhouette_
 OUT_DIR = Path(os.environ["OUT_DIR"])
 DD = OUT_DIR / "day_analysis" / "D15"
 SUB, TR = DD / "subcluster_endocrine", DD / "trajectory"
+GENESET = os.environ.get("GENESET", "")
+OUTD = TR / "pseudobulk" / "gene_patterns" if GENESET == "pseudobulk" else TR
 LINEAGES = {"beta": "pre_beta2", "alpha": "pre_alpha", "EC": "pre_EC"}
 GENOS = ["ctr", "KO"]
 W_MIN, NBIN, MIN_CELLS, LINE_WIDE = 0.5, 10, 15, 15
@@ -62,7 +69,28 @@ COL = {("ctr", "beta"): "#2166ac", ("KO", "beta"): "#92c5de", ("ctr", "alpha"): 
        ("KO", "alpha"): "#f4a582", ("ctr", "EC"): "#1b7837", ("KO", "EC"): "#a6dba0"}
 
 
+def gene_sources_pseudobulk():
+    g = pd.read_csv(TR / "pseudobulk" / "pb_genes.csv", keep_default_na=False)
+    g = g[g.in_curves.astype(str) == "True"]
+    src = {}
+    for r in g.itertuples():
+        tags = [f"pb curve {t}" for t in r.curve.split("; ") if t] + [f"pb past stop {t}" for t in r.after_stop.split("; ") if t]
+        tags += [f"pb KO state {t}" for t in r.ko_state.split("; ") if t]
+        src[r.gene] = set(tags)
+    w = pd.read_csv(TR / "ko_vs_ctr_windows.csv.gz", usecols=["gene", "beta_program", "alpha_program", "EC_program",
+                                                              "EC_KO_program"])
+    prog = w.drop_duplicates("gene").set_index("gene")
+    c = pd.read_csv(TR / "pseudobulk" / "pb_curve.csv")
+    c = c[c.call.astype(str) == "True"]
+    d = c.groupby("gene").agg(n=("lineage", "nunique"), dirs=("direction", lambda x: set(x)))
+    line_wide = set(d.index[(d.n == 3) & d.dirs.apply(lambda x: len(x) == 1 and list(x)[0] in ("higher in KO", "lower in KO"))])
+    print(f"pseudobulk gene set: {len(src)} genes; line-wide (curve call on all three lineages, same direction): {len(line_wide)}")
+    return src, prog, line_wide
+
+
 def gene_sources():
+    if GENESET == "pseudobulk":
+        return gene_sources_pseudobulk()
     src = {}
 
     def add(genes, tag):
@@ -90,6 +118,7 @@ def gene_sources():
 
 
 def main():
+    OUTD.mkdir(parents=True, exist_ok=True)
     src, prog, line_wide = gene_sources()
     a = ad.read_h5ad(SUB / "D15_endocrine.h5ad")
     lab = pd.read_csv(TR / "cellrank_velocity_fates.csv", index_col=0, keep_default_na=False)
@@ -131,7 +160,7 @@ def main():
             feats.append(S); fnames += [f"{lin}|{g}|{i + 1}" for i in range(NBIN)]
             keepcol += list(n >= MIN_CELLS)
             print(f"{lin} {g}: cells per bin {n.tolist()}")
-    pd.concat(rows).to_csv(TR / "gene_pattern_curves.csv", index=False)
+    pd.concat(rows).to_csv(OUTD / "gene_pattern_curves.csv", index=False)
     F = np.hstack(feats); keepcol = np.array(keepcol)
     print("bins not reached (left out):", [f for f, k in zip(fnames, keepcol) if not k])
     Fk = F[:, keepcol]
@@ -152,7 +181,7 @@ def main():
         ari_s = np.mean([adjusted_rand_score(km.labels_, KMeans(n_clusters=k, n_init=50, random_state=SEED + j)
                                              .fit(Z).labels_) for j in range(1, 6)])
         krows.append({"k": k, "silhouette": round(s, 4), "ARI_vs_ward": round(ari_w, 3), "ARI_vs_seeds": round(ari_s, 3)})
-    kt = pd.DataFrame(krows); kt.to_csv(TR / "gene_pattern_k.csv", index=False)
+    kt = pd.DataFrame(krows); kt.to_csv(OUTD / "gene_pattern_k.csv", index=False)
     print(kt.to_string(index=False))
     best = int(kt.sort_values(["silhouette", "k"], ascending=[False, True]).k.iloc[0])
     ks = [int(x) for x in sys.argv[1].split(",")] if len(sys.argv) > 1 else [best]
@@ -172,7 +201,7 @@ def main():
                            "line_wide": np.isin(gk, list(line_wide)), "sources": tags.reindex(gk).to_numpy()})
         gp = gp.merge(prog, left_on="gene", right_index=True, how="left")
         gp = gp.sort_values(["cluster", "silhouette"], ascending=[True, False], kind="stable")
-        gp.to_csv(TR / f"gene_patterns{sfx}.csv", index=False)
+        gp.to_csv(OUTD / f"gene_patterns{sfx}.csv", index=False)
         crow = []
         for c, d in gp.groupby("cluster"):
             r = {"cluster": c, "genes": len(d), "mean_silhouette": round(d.silhouette.mean(), 3),
@@ -183,7 +212,7 @@ def main():
             r["top_sources"] = "; ".join(f"{t} {v}" for t, v in st.head(6).items())
             r["top_genes"] = ", ".join(d.sort_values("level_max", ascending=False).gene.head(20))
             crow.append(r)
-        ct = pd.DataFrame(crow); ct.to_csv(TR / f"gene_pattern_clusters{sfx}.csv", index=False)
+        ct = pd.DataFrame(crow); ct.to_csv(OUTD / f"gene_pattern_clusters{sfx}.csv", index=False)
         print(ct.drop(columns=["top_sources"]).to_string(index=False))
         for r in crow:
             print(f"\ncluster {r['cluster']} ({r['genes']}): {r['top_sources']}\n  {r['top_genes']}")
@@ -207,7 +236,7 @@ def main():
         ax.set_title(f"{len(gk)} trajectory genes, k-means k = {k} (z-score per gene across the 6 curves; grey = KO not "
                      "reached; pseudotime left to right within each curve)", fontsize=10)
         plt.colorbar(im, ax=ax, fraction=0.02); fig.tight_layout()
-        fig.savefig(TR / f"gene_patterns_heatmap{sfx}.png", dpi=90); plt.close(fig)
+        fig.savefig(OUTD / f"gene_patterns_heatmap{sfx}.png", dpi=90); plt.close(fig)
         nc = 4; nr = int(np.ceil(k / nc))
         fig, axs = plt.subplots(nr, nc, figsize=(5 * nc, 3.6 * nr), squeeze=False)
         x = np.arange(NBIN)
@@ -224,7 +253,7 @@ def main():
         for ax in list(axs.flat)[k:]:
             ax.axis("off")
         fig.suptitle("Mean z-scored curves per cluster (solid = control, dashed = KO)", fontsize=12)
-        fig.tight_layout(); fig.savefig(TR / f"gene_patterns_curves{sfx}.png", dpi=85); plt.close(fig)
+        fig.tight_layout(); fig.savefig(OUTD / f"gene_patterns_curves{sfx}.png", dpi=85); plt.close(fig)
         if k == best:
             ref = pd.Series(cl, index=gk)
     # how each finer k splits the silhouette-best clusters (needs the best k among ks or computed here)
@@ -235,11 +264,11 @@ def main():
     for k in ks:
         if k == best:
             continue
-        g = pd.read_csv(TR / f"gene_patterns_k{k}.csv").set_index("gene").cluster.reindex(gk)
+        g = pd.read_csv(OUTD / f"gene_patterns_k{k}.csv").set_index("gene").cluster.reindex(gk)
         x = pd.crosstab(ref.rename(f"k{best} cluster"), g.rename(f"k{k} cluster"))
-        x.to_csv(TR / f"gene_pattern_split_k{best}_to_k{k}.csv")
+        x.to_csv(OUTD / f"gene_pattern_split_k{best}_to_k{k}.csv")
         print(f"\nk = {best} clusters (rows) split into k = {k} clusters (columns):\n", x.to_string())
-    print("\nwrote", TR, "gene_patterns*.csv, gene_pattern_clusters*.csv, heatmaps, curves")
+    print("\nwrote", OUTD, "gene_patterns*.csv, gene_pattern_clusters*.csv, heatmaps, curves")
 
 
 if __name__ == "__main__":
