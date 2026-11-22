@@ -1,0 +1,8 @@
+rule	source	cluster	label	description	status
+base	r0.2	0	ENP	endocrine beyond the NEUROG3 stage except pre_alpha (CHGA, INSM1, FEV, NKX6-1); holds the 7.1d subtypes ENP2, ENP_FEV_high, ENP_PHOX2A+, pre_EC, pre_beta1, pre_beta2, pre_alpha_KO, KO_only (+ 83 cells left out of the 7.1d subset)	confirmed
+base	r0.2	1	pre_alpha	control only (ISL1, GCG, ARX, INS); 526 pre_alpha + 87 pre_delta of the 7.1d subset	confirmed
+base	r0.2	2	PP-hepatic	AFP, APOB, CDX2, HNF4A high, PDX1 / NKX6-1 low; named PP-hepatic by the user (not enough hepatic cells expected in this differentiation to call it hepatic)	confirmed
+base	r0.2	3	PP2	pancreatic progenitor, ONECUT1, SOX9, PDX1, with CDX2 / AFP	confirmed
+base	r0.2	4	PP1	pancreatic progenitor, PDX1, NKX6-1, SOX9, PTF1A, ONECUT1	confirmed
+base	r0.2	5	PP-ENP	progenitor to endocrine bridge (NEUROG3, INSM1, GHRL); 265 ENP1 + 203 progenitor-like cells left out of the 7.1d subset, kept here by the user	confirmed
+base	r0.2	6	fibroblast	COL1A2, COL3A1, PDGFRA, CRABP2	confirmed

@@ -1,6 +1,6 @@
 """Figure data export (user, 2026-11-22): per-cell log1p expression of chosen genes for one day, for the local figure
-scripts (fig_feature_dot.R). Values = X of {day}_merged.h5ad (unregressed log1p of the SoupX counts, as 7.1i), cells =
-the day's 7.1h labels. Genes missing from the data are reported and skipped.
+scripts (fig_feature_dot.R, fig_d15_overview.R). Values = X of {day}_merged.h5ad (unregressed log1p of the SoupX counts,
+as 7.1i), cells = the day's 7.1h labels, or all cells when the day has none yet. Genes missing from the data are reported and skipped.
 Writes ${OUT_DIR}/day_analysis/figure_data/{day}_genes.csv.gz (barcode + one column per gene)
 Run on Alpine: sbatch --wrap with ${TOOLS}/python fig_export_genes.py D22 GCG ARX INS ...
 """
@@ -18,8 +18,10 @@ day, genes = sys.argv[1], sys.argv[2:]
 dd = OUT_DIR / "day_analysis" / day
 out = OUT_DIR / "day_analysis" / "figure_data"
 out.mkdir(parents=True, exist_ok=True)
-lab = pd.read_csv(dd / "labels" / "labels.csv", index_col=0)
 a = ad.read_h5ad(dd / f"{day}_merged.h5ad", backed="r")
+lf = dd / "labels" / "labels.csv"
+# a day without 7.1h labels yet (D15, 2026-11-22): all cells of the merged object
+lab = pd.read_csv(lf, index_col=0) if lf.exists() else pd.DataFrame(index=a.obs_names)
 miss = [g for g in genes if g not in a.var_names]
 if miss:
     print("not in the data, skipped:", miss)

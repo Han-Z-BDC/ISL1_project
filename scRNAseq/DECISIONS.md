@@ -609,6 +609,18 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   - D40: GCG ARX INS G6PC2 NKX6-1 SST GHRL SLC18A1 TPH1 FEV AFP SOX9 PRSS1 COL3A1 SOX2 (no NEUROG3; PRSS1 also high
     in D40 hepatic cells).
 
+- D15 whole-day labels (user, 2026-11-22; before the endocrine subset; `study_config/annotation/D15_annotation.tsv`,
+  7.1h -> `day_analysis/D15/labels/`): overview resolution 0.2, base rules only: 0 **ENP** (5,178), 1 **pre_alpha**
+  (620, control only), 2 **PP-hepatic** (3,844; AFP / APOB / CDX2 high, PDX1 / NKX6-1 low; named PP-hepatic by the user,
+  who does not expect that many hepatic cells in this differentiation), 3 **PP2** (2,374), 4 **PP1** (3,806), 5
+  **PP-ENP** (486), 6 **fibroblast** (433). The 290 cells left out of the 7.1d endocrine subset (83 in cluster 0, 4 in
+  1, 203 in 5) keep their cluster's label (user). Relation to the 7.1d subtypes: ENP holds ENP2, ENP_FEV_high,
+  ENP_PHOX2A+, pre_EC, pre_beta1 / 2, pre_alpha_KO, KO_only; pre_alpha = 526 pre_alpha + 87 pre_delta; PP-ENP = 265 ENP1
+  + 203 excluded cells. Colours added to label_colours.tsv (pre_alpha, PP-ENP, PP1, PP2, PP-hepatic; ENP and
+  fibroblast reuse the D22 / D40 colours). Note: D22 / D40 call their AFP-high cells "hepatic".
+  - Figures (local, plot/D15/): `PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_umap_labels.R D15` -> umap_D15.pdf,
+    umap_D15_genotype.pdf, umap_core/umap_D15{,_ctr,_KO}.png; exploratory cluster plots `fig_d15_overview.R`.
+
 ## Open items
 
 - Step 1.4 does not yet count the NF > 0.6 cells removed at the per-day merge.
