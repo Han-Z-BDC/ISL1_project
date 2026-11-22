@@ -2,6 +2,7 @@ label	colour
 SC_alpha	#1f77b4
 SC_beta	#ff7f0e
 SC_delta	#8c564b
+SC_delta_GHRL	#8c564b
 GHRL+	#000000
 ENP	#bcbd22
 SC_EC1	#d62728

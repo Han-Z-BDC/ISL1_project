@@ -500,6 +500,11 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       (r 0.69-0.73, 20 markers) and group 3 (KO EC-like, 43 cells, in D40 GHRL+) has no clear partner (D22 SC_EC2 /
       GHRL+, r 0.29-0.40).
     - Decision (user, 2026-11-19): keep the sub-resolution 0.1 labels as they are, knowing the above.
+    - **Merged (user, 2026-11-22):** D40 GHRL+ and SC_delta (both r0.4 cluster 9) are one label, **SC_delta_GHRL**
+      (166 cells, 96 control / 70 KO), colour = D22 SC_delta (label_colours.tsv). D22 keeps SC_delta and GHRL+.
+      Redrawn: D40 UMAPs, composition test (7.1l) and plots. 7.1l D40 with the merge: SC_delta_GHRL 1.61% -> 1.02%,
+      propeller FDR 0.19 (ns); the other D40 FDRs shift slightly (moderated variance re-estimated), all still < 0.01.
+      7.1m (ec_corr_D40, ec_dotplot_D40) still shows the earlier SC_delta / GHRL+ rows; the EC results are unaffected.
 
 - Label proportions KO vs control (step 7.1l, user, 2026-11-22; `day_analysis/composition_genotype/`): per day
   (D22, D40) and label, the share of each sample's cells; 2 control vs 2 KO samples as replicates (wells of one
@@ -516,6 +521,7 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   - propeller FDRs are very small (to 1e-22) because limma borrows variance across labels; the GLM is more
     conservative (D22 FDR 0.002-0.08, e.g. ENP / GHRL+ / hepatic 0.08). The non-endocrine decreases in KO are partly
     compositional (EC labels take ~95% of KO cells).
+  - (2026-11-22, later) D40 rerun with SC_delta_GHRL (see the D40 labels): GHRL+ / SC_delta rows above replaced.
   - Figures (local, `scRNAseq/plot/`, `analysis/scripts/fig_composition.R`): composition_{day}.pdf (bar = genotype
     mean, dots = replicates, FDR), composition_log2ratio.pdf.
 
@@ -588,6 +594,17 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     15-31%; > 0 in 62-65% at D22, 40-43% at D40; median 0-1, 99th percentile 4-8 UMIs). Alpha-level GCG (>= 10th
     percentile of alpha, 24 / 15 UMIs): 0 KO EC cells, 5 control EC cells (the 2 at D40 doublet-like). EC cells do not
     make glucagon; the 7.1n "GCG up in KO EC2" (D40 log2FC 22) is trace KO reads against a control sum of 0.
+
+- Marker figures (user, 2026-11-22; `fig_export_genes.py` on Alpine -> `day_analysis/figure_data/{day}_genes.csv.gz`;
+  `fig_feature_dot.R` local -> plot/feature_{day}/{gene}.pdf, plot/dotplot_{day}.pdf). Feature plots: control | KO,
+  the other genotype light grey, grey (0) to red, one scale per gene. Dot plots: control and KO side by side per gene,
+  no grid / cell numbers, x = group with < 20 cells. Markers chosen on % of control cells expressing:
+  beta G6PC2 (17-31% of beta, GCK / SLC2A1 broad), pancreatic progenitor SOX9 (53-84%; PDX1 high in beta / EC; PTF1A
+  dropped), fibroblast COL3A1 (97-98%, near absent elsewhere; COL1A1 39% of D22 fibroblasts), D40 neural SOX2 (79% of
+  neural, <= 20% elsewhere; DCX / ELAVL4 / TUBB3 higher in endocrine cells).
+  - D22: GCG ARX INS G6PC2 NKX6-1 SST GHRL NEUROG3 SLC18A1 TPH1 FEV AFP SOX9 COL3A1.
+  - D40: GCG ARX INS G6PC2 NKX6-1 SST GHRL SLC18A1 TPH1 FEV SOX2 AFP SOX9 PRSS1 COL3A1 (no NEUROG3; PRSS1 also high
+    in D40 hepatic cells).
 
 ## Open items
 

@@ -9,5 +9,5 @@ override	r0.2_c6_s0.2	0	acinar	PTF1A+ pre-acinar / tip-like (CPA2, CTRB2, PRSS1,
 override	r0.2_c6_s0.2	1	hepatic	hepatic-like (AFP, FGB, APOA2, HNF4A) with intestinal genes (CDX2, CDH17); 62 control / 6 KO	confirmed
 override	r0.2_c6_s0.2	2	pancreatic progenitor	trunk / duct-like (ONECUT1, SOX9, HNF1B, KRT19, NKX6-1; PDX1 low); 101 control / 3 KO	confirmed
 override	r0.2_c6_s0.2	3	fibroblast	COL1A1, COL3A1, PDGFRA, DCN; 75 control / 3 KO	confirmed
-override	r0.4_c9_s0.1	0	GHRL+	r0.4 cluster 9 subcluster 0 (132 cells, 70 control / 62 KO): GHRL 46%, SST 27%, KRT19 21% (log1p > 1); holds the SST+, GHRL+ and KO EC-like groups seen at sub-resolution 0.2	confirmed
-override	r0.4_c9_s0.1	1	SC_delta	r0.4 cluster 9 subcluster 1 (34 cells, 26 control / 8 KO): GC, PDK3, ADCY2, CASR, PAX6, TOX3; SST and HHEX 0% (log1p > 1)	confirmed
+override	r0.4_c9_s0.1	0	SC_delta_GHRL	r0.4 cluster 9 subcluster 0 (132 cells, 70 control / 62 KO): GHRL 46%, SST 27%, KRT19 21% (log1p > 1); holds the SST+, GHRL+ and KO EC-like groups seen at sub-resolution 0.2; was labelled GHRL+, merged into SC_delta_GHRL with the other r0.4 cluster 9 subcluster (user, 2026-11-22)	confirmed
+override	r0.4_c9_s0.1	1	SC_delta_GHRL	r0.4 cluster 9 subcluster 1 (34 cells, 26 control / 8 KO): GC, PDK3, ADCY2, CASR, PAX6, TOX3; SST and HHEX 0% (log1p > 1); was labelled SC_delta, merged into SC_delta_GHRL with the other r0.4 cluster 9 subcluster (user, 2026-11-22)	confirmed
