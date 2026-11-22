@@ -7,11 +7,13 @@
 # genotype's cells are drawn light grey underneath.
 # Inputs (copied from Alpine, git-ignored): reports/labels/{day}/labels.csv (7.1h) and reports/labels/{day}/
 #   sct_umaps.csv.gz (7.1c, SCT B UMAP = the UMAP of the labels).
-# Output (git-ignored): plot/umap_{day}.pdf (all cells), plot/umap_{day}_genotype.pdf (control | KO)
+# Output (git-ignored): plot/D22D40/umap_{day}.pdf (all cells), plot/D22D40/umap_{day}_genotype.pdf (control | KO)
 # High-resolution UMAP cores (user, 2026-11-22): the plotting square only (no axes, title, legend), PANEL_CM x PANEL_CM
-#   at PNG_DPI, white background: plot/umap_core/umap_{day}.png, umap_{day}_ctr.png, umap_{day}_KO.png
+#   at PNG_DPI, white background: plot/D22D40/umap_core/umap_{day}.png, umap_{day}_ctr.png, umap_{day}_KO.png
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_umap_labels.R D22 D40
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(grid) })
+# output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
+PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 PANEL_CM <- 6          # side of the square plotting region, all UMAPs
 POINT_SIZE <- 0.6
 GREY <- "#e3e3e3"      # the other genotype on the split UMAPs
@@ -19,7 +21,6 @@ GENO <- c(ctr = "Control", KO = "ISL1 KO")
 SEED <- 1234
 PNG_DPI <- 600         # UMAP core PNGs: 6 cm at 600 dpi = 1417 x 1417 px
 days <- commandArgs(TRUE); stopifnot(length(days) > 0)
-dir.create("plot", showWarnings = FALSE)
 pal <- fread("study_config/annotation/label_colours.tsv")
 pal <- setNames(pal$colour, pal$label)
 n_fmt <- function(n) trimws(format(as.integer(n), big.mark = ","))
@@ -73,13 +74,13 @@ for (day in days) {
   x <- load_day(day)
   p <- ggplot(x, aes(UMAP1, UMAP2, colour = label)) + geom_point(size = POINT_SIZE, stroke = 0) +
     labs(title = sprintf("%s (%s cells)", day, n_fmt(nrow(x))))
-  save_fixed(umap_base(x, p), file.path("plot", sprintf("umap_%s.pdf", day)))
-  core_png(umap_base(x, p), file.path("plot", "umap_core", sprintf("umap_%s.png", day)))
+  save_fixed(umap_base(x, p), file.path(PLOT, sprintf("umap_%s.pdf", day)))
+  core_png(umap_base(x, p), file.path(PLOT, "umap_core", sprintf("umap_%s.png", day)))
   for (gt in names(GENO)) {   # genotype cores: this genotype coloured, the other grey underneath
     pc <- ggplot(x, aes(UMAP1, UMAP2)) +
       geom_point(data = x[genotype != gt], colour = GREY, size = POINT_SIZE, stroke = 0) +
       geom_point(data = x[genotype == gt], aes(colour = label), size = POINT_SIZE, stroke = 0)
-    core_png(umap_base(x, pc), file.path("plot", "umap_core", sprintf("umap_%s_%s.png", day, gt)))
+    core_png(umap_base(x, pc), file.path(PLOT, "umap_core", sprintf("umap_%s_%s.png", day, gt)))
   }
 
   # split: one facet per genotype; the other genotype's cells as grey background in each facet
@@ -94,5 +95,5 @@ for (day in days) {
     facet_wrap(~panel, nrow = 1) +
     labs(title = day)
   save_fixed(umap_base(x, p) + theme(panel.spacing = unit(0.4, "cm")),
-             file.path("plot", sprintf("umap_%s_genotype.pdf", day)))
+             file.path(PLOT, sprintf("umap_%s_genotype.pdf", day)))
 }

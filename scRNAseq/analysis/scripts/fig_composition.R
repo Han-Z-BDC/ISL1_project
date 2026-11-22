@@ -1,14 +1,15 @@
 # Figure: label proportions KO vs control per day, from step 7.1l (user, 2026-11-22). Runs locally (R, ggplot2).
 #
-# 1. plot/composition_{day}.pdf: one small panel per label (label order and colours from label_colours.tsv); x =
+# 1. plot/D22D40/composition_{day}.pdf: one small panel per label (label order and colours from label_colours.tsv); x =
 #    genotype, bar = mean proportion of the genotype, dots = the two replicate samples; propeller FDR on top
 #    (*** < 0.001, ** < 0.01, * < 0.05, ns). Free y axis per label (labels differ 1,000-fold in size).
-# 2. plot/composition_log2ratio.pdf: log2(KO / control) mean proportion per label (0.1% offset), D22 and D40 side by
+# 2. plot/D22D40/composition_log2ratio.pdf: log2(KO / control) mean proportion per label (0.1% offset), D22 and D40 side by
 #    side, filled = propeller FDR < 0.05.
 # Inputs (copied from Alpine, git-ignored): reports/composition/{proportions,tests}.csv (7.1l)
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_composition.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2) })
-dir.create("plot", showWarnings = FALSE)
+# output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
+PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
 pr <- fread("reports/composition/proportions.csv"); te <- fread("reports/composition/tests.csv")
 GENO <- c(ctr = "Control", KO = "ISL1 KO")
@@ -39,12 +40,12 @@ for (d in unique(te$day)) {
          title = sprintf("%s: cell type proportions, control vs ISL1 KO (2 replicates each; propeller)", d)) +
     th + theme(axis.text.x = element_text(angle = 45, hjust = 1))
   nc <- ceiling(length(lv) / 2)
-  f <- file.path("plot", sprintf("composition_%s.pdf", d))
+  f <- file.path(PLOT, sprintf("composition_%s.pdf", d))
   ggsave(f, p, width = 1.15 * nc + 0.6, height = 4.2, useDingbats = FALSE)
   cat("wrote", f, "\n")
 }
 
-# log2 ratio summary, one PDF per day with only that day's labels (user, 2026-11-22): plot/composition_log2ratio_{day}.pdf;
+# log2 ratio summary, one PDF per day with only that day's labels (user, 2026-11-22): plot/D22D40/composition_log2ratio_{day}.pdf;
 # dot size = propeller FDR in 4 bins (user, 2026-11-22), hollow = not significant
 lv <- rev(intersect(names(pal), unique(te$label)))
 FB <- c("ns", "< 0.05", "< 0.01", "< 0.001")
@@ -68,12 +69,12 @@ for (d in unique(te$day)) {
     scale_x_continuous(limits = xr) +
     labs(x = "log2(KO / control proportion)", y = NULL, title = sprintf("%s: ISL1 KO vs control", d)) +
     th + theme(legend.position = "bottom")
-  f <- sprintf("plot/composition_log2ratio_%s.pdf", d)
+  f <- sprintf(file.path(PLOT, "composition_log2ratio_%s.pdf"), d)
   ggsave(f, p, width = 3.4, height = 0.95 + 0.2 * nlevels(td$label), useDingbats = FALSE)
   cat("wrote", f, "\n")
 }
 
-# 3. plot/composition_stacked.pdf (user, 2026-11-22): one stacked bar per sample (100% of its cells), coloured by
+# 3. plot/D22D40/composition_stacked.pdf (user, 2026-11-22): one stacked bar per sample (100% of its cells), coloured by
 #    label in the label_colours.tsv order, control then KO replicates, D22 and D40 side by side (each day's own labels).
 #    The legend is a table (user): colour key, label, and per day the propeller FDR stars with the KO direction
 #    (up / down arrow; "-" = label not present that day).
@@ -113,5 +114,5 @@ star_tab <- ggplot() +
   labs(caption = "KO vs control, propeller FDR\n*** < 0.001, ** < 0.01, * < 0.05; \u2191 / \u2193 KO higher / lower;\n\u2013 not present that day") +
   theme_void(base_size = 8) + theme(plot.caption = element_text(size = 6, hjust = 0, colour = "grey30"))
 p <- bars + star_tab + plot_layout(widths = c(1.5, 1))
-ggsave("plot/composition_stacked.pdf", p, width = 6.2, height = 3.6, device = cairo_pdf)
-cat("wrote plot/composition_stacked.pdf\n")
+ggsave(file.path(PLOT, "composition_stacked.pdf"), p, width = 6.2, height = 3.6, device = cairo_pdf)
+cat("wrote plot/D22D40/composition_stacked.pdf\n")

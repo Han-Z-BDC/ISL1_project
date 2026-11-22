@@ -1,11 +1,11 @@
 # Figures: marker feature plots and dot plots, split by genotype, one day at a time (user, 2026-11-22). Runs locally.
 #
-# Feature plots (plot/feature_{day}/{gene}.pdf): control | ISL1 KO on the day's SCT B UMAP, each panel the same
+# Feature plots (plot/D22D40/feature_{day}/{gene}.pdf): control | ISL1 KO on the day's SCT B UMAP, each panel the same
 #   fixed square as every UMAP (PANEL_CM, fig_umap_labels.R); the other genotype's cells in light grey underneath;
 #   cells of the shown genotype from a darker grey (log1p 0) to red, one colour scale per gene for both panels, capped
 #   at the 99th percentile of the expressing cells of both genotypes (values above drawn at the cap); expressing
-#   cells drawn on top. High-resolution cores (no axes / title / legend): plot/feature_{day}/png/{gene}_{ctr,KO}.png.
-# Dot plot (plot/dotplot_{day}.pdf): cell types (label_colours.tsv order) x genes, each gene with its control and KO
+#   cells drawn on top. High-resolution cores (no axes / title / legend): plot/D22D40/feature_{day}/png/{gene}_{ctr,KO}.png.
+# Dot plot (plot/D22D40/dotplot_{day}.pdf): cell types (label_colours.tsv order) x genes, each gene with its control and KO
 #   column side by side (user, 2026-11-22: no grid, no cell numbers); size = % cells with log1p > 0, colour = mean
 #   log1p scaled to the gene's maximum over all cell type x genotype groups shown; a group with < MIN_CELLS cells
 #   (e.g. KO SC_alpha) is drawn as a small grey cross.
@@ -13,6 +13,8 @@
 #   reports/figure_data/{day}_genes.csv.gz (fig_export_genes.py)
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_feature_dot.R D22 GCG ARX INS ...
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(grid) })
+# output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
+PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 PANEL_CM <- 6; POINT_SIZE <- 0.6; MIN_CELLS <- 20; SEED <- 1234
 PNG_DPI <- 600   # feature-plot cores: plot/feature_{day}/png/{gene}_{ctr,KO}.png, 6 cm at 600 dpi
 OTHER <- "#ececec"                                   # the other genotype
@@ -46,7 +48,7 @@ save_fixed <- function(p, f) {
 }
 
 # ---- feature plots
-fd <- file.path("plot", sprintf("feature_%s", day)); dir.create(fd, showWarnings = FALSE, recursive = TRUE)
+fd <- file.path(PLOT, sprintf("feature_%s", day)); dir.create(fd, showWarnings = FALSE, recursive = TRUE)
 for (gn in genes) {
   v <- x[[gn]]
   cap <- max(quantile(v[v > 0], 0.99), 0.1)
@@ -111,6 +113,6 @@ p <- ggplot(dp, aes(g, label)) +
         panel.spacing.x = unit(0.08, "cm"), plot.caption = element_text(size = 6, colour = "grey40"),
         legend.title = element_text(size = 6.5), legend.text = element_text(size = 6),
         legend.key.height = unit(0.3, "cm"), legend.spacing.y = unit(0.1, "cm"))
-f <- file.path("plot", sprintf("dotplot_%s.pdf", day))
+f <- file.path(PLOT, sprintf("dotplot_%s.pdf", day))
 ggsave(f, p, width = 2.1 + 0.34 * length(genes), height = 1.55 + 0.115 * length(lv), device = cairo_pdf)
 cat("wrote", f, "\n")

@@ -1,6 +1,6 @@
 # Figures for step 7.1n: joint DESeq2 of the D22 + D40 SC_EC1 / SC_EC2 pseudobulks (user, 2026-11-22). Runs locally.
 # Inputs (copied from Alpine, git-ignored): reports/ec_deseq2/ (7.1n outputs)
-# Outputs (git-ignored) in plot/:
+# Outputs (git-ignored) in plot/D22D40/:
 #   ec_deseq2_celltype_volcano.pdf  EC2 vs EC1, average of the 4 day x genotype groups (model A), core genes coloured,
 #                                   EC markers / top TFs labelled
 #   ec_deseq2_KO_scatter.pdf        KO vs control log2FC in EC1 (x) vs EC2 (y), average of the days (model B),
@@ -12,8 +12,9 @@
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_ec_deseq2.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(ggrepel); library(pheatmap)
                                  library(UpSetR) })
-D <- "reports/ec_deseq2"; dir.create("plot", showWarnings = FALSE)
-pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
+# output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
+PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
+D <- "reports/ec_deseq2"; pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
 th <- theme_classic(base_size = 8) + theme(plot.title = element_text(face = "bold"))
 A <- fread(file.path(D, "results_A.csv")); B <- fread(file.path(D, "results_B.csv"))
 gA <- fread(file.path(D, "genes_celltype.csv")); gB <- fread(file.path(D, "genes_KO.csv"))
@@ -38,7 +39,7 @@ p <- ggplot(v, aes(lfc, -log10(p))) +
        title = sprintf("SC_EC2 vs SC_EC1: %s EC2-high, %s EC1-high core genes",
                        format(gA[class == "EC2-high", .N], big.mark = ","), format(gA[class == "EC1-high", .N], big.mark = ","))) +
   th + theme(legend.position = "bottom")
-ggsave("plot/ec_deseq2_celltype_volcano.pdf", p, width = 5, height = 4.6, useDingbats = FALSE)
+ggsave(file.path(PLOT, "ec_deseq2_celltype_volcano.pdf"), p, width = 5, height = 4.6, useDingbats = FALSE)
 
 # 2. KO scatter EC1 vs EC2
 s <- B[, .(gene, x = KO_vs_ctr_EC1_average__log2FC_shrunk, y = KO_vs_ctr_EC2_average__log2FC_shrunk, TF)]
@@ -66,12 +67,12 @@ p <- ggplot(s, aes(x, y)) +
        title = sprintf("ISL1 KO effect in EC1 vs EC2 (r = %.2f, all genes)", cor(s$x, s$y))) +
   guides(colour = guide_legend(override.aes = list(size = 2), ncol = 2)) +
   th + theme(legend.position = "bottom")
-ggsave("plot/ec_deseq2_KO_scatter.pdf", p, width = 5.2, height = 5.8, useDingbats = FALSE)
+ggsave(file.path(PLOT, "ec_deseq2_KO_scatter.pdf"), p, width = 5.2, height = 5.8, useDingbats = FALSE)
 
 # 3. UpSet of the KO calls per cell type x day
 ups <- list(`EC1 D22` = B[KO_vs_ctr_EC1_D22__call == TRUE, gene], `EC1 D40` = B[KO_vs_ctr_EC1_D40__call == TRUE, gene],
             `EC2 D22` = B[KO_vs_ctr_EC2_D22__call == TRUE, gene], `EC2 D40` = B[KO_vs_ctr_EC2_D40__call == TRUE, gene])
-pdf("plot/ec_deseq2_KO_upset.pdf", width = 5.5, height = 3.6, useDingbats = FALSE, onefile = FALSE)
+pdf(file.path(PLOT, "ec_deseq2_KO_upset.pdf"), width = 5.5, height = 3.6, useDingbats = FALSE, onefile = FALSE)
 print(upset(fromList(ups), sets = rev(names(ups)), keep.order = TRUE, order.by = "freq", nintersects = 15,
             main.bar.color = "#b2182b", sets.bar.color = "grey40", text.scale = 1.1,
             mainbar.y.label = "KO vs control DE genes", sets.x.label = "DE genes per test"))
@@ -96,12 +97,12 @@ hm <- function(genes, rowlab, f, title) {
 }
 top <- function(dt, n) dt[order(-abs(log2FC_shrunk))][1:min(.N, n), gene]
 g2 <- top(gA[class == "EC2-high"], 30); g1 <- top(gA[class == "EC1-high"], 30)
-hm(c(g2, g1), c(rep("EC2-high", length(g2)), rep("EC1-high", length(g1))), "plot/ec_deseq2_heatmap_celltype.pdf",
+hm(c(g2, g1), c(rep("EC2-high", length(g2)), rep("EC1-high", length(g1))), file.path(PLOT, "ec_deseq2_heatmap_celltype.pdf"),
    "Core EC2 vs EC1 genes (VST z-score)")
 sh <- gB[KO_class == "shared"][, m := (EC1_log2FC + EC2_log2FC) / 2]
 gu <- sh[KO_direction == "up in KO"][order(-m)][1:min(.N, 30), gene]
 gd <- sh[KO_direction == "down in KO"][order(m)][1:min(.N, 30), gene]
-hm(c(gu, gd), c(rep("up in KO", length(gu)), rep("down in KO", length(gd))), "plot/ec_deseq2_heatmap_KO.pdf",
+hm(c(gu, gd), c(rep("up in KO", length(gu)), rep("down in KO", length(gd))), file.path(PLOT, "ec_deseq2_heatmap_KO.pdf"),
    "Shared KO genes, EC1 and EC2 (VST z-score)")
 
 # 5. GO dot plot
@@ -117,5 +118,5 @@ p <- ggplot(x[padj < 0.05], aes(set, term)) +
   scale_size_area(max_size = 4, name = "genes") + scale_x_discrete(drop = FALSE) +
   labs(x = NULL, y = NULL, title = "GO biological process, top 6 terms per gene set") +
   th + theme(axis.text.x = element_text(angle = 40, hjust = 1), axis.text.y = element_text(size = 6.5))
-ggsave("plot/ec_deseq2_GO.pdf", p, width = 8, height = 1.4 + 0.13 * nlevels(x$term), useDingbats = FALSE)
-cat("wrote plot/ec_deseq2_*.pdf\n")
+ggsave(file.path(PLOT, "ec_deseq2_GO.pdf"), p, width = 8, height = 1.4 + 0.13 * nlevels(x$term), useDingbats = FALSE)
+cat("wrote plot/D22D40/ec_deseq2_*.pdf\n")

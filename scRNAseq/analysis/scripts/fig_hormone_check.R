@@ -1,13 +1,14 @@
 # Figure: per-cell hormone reads in SC_EC1 / SC_EC2 by genotype, D22 and D40 (user, 2026-11-22: INS, then GCG).
 # Input (copied from Alpine, git-ignored): reports/ec_similarity/hormone_check/cells.csv.gz (7.1m_hormone_check.py)
-# Output: plot/{gene}_ec_distribution.pdf, per gene given
+# Output: plot/D22D40/{gene}_ec_distribution.pdf, per gene given
 #   top: UMIs per cell (SoupX-corrected, log10(x + 1)), violin + box per label x genotype, the hormone's own control
 #        cell type as the reference (INS: SC_beta, GCG: SC_alpha); dashed line = its 10th percentile ("hormone-cell level")
 #   bottom: the same for raw counts (before SoupX), showing the background SoupX removed
 #   numbers: % cells with the gene > 0 / % at hormone-cell level
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_hormone_check.R INS GCG
 suppressPackageStartupMessages({ library(data.table); library(ggplot2) })
-dir.create("plot", showWarnings = FALSE)
+# output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
+PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 REF <- c(INS = "SC_beta", GCG = "SC_alpha")
 genes <- commandArgs(TRUE); stopifnot(length(genes) > 0, all(genes %in% names(REF)))
 x0 <- fread(cmd = "gzcat reports/ec_similarity/hormone_check/cells.csv.gz")
@@ -41,7 +42,7 @@ for (g in genes) {
     theme(plot.title = element_text(face = "bold"), plot.subtitle = element_text(size = 6.5),
           strip.background = element_blank(), strip.text = element_text(face = "bold"),
           axis.text.x = element_text(angle = 40, hjust = 1), legend.position = "bottom")
-  f <- file.path("plot", sprintf("%s_ec_distribution.pdf", g))
+  f <- file.path(PLOT, sprintf("%s_ec_distribution.pdf", g))
   ggsave(f, p, width = 6.4, height = 5, useDingbats = FALSE)
   cat("wrote", f, "\n")
 }

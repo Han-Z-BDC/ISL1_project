@@ -1,6 +1,6 @@
 # Figures for step 7.1m: KO vs control SC_EC1 / SC_EC2 similarity (user, 2026-11-22). Runs locally (R, ggplot2).
 # Inputs (copied from Alpine, git-ignored): reports/ec_similarity/ (7.1m outputs)
-# Outputs (git-ignored) in plot/:
+# Outputs (git-ignored) in plot/D22D40/:
 #   ec_corr_{day}.pdf      pseudobulk correlation (sample x label, gene-centred logCPM on the day's variable genes),
 #                          endocrine labels, ordered by label then genotype
 #   ec_dotplot_{day}.pdf   EC identity / EC1-EC2 / other-lineage genes, rows = label x genotype (>= 20 cells)
@@ -10,7 +10,8 @@
 #                          vs EC1 / EC2
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_ec_similarity.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2) })
-dir.create("plot", showWarnings = FALSE)
+# output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
+PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 D <- "reports/ec_similarity"
 pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
 GENO <- c(ctr = "Control", KO = "ISL1 KO")
@@ -37,7 +38,7 @@ for (d in days) {
     th + theme(axis.text.x = element_text(angle = 60, hjust = 1), axis.line = element_blank(),
                axis.ticks = element_blank())
   n <- nrow(info)
-  ggsave(file.path("plot", sprintf("ec_corr_%s.pdf", d)), p, width = 1.6 + 0.24 * n, height = 1.2 + 0.24 * n,
+  ggsave(file.path(PLOT, sprintf("ec_corr_%s.pdf", d)), p, width = 1.6 + 0.24 * n, height = 1.2 + 0.24 * n,
          useDingbats = FALSE)
 }
 
@@ -56,7 +57,7 @@ for (d in days) {
     geom_vline(xintercept = c(7.5, 12.5), colour = "grey80", linewidth = 0.3) +
     labs(x = NULL, y = NULL, title = sprintf("%s: EC identity genes by genotype", d)) +
     th + theme(axis.text.x = element_text(angle = 60, hjust = 1, face = "italic"))
-  ggsave(file.path("plot", sprintf("ec_dotplot_%s.pdf", d)), p, width = 6.2, height = 1.6 + 0.2 * length(ro),
+  ggsave(file.path(PLOT, sprintf("ec_dotplot_%s.pdf", d)), p, width = 6.2, height = 1.6 + 0.2 * length(ro),
          useDingbats = FALSE)
 }
 
@@ -72,7 +73,7 @@ p <- ggplot(s, aes(DE, test, fill = kind)) + geom_col(width = 0.7) +
   scale_x_continuous(expand = expansion(mult = c(0, 0.18))) + facet_wrap(~day) +
   labs(x = "DE genes (FDR < 0.05, |log2FC| >= 0.5)", y = NULL, title = "Pseudobulk DE, 2 vs 2 samples") +
   th + theme(legend.position = "bottom")
-ggsave("plot/ec_de_counts.pdf", p, width = 5.4, height = 2.6, useDingbats = FALSE)
+ggsave(file.path(PLOT, "ec_de_counts.pdf"), p, width = 5.4, height = 2.6, useDingbats = FALSE)
 
 # 4. mixing
 mx <- fread(file.path(D, "mixing.csv"))
@@ -94,5 +95,5 @@ p <- ggplot(mx, aes(mixing_mean, what, fill = kind)) + geom_col(width = 0.7) +
   labs(x = "kNN mixing (observed / expected share of the other group's neighbours)", y = NULL,
        title = "Neighbourhood mixing on SCT PCs (balanced subsamples, 20 seeds)") +
   th + theme(legend.position = "bottom")
-ggsave("plot/ec_mixing.pdf", p, width = 6, height = 3, useDingbats = FALSE)
-cat("wrote plot/ec_*.pdf\n")
+ggsave(file.path(PLOT, "ec_mixing.pdf"), p, width = 6, height = 3, useDingbats = FALSE)
+cat("wrote plot/D22D40/ec_*.pdf\n")
