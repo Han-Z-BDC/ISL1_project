@@ -33,8 +33,9 @@ Writes ${OUT_DIR}/day_analysis/D15/trajectory/ (reruns overwrite):
             silhouette-best clusters split into it (gene_pattern_split_k<best>_to_k<k>.csv)
   pseudobulk (user, 2026-11-21) with GENESET=pseudobulk: genes = the 7.3l pseudobulk calls with curves on the three
             lineages (curve test on any lineage, or past-the-stop missing / kept on in KO; KO-state-only genes are a
-            separate category, not clustered); sources = those calls; line-wide = curve call on all three lineages
-            in the same direction; same curves and clustering; writes to trajectory/pseudobulk/gene_patterns/
+            separate category, not clustered) plus the 7.3m tradeSeq calls (genes called only by tradeSeq tagged
+            "tS only"); sources = those calls; line-wide = pseudobulk curve call on all three lineages in the same
+            direction; same curves and clustering; writes to trajectory/pseudobulk/gene_patterns/
 Run: sbatch analysis/scripts/7.3h_gene_patterns.sb [k,k,...]   (CELLRANK_ENV python)
      GENESET=pseudobulk: sbatch --export=ALL,GENESET=pseudobulk analysis/scripts/7.3h_gene_patterns.sb 10
 """
@@ -77,6 +78,17 @@ def gene_sources_pseudobulk():
         tags = [f"pb curve {t}" for t in r.curve.split("; ") if t] + [f"pb past stop {t}" for t in r.after_stop.split("; ") if t]
         tags += [f"pb KO state {t}" for t in r.ko_state.split("; ") if t]
         src[r.gene] = set(tags)
+    # (user, 2026-11-21) also the 7.3m tradeSeq calls (shared-range FDR < 0.05, effect >= 0.5); genes called only by
+    # tradeSeq get the tag "tS only"
+    t = pd.read_csv(TR / "tradeseq_full" / "tradeseq_condition_wide.csv", keep_default_na=False, low_memory=False)
+    t = t[t.tradeseq_lineages != ""]
+    n_new = 0
+    for r in t.itertuples():
+        tags = {f"tS {l}: {getattr(r, 'direction_' + l)}" for l in r.tradeseq_lineages.split(",")}
+        if r.gene not in src:
+            tags.add("tS only"); n_new += 1
+        src.setdefault(r.gene, set()).update(tags)
+    print(f"tradeSeq calls: {len(t)}; added as tradeSeq-only genes: {n_new}")
     w = pd.read_csv(TR / "ko_vs_ctr_windows.csv.gz", usecols=["gene", "beta_program", "alpha_program", "EC_program",
                                                               "EC_KO_program"])
     prog = w.drop_duplicates("gene").set_index("gene")

@@ -162,6 +162,10 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       kept (before the rule, 715): 385 not significant once replicate variance is modelled, 150 single-window only
       (now recovered), 86 too few counts to test, 59 old stop / after-stop only, 35 effect < 0.5; mostly genes
       called in one old window, at about half the expression of the kept genes.
+    - (user, 2026-11-21) the 7.3m tradeSeq calls are added to the set: 373 of the 402 were already in it; the 29 called
+      only by tradeSeq (all also KO-state calls; TFs MAFB, JAZF1) are tagged "tS only". 3,118 genes; k = 10 clusters
+      stable (ARI 0.94 vs before, 97% of genes keep their cluster); the 29 spread over 8 clusters (MAFB C3,
+      JAZF1 C8). `gene_patterns_k10_before_tS.csv` keeps the previous assignment.
   - 7.3m **full tradeSeq, D15** (user, 2026-11-21; replaces 7.3e): 22,824 genes (detected in >= 10 of the 5,243 cells on
     the beta / alpha / EC lineages), the three lineages only, 115 chunks of 200 genes, one acpu core (3.7 GB) each,
     serial fit: 2 min and 1.3 GB per chunk (the parallel 7.3e ran > 2 days). Prep writes per-chunk counts so a task
