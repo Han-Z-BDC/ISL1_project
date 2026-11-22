@@ -52,6 +52,7 @@ libraries' original names use the electroporation day. Sample sheets: `study_con
 | 10a-c | `scripts/10{a,b,c}_*.sb` | HOMER motifs (v5.1) on each day's macs3_ge2 consensus peaks, 200 bp windows centred on the strongest summit, known + de novo (8/10/12 bp), repeats masked (hg38 soft-masked with RepeatMasker); two backgrounds per day: genome (GC-matched random windows) and the other two days' peaks minus those overlapping the target day; 10c: genomic annotation (annotatePeaks.pl) of each day's peaks and of 50,000 random genomic windows |
 | 11a-b | `scripts/11{a,b}_*.sb` | HOMER with backgrounds matched to the peaks' genomic composition (about half the peaks are within 1 kb of a TSS): A, promoter peaks vs windows near random TSSs and distal peaks vs genome windows > 1 kb from a TSS; B, all peaks vs 3 x random windows of each genomic class (promoter, intron, intergenic, exon, TTS) |
 | 12 | `scripts/12_peak_overlap.sb` (acpu, 2 CPUs, 7 GB) | overlap of the per-day peak calls on the step 07 sites: each site's days in the macs3_ge2 consensus (7 overlap classes), each library's own MACS3 calls of the sites, and peak presence checked against the DiffBind counts (background normalization); `peak_overlap/` |
+| 13 | `scripts/13_abc_targets.sb` (acpu, 4 CPUs, 14 GB; `scripts/abc_targets.R`) | ISL1 target genes (user, 2026-11-22; replaces the GREAT / bulk links of `integration/` for the paper): the D15 / D18 / D22 macs3_ge2 regions pooled and merged (14,300 sites, days kept); a site links to a gene by **TSS** (within +/- 1 kb of any transcript start, 10x GRCh38 2020-A GTF as the scRNA-seq) or **ABC** (overlaps an ABC element with ABC >= 0.02, own-promoter links included, in ENP2, ENP3 or early_SC_alpha of the diff-multiome ABC run, `/pl/active/ZhuLab_BDC/Han_analysis/diff_multiome_2026/out/abc/results`; PP2 left out); several genes per site allowed; `abc_targets/`: `links.tsv`, `genes.tsv`, `sites.tsv`, `summary.tsv`, `unmatched.tsv` |
 | 09 | `scripts/09_report.sb` (acpu, 2 CPUs, 7 GB) | `report.html` and copy of the keepers to `results/` on /pl/active |
 
 Analysis jobs run on `amem` (12 CPUs, 240 GB), except steps 12 and 09 (small, acpu). Tracks for figures: load `results/tracks/igv_session.xml`
@@ -83,6 +84,14 @@ every library's own peaks. Peak presence is a threshold call without a test, so 
   1 of that day's 3 libraries.
 - The overlap classes describe the same pattern as the counts; they are not independent evidence and carry the batch
   caveat. Their target genes against the bulk KO effect are in `integration/` (step 09).
+
+## ISL1 target genes (step 13)
+
+TSS or ABC link (see Steps). 10,978 of 14,300 sites link to >= 1 gene (TSS 7,440; ABC 10,694; ABC only 3,538); 17,908
+genes, 14,753 protein coding (76% of the GTF's 19,352): 5,068 by TSS only, 4,269 by TSS and enhancer, 8,571 by ABC
+enhancer only. TSS links alone: 9,337 genes (7,354 protein coding, 38%). Most ABC-only links are weak (median ABC
+0.034); ABC >= 0.1 with TSS: 10,847 genes. PAX6 is TSS-linked here (the GREAT domains of `integration/` gave its
+intronic promoter site to the lncRNA PAUPAR). The 0.02 rule is broad; a stricter ABC cut is a choice still open.
 
 ## Run (Alpine)
 

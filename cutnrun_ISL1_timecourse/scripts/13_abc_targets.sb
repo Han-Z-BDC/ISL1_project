@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=tc_abc_targets
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=14G
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/abc_targets.%j.out
+
+# Step 13: ISL1 target genes = TSS overlap (+/- 1 kb of any transcript start) or ABC enhancer-gene link (ENP2, ENP3,
+# early_SC_alpha of the diff-multiome ABC run) of the pooled D15 / D18 / D22 macs3_ge2 consensus sites.
+# scripts/abc_targets.R does the analysis. Output: abc_targets/ in OUT_DIR, copied to results/abc_targets/.
+#   sbatch scripts/13_abc_targets.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+ABC_DIR=/pl/active/ZhuLab_BDC/Han_analysis/diff_multiome_2026/out/abc/results
+ABC_GROUPS=ENP2,ENP3,early_SC_alpha
+TSS_WIN=1000
+"${DIFFBIND_TOOLS}/Rscript" "${STUDY_DIR}/scripts/abc_targets.R" "${OUT_DIR}/consensus" "${GENES_GTF}" "${ABC_DIR}" \
+  "${ABC_GROUPS}" "${TSS_WIN}" "${OUT_DIR}/abc_targets"
+mkdir -p "${STUDY_DIR}/results/abc_targets"
+cp "${OUT_DIR}"/abc_targets/*.tsv "${STUDY_DIR}/results/abc_targets/"
