@@ -540,6 +540,35 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     ec_de_counts.pdf, ec_mixing.pdf. D40 KO GHRL+ cells look EC-like on the dot plot (TPH1, SLC18A1, TAC1), as noted
     at labelling.
 
+- Joint DESeq2 of the EC pseudobulks (step 7.1n, user, 2026-11-22; `day_analysis/ec_deseq2/`): SC_EC1 / SC_EC2 of
+  the 8 samples (D22, D40 x control, KO x rep1, rep2) = 16 pseudobulks (SoupX counts, from 7.1m; 153-2,965 cells
+  each); 21,022 genes with >= 10 counts in >= 2 pseudobulks. Day = differentiation and 10x run, so day effects
+  include batch; the days are read as two independent experiments. Call = padj < 0.05 and |log2FC (MLE)| >= 0.5;
+  ashr-shrunk log2FC for ranking / plots.
+  - Model A, EC2 vs EC1, paired within sample (`~ group + group:rep + group:celltype`, group = day x genotype):
+    D22 ctr 4,257 / D22 KO 3,971 / D40 ctr 1,897 / D40 KO 2,703 genes; average 3,817. Core genes (average call, same
+    sign in all 4 groups): 1,535 EC2-high, 1,608 EC1-high. The EC1 / EC2 difference barely depends on genotype (209
+    genes, KO - ctr) but strongly on day (3,119, D40 - D22; D22 differences larger). GO: EC1-high = development /
+    patterning / epithelial differentiation / ECM (NEUROG3, SOX1, SOX2, ASCL1, PAX6, MEIS1, GLI3, VIM); EC2-high =
+    synapse organisation, transmembrane transport, hormone metabolism (TAC1, TRPA1, CALCR, NEUROD4, NR3C2, EBF1).
+  - Model B, KO vs control within each cell type (`~ 0 + celltype_genotype_day`, unpaired): EC1 D22 1,127 / D40
+    1,068 / average 971; EC2 D22 823 / D40 1,149 / average 979. KO effect EC2 - EC1: 268 genes; D40 - D22: 1,045.
+    Classes (average-of-days calls): shared EC1 + EC2 403 (140 up / 263 down; 120 called on both days in both cell
+    types), EC1 only 560, EC2 only 568, opposite direction 8. KO effects in EC1 and EC2 correlate (r 0.70, all genes).
+    Only 125 genes are called in all 4 day x cell-type tests (UpSet), so most single-test calls are day-specific.
+    - Shared down in KO, TFs: ARX, ETV1, TBX3, PBX3, PAX4, SOX2, MECOM, NR2F1, HES6, TWIST1, SMAD9, FOXP2, EPAS1
+      (several are ISL1-bound islet / alpha-program TFs). Shared up: ISL1 (KO allele transcribed), STAT1, IRF9, IFI6
+      (GO: type I interferon / antiviral), DLX5, DLX6, immediate-early genes (FOS, JUNB, EGR1, EGR4).
+    - GO: shared down = axonogenesis, synaptic signalling, muscle contraction; EC1-only down = growth factor / TGF-beta
+      signalling, epithelial proliferation, digestive tract development; EC2-only down = regulation of secretion,
+      signal release, hormone levels; EC2-only up = amine catabolism, mesenchymal differentiation.
+    - GCG EC2 "up in KO" (D40 log2FC 22) rests on near-zero control counts; not interpreted.
+  - GO: `7.1n_ec_go.R`, offline (org.Hs.eg.db GO BP incl. descendants, fgsea::fora, universe = tested genes, terms of
+    15-500 genes, BH). Environments: DESeq2 / ashr from the DiffBind env, GO from isl1_downstream.
+  - Figures (local, `scRNAseq/plot/`, `analysis/scripts/fig_ec_deseq2.R`): ec_deseq2_celltype_volcano.pdf,
+    ec_deseq2_KO_scatter.pdf, ec_deseq2_KO_upset.pdf, ec_deseq2_heatmap_celltype.pdf, ec_deseq2_heatmap_KO.pdf,
+    ec_deseq2_GO.pdf.
+
 ## Open items
 
 - Step 1.4 does not yet count the NF > 0.6 cells removed at the per-day merge.

@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ec_deseq2
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=14G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ec_deseq2.%j.out
+
+# Step 7.1n: joint DESeq2 of the D22 + D40 SC_EC1 / SC_EC2 pseudobulks (cell type, genotype within cell type), then
+# GO BP over-representation of the gene sets -- see the .R headers. Needs 7.1m (pseudobulks).
+# DESeq2 / apeglm / ashr are in the DiffBind env; GO.db / org.Hs.eg.db / fgsea in isl1_downstream.
+# Run from the repo root: sbatch analysis/scripts/7.1n_ec_deseq2.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+ENVS=/projects/hzhu10@xsede.org/software/anaconda/envs
+echo "[$(date '+%F %T')] DESeq2"
+"${ENVS}/diffbind/bin/Rscript" "${REPO_DIR}/analysis/scripts/7.1n_ec_deseq2.R"
+echo "[$(date '+%F %T')] GO"
+"${ENVS}/isl1_downstream/bin/Rscript" "${REPO_DIR}/analysis/scripts/7.1n_ec_go.R"
+echo "[$(date '+%F %T')] done"
