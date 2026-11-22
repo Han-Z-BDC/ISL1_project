@@ -504,7 +504,10 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       (166 cells, 96 control / 70 KO), colour = D22 SC_delta (label_colours.tsv). D22 keeps SC_delta and GHRL+.
       Redrawn: D40 UMAPs, composition test (7.1l) and plots. 7.1l D40 with the merge: SC_delta_GHRL 1.61% -> 1.02%,
       propeller FDR 0.19 (ns); the other D40 FDRs shift slightly (moderated variance re-estimated), all still < 0.01.
-      7.1m (ec_corr_D40, ec_dotplot_D40) still shows the earlier SC_delta / GHRL+ rows; the EC results are unaffected.
+      7.1m rerun with the merge (2026-11-22): EC results identical; ec_corr_D40 / ec_dotplot_D40 show SC_delta_GHRL. Its
+      KO and control parts differ: control r 0.62 between replicates, SST / ARX / ISL1; KO r 0.63, EC-like (TPH1,
+      SLC18A1, TAC1; r 0.31-0.46 with EC pseudobulks, 0.25-0.30 with control SC_delta_GHRL), as noted at labelling.
+- D40 marker dot plot: SOX2 (neural) moved to the last column (user, 2026-11-22).
 
 - Label proportions KO vs control (step 7.1l, user, 2026-11-22; `day_analysis/composition_genotype/`): per day
   (D22, D40) and label, the share of each sample's cells; 2 control vs 2 KO samples as replicates (wells of one
@@ -603,7 +606,7 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   dropped), fibroblast COL3A1 (97-98%, near absent elsewhere; COL1A1 39% of D22 fibroblasts), D40 neural SOX2 (79% of
   neural, <= 20% elsewhere; DCX / ELAVL4 / TUBB3 higher in endocrine cells).
   - D22: GCG ARX INS G6PC2 NKX6-1 SST GHRL NEUROG3 SLC18A1 TPH1 FEV AFP SOX9 COL3A1.
-  - D40: GCG ARX INS G6PC2 NKX6-1 SST GHRL SLC18A1 TPH1 FEV SOX2 AFP SOX9 PRSS1 COL3A1 (no NEUROG3; PRSS1 also high
+  - D40: GCG ARX INS G6PC2 NKX6-1 SST GHRL SLC18A1 TPH1 FEV AFP SOX9 PRSS1 COL3A1 SOX2 (no NEUROG3; PRSS1 also high
     in D40 hepatic cells).
 
 ## Open items

@@ -14,7 +14,7 @@ dir.create("plot", showWarnings = FALSE)
 D <- "reports/ec_similarity"
 pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
 GENO <- c(ctr = "Control", KO = "ISL1 KO")
-ENDO <- c("SC_alpha", "SC_beta", "SC_delta", "GHRL+", "ENP", "SC_EC1", "SC_EC2")
+ENDO <- c("SC_alpha", "SC_beta", "SC_delta", "SC_delta_GHRL", "GHRL+", "ENP", "SC_EC1", "SC_EC2")   # SC_delta_GHRL = D40 (2026-11-22)
 th <- theme_classic(base_size = 8) + theme(plot.title = element_text(face = "bold"),
                                            strip.background = element_blank(), strip.text = element_text(face = "bold"))
 days <- c("D22", "D40")
