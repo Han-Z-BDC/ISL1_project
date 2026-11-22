@@ -569,6 +569,26 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     ec_deseq2_KO_scatter.pdf, ec_deseq2_KO_upset.pdf, ec_deseq2_heatmap_celltype.pdf, ec_deseq2_heatmap_KO.pdf,
     ec_deseq2_GO.pdf.
 
+- Hormones in EC cells by genotype (user, 2026-11-22: "is INS higher in KO EC at D22?", then "how about GCG?";
+  `7.1m_hormone_check.py`, one-off, `day_analysis/ec_similarity/hormone_check/cells.csv.gz`; plots
+  `fig_hormone_check.R INS GCG` -> plot/{INS,GCG}_ec_distribution.pdf). INS:
+  - Raw INS is in ~100% of control EC cells (D22 median 21-26 UMIs) and SoupX removed 28-33% of the EC INS in control
+    vs 3-12% in KO (KO samples have no beta cells, so little INS background). After SoupX, cells with INS > 0: D22 EC1
+    ctr 45% / KO 90%, EC2 31% / 86%; D40 EC1 23% / 78%, EC2 18% / 77%. KO EC cells carry low-level INS of their own
+    (D22 EC1 median 25 UMIs); the control EC level is mostly background.
+  - Beta-level INS (>= 10th percentile of control beta cells) in EC cells of both genotypes: D22 EC1 ctr 14% / KO 20%,
+    EC2 10% / 9%; D40 EC1 11% / 5%, EC2 11% / 1%. These cells are EC cells, not beta doublets: scDblFinder median
+    0.008-0.11, beta genes low (IAPP, G6PC2, MAFA, ERO1B, ADCYAP1, HADH mean 0.16-0.28 vs 0.8-1.1 in beta), TPH1 / FEV
+    as other EC cells. They hold 65-95% of the summed EC INS, so the pseudobulk mostly reflects them.
+  - Reading: D22 KO EC express INS in more cells at a low level and a similar share at beta level, so the per-sample
+    total is not different (7.1n: EC1 +0.34, EC2 -0.40, ns); D40 KO EC have fewer beta-level INS cells, hence lower
+    pseudobulk INS in KO EC2 (-2.56, padj 1e-7).
+  - GCG (reference control SC_alpha, median 777 / 523 UMIs at D22 / D40): control EC GCG is background (raw > 0 in
+    72-95% of cells, SoupX removed 78-100%; after SoupX 0-3% of cells). KO EC cells carry trace GCG (SoupX removed
+    15-31%; > 0 in 62-65% at D22, 40-43% at D40; median 0-1, 99th percentile 4-8 UMIs). Alpha-level GCG (>= 10th
+    percentile of alpha, 24 / 15 UMIs): 0 KO EC cells, 5 control EC cells (the 2 at D40 doublet-like). EC cells do not
+    make glucagon; the 7.1n "GCG up in KO EC2" (D40 log2FC 22) is trace KO reads against a control sum of 0.
+
 ## Open items
 
 - Step 1.4 does not yet count the NF > 0.6 cells removed at the per-day merge.
