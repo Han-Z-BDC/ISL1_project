@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_composition
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=3700M
+#SBATCH --time=00:15:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/composition.%j.out
+
+# Step 7.1l: label proportions KO vs control per day (propeller + quasi-binomial GLM) -- see the .R header.
+# Needs 7.1h for each day. Run from the repo root: sbatch analysis/scripts/7.1l_composition_test.sb D22 D40
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.1l_composition_test.R" "$@"

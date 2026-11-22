@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ec_similarity
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=29G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ec_similarity.%j.out
+
+# Step 7.1m: KO vs control SC_EC1 / SC_EC2 similarity per day (pseudobulk correlation and DE, marker dot plot data,
+# kNN genotype mixing) -- see the .py / .R headers. Needs 7.1h for each day.
+# Run from the repo root: sbatch analysis/scripts/7.1m_ec_similarity.sb D22 D40
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+echo "[$(date '+%F %T')] prep"
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1m_ec_similarity.py" "$@"
+echo "[$(date '+%F %T')] edgeR"
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.1m_ec_similarity_edger.R" "$@"
+echo "[$(date '+%F %T')] done"

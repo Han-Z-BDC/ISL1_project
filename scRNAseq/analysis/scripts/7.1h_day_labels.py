@@ -56,7 +56,9 @@ def main():
     out = obs.assign(**{bkey: cl[bkey], "label": lab})
     out.rename_axis("barcode").to_csv(OUT / "labels.csv")
 
-    order = list(dict.fromkeys(rules.label))
+    # labels in rule order; a base label whose cells were all relabelled by overrides is left out (e.g. D22
+    # non-endocrine, split into hepatic / pancreatic progenitor / fibroblast)
+    order = [l for l in dict.fromkeys(rules.label) if (out.label == l).any()]
     comp = pd.crosstab(out.label, out["sample"]).reindex(order)
     comp["cells"] = comp.sum(axis=1)
     ko = out.genotype.astype(str).str.upper().str.startswith("KO")

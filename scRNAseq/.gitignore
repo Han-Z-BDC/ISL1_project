@@ -13,3 +13,4 @@ reports/
 /pipeline/logs
 __pycache__/
 *.pyc
+plot/

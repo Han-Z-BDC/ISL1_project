@@ -418,6 +418,15 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   - Cluster 2 (805 cells, mostly control, about half in S phase) mixes hepatic-like cells (AFP, FGB/FGG, GPC3,
     APOA2; at the tip) and pancreatic progenitor / duct-like cells (SOX9, ONECUT1, PDX1, some NKX6-1; PTF1A off);
     it stays one cluster up to r0.8 apart from 18 liver-like cells, so it is not labelled as liver cells.
+  - Cluster 2 split and relabelled (user, 2026-11-22: "subcluster and assign pancreatic progenitor, fibroblast,
+    acinar and hepatic like D40"): 7.1g split at sub-resolution **0.2** (as D40 r0.2 cluster 6), 4 groups:
+    0 **hepatic** (139 cells, 61 control / 78 KO; AFP and FGB 100%, HNF4A 88%, CDX2 84%; RBP4, APOA2, APOA1),
+    1 **hepatic** (427 cells, 302 / 125; AFP 93%, FGB 100%, HNF4A 73%, ONECUT1 / SOX9 ~50%; top markers DST,
+    CACNA2D1, PCDH15, CDH2; at sub-resolution 0.5 a hepatic part, a CUBN / TRPM6 part and a small CHGA / SCG3
+    endocrine-like part, mostly KO; called hepatic by the user), 2 **pancreatic progenitor** (182 cells, 160 / 22;
+    ONECUT1 78%, KRT19 89%, SOX9 50%, PDX1 35%), 3 **fibroblast** (57 cells, 41 / 16; COL3A1 98%, DCN 83%).
+    No acinar group: PTF1A, CPA1, CPA2 and CTRB2 in <= 2% of every group. The "non-endocrine" label is gone (7.1h
+    now leaves out labels without cells). D22 hepatic 566, pancreatic progenitor 182, fibroblast 57 cells.
   - Override: r1.0 cluster 1 (346 cells, 92% control) holds the delta-like bridge and an endocrine precursor stem
     (7.1f gene check at r1.0). It is split by Leiden restricted to its cells on the SCT B graph (7.1g) at
     sub-resolution **0.1** (same split at 0.2): subcluster 1 = **SC_delta** (143 cells, all control; SST 97%,
@@ -491,6 +500,45 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       (r 0.69-0.73, 20 markers) and group 3 (KO EC-like, 43 cells, in D40 GHRL+) has no clear partner (D22 SC_EC2 /
       GHRL+, r 0.29-0.40).
     - Decision (user, 2026-11-19): keep the sub-resolution 0.1 labels as they are, knowing the above.
+
+- Label proportions KO vs control (step 7.1l, user, 2026-11-22; `day_analysis/composition_genotype/`): per day
+  (D22, D40) and label, the share of each sample's cells; 2 control vs 2 KO samples as replicates (wells of one
+  differentiation and one OCM reaction per day, not separate differentiations). Main test **propeller** (arcsine
+  square-root proportions, limma ~ genotype, eBayes robust, BH FDR per day; written out with limma, as
+  speckle::propeller); check: quasi-binomial GLM per label (NA when a genotype has 0 cells). Effect log2((KO + 0.1%)
+  / (control + 0.1%)).
+  - D22, propeller FDR < 0.05 for every label: lower in KO SC_alpha (27.5% -> 0.02%), SC_beta (35.1% -> 0.01%),
+    SC_delta (2.1% -> 0), ENP (1.9% -> 0.08%), pancreatic progenitor (2.4% -> 0.25%), hepatic (5.3% -> 2.2%),
+    fibroblast (0.6% -> 0.17%), GHRL+ (0.68% -> 0.25%, FDR 0.012); higher in KO SC_EC1 (10.0% -> 37.8%), SC_EC2
+    (14.4% -> 59.3%).
+  - D40: all lower in KO except SC_EC1 (7.6% -> 35.6%) and SC_EC2 (5.3% -> 62.0%) higher; GHRL+ not different
+    (1.17% vs 0.91%, FDR 0.44); SC_delta FDR 0.02 (34 cells).
+  - propeller FDRs are very small (to 1e-22) because limma borrows variance across labels; the GLM is more
+    conservative (D22 FDR 0.002-0.08, e.g. ENP / GHRL+ / hepatic 0.08). The non-endocrine decreases in KO are partly
+    compositional (EC labels take ~95% of KO cells).
+  - Figures (local, `scRNAseq/plot/`, `analysis/scripts/fig_composition.R`): composition_{day}.pdf (bar = genotype
+    mean, dots = replicates, FDR), composition_log2ratio.pdf.
+
+- KO vs control SC_EC1 / SC_EC2 similarity (step 7.1m, user, 2026-11-22; `day_analysis/ec_similarity/`), per day.
+  Label match first (7.1k, unchanged by the D22 relabelling): each day's SC_EC1 / SC_EC2 is the other day's best
+  partner (EC2 19 shared markers, r 0.68; EC1 13, r 0.56; D22 SC_EC2 also r 0.53 with D40 SC_EC1 on all cells, 0.18
+  on KO cells only).
+  - Pseudobulk correlation (sample x label, >= 20 cells, TMM logCPM, day's 3,000 SCT B variable genes, gene-centred):
+    KO EC1 vs control EC1 r 0.80-0.82 (D22) / 0.77-0.79 (D40), replicates of one genotype 0.84-0.98, KO EC1 vs control
+    EC2 0.58-0.63; KO EC2 vs control EC2 0.90-0.91 / 0.84-0.86. Each KO EC type is closest to the same control EC type.
+    Cross-day (KO and control EC): same label across days r 0.55-0.81, other EC label 0.29-0.67.
+  - Pseudobulk DE (edgeR QL, 2 vs 2, FDR < 0.05, |log2FC| >= 0.5): KO vs control D22 EC1 1,152 / EC2 858, D40 EC1 982 /
+    EC2 1,065; references on the same design: EC2 vs EC1 control 4,227 (D22) / 1,772 (D40), KO 5,343 / 3,766; EC1 vs
+    beta (control) 4,605 / 3,858. EC identity genes not or barely changed (TPH1, FEV, LMX1A, SLC18A1, DDC, CHGA within
+    |log2FC| 0.5 except D40 EC1 TPH1 -0.7, FEV +0.5); ISL1 RNA higher in KO EC (+0.8 to +2.3; KO allele still
+    transcribed); D40 KO EC up: immediate-early genes (FOS, JUNB, EGR1, IER2, DUSP1).
+  - kNN genotype mixing within EC1 / EC2 (30 SCT B PCs, K = 30, genotype-balanced subsamples, 20 seeds; 1 = mixed):
+    D22 0.68-0.69, D40 0.52-0.53; replicates 0.96-1.01; EC1 vs EC2 0.07-0.16.
+  - Reading: KO EC cells keep their EC1 / EC2 identity (same markers, closest to the same control type, far fewer DE
+    genes than between cell types) but are not identical to control EC (about 1,000 DE genes; partial mixing).
+  - Figures (local, `scRNAseq/plot/`, `analysis/scripts/fig_ec_similarity.R`): ec_corr_{day}.pdf, ec_dotplot_{day}.pdf,
+    ec_de_counts.pdf, ec_mixing.pdf. D40 KO GHRL+ cells look EC-like on the dot plot (TPH1, SLC18A1, TAC1), as noted
+    at labelling.
 
 ## Open items
 

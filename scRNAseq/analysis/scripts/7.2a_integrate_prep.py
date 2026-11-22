@@ -60,9 +60,10 @@ def main():
     m15 = dict(zip(lab15.subcluster, lab15.label.str.split(" \\(").str[0]))
     l15 = sc15.sub_r0p6.map(m15)
     assert l15.notna().all(), "D15 subcluster without a draft label"
-    # D22: every label except non-endocrine
+    # D22: every label except non-endocrine; that cluster was relabelled hepatic / pancreatic progenitor / fibroblast
+    # (user, 2026-11-22), so those are left out instead (same cells)
     lab22 = pd.read_csv(DA / "D22" / "labels" / "labels.csv", index_col=0)
-    lab22 = lab22[lab22.label != "non-endocrine"]
+    lab22 = lab22[~lab22.label.isin(["non-endocrine", "hepatic", "pancreatic progenitor", "fibroblast"])]
 
     a15 = take("D15", cells15, ("D15 " + l15).to_numpy())
     a22 = take("D22", list(lab22.index), lab22.label.astype(str).to_numpy())

@@ -7,3 +7,7 @@ base	r0.2	4	SC_EC2	KO-enriched (TPH1, LMX1A)	confirmed
 override	r1.0_c1_s0.1	1	SC_delta	delta-like arm, control only (SST, HHEX; INS also high)	confirmed
 override	r1.0_c1_s0.1	0	ENP	endocrine precursor stem (NEUROG3, ARX, NEUROD1, CDKN1C); its GHRL+ part relabelled below	confirmed
 override	r1.0_c1_s0.3	1	GHRL+	GHRL+ part of the precursor stem (GHRL 96%, ARX 72%); 46 control / 22 KO	confirmed
+override	r0.2_c2_s0.2	0	hepatic	hepatic-like (AFP, FGB, APOA2, RBP4, HNF4A) with intestinal genes (CDX2); 61 control / 78 KO	confirmed
+override	r0.2_c2_s0.2	1	hepatic	hepatic genes (AFP 93%, FGB 100%, HNF4A 73%) with ONECUT1 / SOX9 in about half the cells; top markers not hepatic (DST, CACNA2D1, PCDH15, CDH2); labelled hepatic by the user; 302 control / 125 KO	confirmed
+override	r0.2_c2_s0.2	2	pancreatic progenitor	trunk / duct-like (ONECUT1, KRT19, SOX9, PDX1 low; SOX11, DACH1); 160 control / 22 KO	confirmed
+override	r0.2_c2_s0.2	3	fibroblast	COL3A1, DCN, COL1A1, SPARC; 41 control / 16 KO	confirmed
