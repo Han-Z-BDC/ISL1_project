@@ -688,6 +688,42 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   and expression only; CellRank gives the lineage labels on genes (driver / program flags, 7.3d / 7.3j), the fates,
   end states and alpha / beta bias (7.3i), the 7.3f / 7.4g "lost in KO" calls (CellRank-gated) and part of the 7.3k
   gene selection.
+- **D22 KO EC vs control EC vs control beta** (step 7.1o, user, 2026-11-23). Question (user): KO EC contain INS-high
+  cells (experimentally, at D22 the KO INS+ cells are SLC18A1+, i.e. EC-derived, while control INS+ cells are
+  SLC18A1- beta cells); how do these KO EC differ from control EC, other KO EC and control beta, and do some KO EC keep
+  beta differentiation potential? All differential tests use SoupX counts (also 7.1m / 7.1n; raw counts only in the
+  7.1m hormone check).
+  - INS distribution (`fig_ins_distribution.R`, `plot/D22D40/ec_ins/INS_distribution.pdf`; INS per 10,000 SoupX
+    counts): KO EC carry INS spread over the whole population, no separate INS-high peak (D22 EC1 a flat continuum up
+    to beta level; >= control-beta 10th percentile: KO EC1 12%, EC2 4%; control EC1 10%, EC2 7%, mostly 0 after
+    SoupX with a sparse positive group); D40 KO EC mostly trace INS (4% / 1%). So no INS cut-off (user: "KO EC in
+    general has more INS and it's spread"): a separate D22 model of ctr EC1, ctr EC2, ctr beta, KO EC1, KO EC2, plus a
+    single-cell layer (user: "go ahead with the two-layer design").
+  - Layer 1 (`7.1o_ec_beta_model.R`): edgeR QL on the 7.1m pseudobulks (>= 20 cells; KO SC_beta 1 cell dropped),
+    ~ 0 + group + replicate within genotype; 19,389 genes; call FDR < 0.05, |log2FC| >= 0.5. KO EC1 vs ctr EC1 313 up /
+    682 down, EC2 261 / 509; KO EC1 vs ctr beta 2,339 / 2,808, EC2 3,369 / 3,611; reference ctr beta vs ctr EC1
+    2,482 / 2,309, EC2 3,649 / 3,239. Shift of KO EC toward beta along the control beta-EC axis (2,834 / 3,906 genes,
+    |log2FC| >= 1, INS out; 0 = like control EC, 1 = like beta): EC1 0.19 (Spearman 0.29), EC2 0.09 (0.09). Quadrants of
+    the KO calls: EC-high down in KO 263 / 105, beta-high up in KO 59 / 60, beta-high down in KO 142 / 193 (partly beta
+    ambient RNA in control samples), EC-high up 56 / 50: the small EC1 shift is mostly loss of EC genes, not gain of beta
+    genes. Group-mean correlation with control beta (axis genes, centred): KO EC1 -0.34 vs ctr EC1 -0.13, KO EC2 -0.64
+    vs ctr EC2 -0.53.
+  - Layer 2 (`7.1o_ec_beta_cells.py`): scanpy score_genes, 100 beta-high and 100 EC-high genes (control beta vs both
+    control EC types, INS out); beta index = beta - EC score. Beta-leaning KO EC = beta index above the 99th (95th)
+    percentile of the control cells of the EC type: KO EC1 0 (5) of 3,416, EC2 0 (33) of 5,374, fewer than chance at
+    the 95th; KO EC beta score maximum -0.054 / -0.056 vs control EC 0.129 / 0.059 and control beta median 0.103; KO EC
+    with > 10% control-beta neighbours (SCT B graph) 1 / 0 vs control EC 39 / 18; KO EC cells at or above the control
+    beta 1st percentile of the index: 2 / 0. The beta score does not rise with INS (KO EC INS quintiles, median INS
+    1 -> 142 / 0 -> 63 per 10k; beta score median -0.173 -> -0.165; Spearman beta index vs INS 0.04 / 0.11). The subset
+    DE (beta-leaning vs other KO EC) was skipped: no beta-leaning cells.
+  - Reading: at D22 KO EC are EC cells as far from beta as control EC; INS in KO EC comes without the rest of the beta
+    program (PDX1, NKX6-1, MAFA, IAPP, G6PC2, HADH ...), and the scRNA data show no KO EC subset with partial beta
+    identity. This is a snapshot of state; potential (e.g. the ISL1 overexpression rescue) is not tested by it.
+    Control EC carry beta ambient RNA, which raises the control EC range; KO EC also stay below the lowest control
+    beta cells.
+  - Outputs `day_analysis/ec_beta_D22/` (de_{contrast}.csv, de_wide.csv, beta_shift.csv, quadrants.csv, pb_corr.csv,
+    score_genes.csv, cells.csv.gz, leaning_counts.csv, cells_summary.csv). Figures (`fig_ec_beta.R`,
+    `plot/D22D40/ec_beta/`): ec_beta_quadrant.pdf, ec_beta_scores.pdf, ec_beta_vs_INS.pdf, ec_beta_corr.pdf.
 
 ## Open items
 
