@@ -9,6 +9,8 @@
 #                            99th percentile of the control cells of the EC type (beyond = beta-leaning)
 #   ec_beta_vs_INS.pdf       KO EC beta score by INS quintile (INS per 10,000 SoupX counts), control EC / beta medians
 #   ec_beta_corr.pdf         correlation of the 5 group means (TMM logCPM, beta-axis genes, centred)
+#   ec_beta_score_umap.pdf   beta score on the D22 SCT B UMAP, control | KO (scored cells only; needs
+#                            reports/labels/D22/{labels.csv,sct_umaps.csv.gz})
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_ec_beta.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(ggrepel) })
 PLOT <- file.path(Sys.getenv("PLOT_DIR", "plot/D22D40"), "ec_beta"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
@@ -107,4 +109,47 @@ p <- ggplot(cl, aes(a, b, fill = r)) + geom_tile(colour = "white") +
   coord_fixed() + labs(x = NULL, y = NULL, title = "D22 group means, beta-axis genes (centred)") +
   base + theme(axis.text.x = element_text(angle = 40, hjust = 1), axis.line = element_blank(), axis.ticks = element_blank())
 ggsave(file.path(PLOT, "ec_beta_corr.pdf"), p, width = 4.4, height = 3.6, useDingbats = FALSE)
+
+# 5. beta score on the D22 UMAP, control | KO (user, 2026-11-23: "separately for KO and ctr"); style as the feature
+#    plots (fig_feature_dot.R): fixed square panels, other genotype light grey underneath, darker grey -> red; scored
+#    cells = SC_EC1 / SC_EC2 of both genotypes and control SC_beta, all other D22 cells grey; one colour scale for both
+#    panels, from the 1st to the 99th percentile of the scored cells (values outside drawn at the ends)
+suppressPackageStartupMessages(library(grid))
+PANEL_CM <- 6; POINT_SIZE <- 0.6; OTHER <- "#f2f2f2"; UNSCORED <- "#f2f2f2"   # both lighter than the lowest score colour (#bdbdbd)
+SCALE <- c("#bdbdbd", "#fcbba1", "#ef3b2c", "#99000d")
+GENO <- c(ctr = "Control", KO = "ISL1 KO")
+lb <- fread("reports/labels/D22/labels.csv")
+um <- fread("reports/labels/D22/sct_umaps.csv.gz"); setnames(um, 1, "barcode")
+u <- merge(lb[, .(barcode, genotype, label)], um[, .(barcode, UMAP1 = SCT_B_UMAP1, UMAP2 = SCT_B_UMAP2)], by = "barcode")
+setnames(x, 1, "barcode", skip_absent = TRUE)
+u <- merge(u, x[, .(barcode, beta_score)], by = "barcode", all.x = TRUE)
+lim <- quantile(u$beta_score, c(0.01, 0.99), na.rm = TRUE)
+u[, val := pmin(pmax(beta_score, lim[1]), lim[2])]
+ng <- u[, .N, by = genotype]; fl <- setNames(sprintf("%s (%s cells)", GENO[ng$genotype], format(ng$N, big.mark = ",")), ng$genotype)
+u[, panel := factor(fl[genotype], levels = fl[names(GENO)])]
+bgd <- u[, .(UMAP1, UMAP2, panel = factor(fl[setdiff(names(GENO), genotype)], levels = levels(u$panel))), by = genotype]
+half <- max(diff(range(u$UMAP1)), diff(range(u$UMAP2))) / 2 * 1.08
+cx <- mean(range(u$UMAP1)); cy <- mean(range(u$UMAP2))
+setorder(u, val, na.last = FALSE)
+p <- ggplot(u, aes(UMAP1, UMAP2)) +
+  geom_point(data = bgd, colour = OTHER, size = POINT_SIZE, stroke = 0) +
+  geom_point(data = u[is.na(val)], colour = UNSCORED, size = POINT_SIZE, stroke = 0) +
+  geom_point(data = u[!is.na(val)], aes(colour = val), size = POINT_SIZE, stroke = 0) +
+  scale_colour_gradientn(colours = SCALE, limits = lim, name = "beta\nscore", breaks = function(l) pretty(l, 3)) +
+  scale_x_continuous(limits = cx + c(-half, half), expand = c(0, 0)) +
+  scale_y_continuous(limits = cy + c(-half, half), expand = c(0, 0)) +
+  coord_fixed() + facet_wrap(~panel, nrow = 1) +
+  labs(title = "D22: beta score (100 beta-high genes, INS left out)",
+       subtitle = "scored: SC_EC1 / SC_EC2 and control SC_beta; other cells grey") +
+  theme_classic(base_size = 8) +
+  theme(axis.text = element_blank(), axis.ticks = element_blank(), plot.title = element_text(face = "bold"),
+        strip.background = element_blank(), strip.text = element_text(face = "bold", size = 8, hjust = 0),
+        legend.key.height = unit(0.5, "cm"), legend.key.width = unit(0.25, "cm"), panel.spacing = unit(0.4, "cm"),
+        plot.margin = margin(4, 4, 4, 4))
+g <- ggplotGrob(p); pp <- g$layout[grepl("^panel", g$layout$name), ]
+for (i in unique(pp$l)) g$widths[i] <- unit(PANEL_CM, "cm")
+for (i in unique(pp$t)) g$heights[i] <- unit(PANEL_CM, "cm")
+f <- file.path(PLOT, "ec_beta_score_umap.pdf")
+pdf(f, width = convertWidth(sum(g$widths), "in", valueOnly = TRUE), height = convertHeight(sum(g$heights), "in", valueOnly = TRUE),
+    useDingbats = FALSE); grid.draw(g); invisible(dev.off())
 cat("wrote", PLOT, "\n")
