@@ -10,7 +10,8 @@
 #   ec_beta_vs_INS.pdf       KO EC beta score by INS quintile (INS per 10,000 SoupX counts), control EC / beta medians
 #   ec_beta_corr.pdf         correlation of the 5 group means (TMM logCPM, beta-axis genes, centred)
 #   ec_beta_identity_heatmap.pdf  curated beta / EC identity genes: scaled group means and log2FC KO EC vs control EC
-#   ec_beta_GO_EC1.pdf       GO BP of the EC1 quadrant categories (go_bp_quadrants_EC1.csv, 7.1o_ec_beta_go.R)
+#   ec_beta_enrich_EC1.pdf   GO BP / MF / CC, KEGG, Reactome, WikiPathways, Hallmark of the EC1 quadrant categories
+#                            (enrich_quadrants_EC1.csv, 7.1o_ec_beta_enrich.R)
 #   ec_beta_umap_{beta,EC}_score.pdf   beta (blue) / EC (green) score of all D22 cells on the SCT B UMAP, control | KO (needs
 #                            reports/labels/D22/sct_umaps.csv.gz and cells_all.csv.gz); high-resolution cores
 #                            png/umap_{beta,EC}_score_{ctr,KO}.png (6 cm at 600 dpi, panel only)
@@ -227,26 +228,42 @@ suppressPackageStartupMessages(library(patchwork))
 ggsave(file.path(PLOT, "ec_beta_identity_heatmap.pdf"), p1 + p2 + plot_layout(widths = c(5, 2)),
        width = 6.6, height = 0.15 * nrow(hg) + 1.6, useDingbats = FALSE)
 cat("identity genes not in the tested set:", setdiff(unlist(ID_GENES), hg$gene), "\n")
-# 7. GO of the EC1 quadrant categories (user, 2026-11-23; 7.1o_ec_beta_go.R): top 8 terms (padj < 0.05) per category,
-#    all four categories on the x axis (empty = no term); x labels in the quadrant colours
-gf <- file.path(D, "go_bp_quadrants_EC1.csv")
-if (file.exists(gf)) {
-  go <- fread(gf)
+# 7. enrichment of the EC1 quadrant categories (user, 2026-11-23; 7.1o_ec_beta_enrich.R): GO BP / MF / CC, KEGG Medicus,
+#    KEGG Legacy, Reactome, WikiPathways and Hallmark (MSigDB) in one plot; rows = top 5 terms (padj < 0.05) per
+#    category and collection, grouped by collection; columns = the four categories (x labels in the quadrant colours)
+ef <- file.path(D, "enrich_quadrants_EC1.csv")
+if (file.exists(ef)) {
+  en <- fread(ef)
   CATS <- c("beta-high, up in KO EC", "beta-high, down in KO EC (check ambient)", "EC-high, down in KO EC", "EC-high, up in KO EC")
-  n_set <- go[, .(n = set_size[1]), by = set]
-  CLAB <- setNames(sprintf("%s\n(%s genes)", CATS, n_set$n[match(CATS, n_set$set)]), CATS)
-  tg <- go[padj < 0.05][order(pval), head(.SD, 8), by = set]
-  xg <- go[term %in% tg$term & padj < 0.05]
-  xg[, set := factor(set, CATS)][, term := factor(term, rev(unique(tg[order(match(set, CATS), pval), term])))]
-  p <- ggplot(xg, aes(set, term)) +
+  COLLS <- c("GO BP", "GO MF", "GO CC", "KEGG Medicus", "KEGG Legacy", "Reactome", "WikiPathways", "Hallmark")
+  n_set <- en[, .(n = set_size[1]), by = category]
+  CLAB <- setNames(sprintf("%s\n(%s genes)", CATS, n_set$n[match(CATS, n_set$category)]), CATS)
+  pretty_term <- function(t) {
+    t <- sub("^(GOBP|GOMF|GOCC|REACTOME|HALLMARK|WP|KEGG|KEGG_MEDICUS)_", "", t)
+    t <- tolower(gsub("_", " ", t)); t <- sub("^(.)", "\\U\\1", t, perl = TRUE)
+    ifelse(nchar(t) > 62, paste0(substr(t, 1, 60), "..."), t)
+  }
+  top <- en[padj < 0.05][order(pval), head(.SD, 5), by = .(category, collection)]
+  xe <- en[padj < 0.05 & paste(collection, term) %in% paste(top$collection, top$term)]
+  xe[, label := pretty_term(term)]
+  xe[, `:=`(category = factor(category, CATS), collection = factor(collection, intersect(COLLS, unique(collection))))]
+  ord <- unique(top[order(match(collection, COLLS), match(category, CATS), pval), .(collection, term)])
+  xe[, label := factor(paste(collection, term), levels = rev(paste(ord$collection, ord$term)),
+                       labels = rev(pretty_term(ord$term)))]
+  none <- setdiff(COLLS, unique(as.character(xe$collection)))
+  p <- ggplot(xe, aes(category, label)) +
     geom_point(aes(size = overlap, colour = -log10(padj))) +
+    facet_grid(collection ~ ., scales = "free_y", space = "free_y", switch = "y") +
     scale_colour_gradient(low = "#fdbb84", high = "#7f0000", name = "-log10 padj") +
     scale_size_area(max_size = 4, name = "genes") +
     scale_x_discrete(drop = FALSE, labels = CLAB) +
-    labs(x = NULL, y = NULL, title = "D22 EC1: GO biological process per quadrant category",
-         subtitle = "top 8 terms with padj < 0.05; universe = genes tested in the 7.1o model\n(no term with padj < 0.05 in the empty columns)") +
-    base + theme(plot.title.position = "plot", axis.text.x = element_text(angle = 30, hjust = 1, colour = QCOL[CATS], face = "bold"),
-                 axis.text.y = element_text(size = 6.5), panel.grid.major = element_line(colour = "#eeeeee"))
-  ggsave(file.path(PLOT, "ec_beta_GO_EC1.pdf"), p, width = 6.6, height = 1.9 + 0.14 * nlevels(xg$term), useDingbats = FALSE)
+    labs(x = NULL, y = NULL, title = "D22 EC1: enrichment per beta-axis quadrant category",
+         subtitle = paste0("MSigDB release 2026.1 (msigdbr); top 5 terms with padj < 0.05 per category and collection; ",
+                           "universe = genes tested in the 7.1o model", if (length(none)) paste0("\nno term with padj < 0.05: ", paste(none, collapse = ", ")) else "")) +
+    base + theme(plot.title.position = "plot", strip.placement = "outside", strip.text.y.left = element_text(angle = 0, face = "bold"),
+                 axis.text.x = element_text(angle = 30, hjust = 1, colour = QCOL[CATS], face = "bold"),
+                 axis.text.y = element_text(size = 6.3), panel.grid.major = element_line(colour = "#eeeeee"),
+                 panel.spacing.y = unit(0.15, "cm"))
+  ggsave(file.path(PLOT, "ec_beta_enrich_EC1.pdf"), p, width = 7.6, height = 2.2 + 0.13 * nlevels(xe$label), useDingbats = FALSE)
 }
 cat("wrote", PLOT, "\n")

@@ -743,17 +743,27 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     -0.177 -> -0.175, control SC_beta 0.107, SC_alpha -0.003, SC_delta 0.010; EC score SC_EC1 -0.056 -> -0.025, SC_EC2
     0.060 -> 0.069. The beta score is also raised in control alpha / delta and the GHRL+ / ENP group (shared endocrine
     genes in the set); KO EC show no beta-score region. The all-cell job ran on amem (acpu queue too slow).
-  - GO of the EC1 quadrant categories (user, 2026-11-23; `7.1o_ec_beta_go.R` / `.sb`, isl1_downstream env, as 7.1n:
-    org.Hs.eg.db GOALL BP, fgsea::fora, terms 15-500 genes, BH per set, universe = the 19,389 genes of the 7.1o model;
-    `go_bp_quadrants_EC1.csv`, figure `ec_beta_GO_EC1.pdf`): beta-high up in KO EC (59 genes) and EC-high up in KO EC
-    (56) no term with padj < 0.05. Beta-high down in KO EC (142): 84 terms, cell-cell adhesion (cadherins /
-    protocadherins CDH8 / 11 / 13 / 18, PCDH7 / 10, FAT3, CNTN4, TENM3), sensory organ / ear / skeletal development (TGFB2,
-    WNT5A, BMP2, TBX3, TFAP2A), muscle contraction (GJA1, OXTR, SCN7A, TTN), synaptic signalling; no beta-cell identity
-    or insulin-secretion term. EC-high down in KO EC (263): 35 terms, extracellular matrix organisation (collagens
-    COL1A2 / 4A3 / 4A4 / 12A1 / 19A1, HMCN1, TNR, NPNT) and motile cilium / axoneme assembly (CFAP43 / 44 / 47 / 54, SPAG6,
-    ARMC2, DRC1, DNAAF1, MNS1). So the genes behind the quadrant counts are mostly adhesion / developmental / ECM /
-    cilium genes, not the beta or EC hormone programs; the ECM / adhesion part may partly be contaminating mesenchymal
-    RNA in the control samples.
+  - Enrichment of the EC1 quadrant categories (user, 2026-11-23: GO BP, MF and CC plus pathways, KEGG, Reactome and
+    Hallmark in one plot; `7.1o_ec_beta_enrich.R` / `.sb`; replaces the first GO-BP-only run). Gene sets: MSigDB 2026.1
+    via msigdbr, installed into the isl1_downstream env (user OK; `7.1o_install_msigdbr.sb`, acompile; added msigdbr and
+    babelgene, no existing package changed); msigdbr downloads the release at first use, so the sets are saved to
+    `${OUT_DIR}/reference/msigdb_2026.1.Hs.csv.gz` and read offline: GO BP 7,538, GO MF 1,872, GO CC 1,080, KEGG Medicus
+    658, KEGG Legacy 186, Reactome 1,839, WikiPathways 925, Hallmark 50. fgsea::fora, universe = the 19,389 genes of the
+    7.1o model, sets with 15-500 universe genes, BH per category x collection (`enrich_quadrants_EC1.csv`; figure
+    `ec_beta_enrich_EC1.pdf`, top 5 terms per category and collection).
+    - Terms with padj < 0.05 (BP / MF / CC / Reactome / WikiPathways / Hallmark; KEGG none anywhere): beta-high up in
+      KO EC (59 genes) 0 / 2 / 0 / 1 / 0 / 0 (amino acid transporter activity; Reactome neuronal system); beta-high
+      down in KO EC (142) 45 / 2 / 9 / 0 / 1 / 0 (cadherin / protocadherin cell adhesion CDH8 / 11 / 13 / 18, PCDH7 / 10,
+      FAT3; ear / skeletal development TGFB2, WNT5A, BMP2, TBX3; synaptic membrane; beta-catenin binding); EC-high down
+      in KO EC (263) 23 / 5 / 11 / 17 / 1 / 1 (extracellular matrix and collagen COL1A2 / 4A3 / 4A4 / 12A1 / 19A1 / 21A1,
+      FN1, FBLN1, basement membrane; motile cilium / axoneme CFAP43 / 44 / 47 / 54, SPAG6, DRC1, DNAAF1; Hallmark
+      epithelial-mesenchymal transition; Reactome developmental cell lineages; DNA-binding activators incl. HHEX,
+      NEUROG3, NKX6-3, FOXA1, MECOM); EC-high up in KO EC (56) 0 / 0 / 2 / 0 / 0 / 1 (synaptic vesicle membrane,
+      excitatory synapse; Hallmark angiogenesis).
+    - Reading: no beta-cell identity, insulin-secretion or hormone pathway in any category; the genes behind the
+      quadrant counts are adhesion / developmental / ECM / cilium / synaptic genes. The ECM / EMT / adhesion part may
+      partly be contaminating mesenchymal RNA in the control samples; the cilium genes look like a control EC1 feature
+      lost in KO.
 
 ## Open items
 

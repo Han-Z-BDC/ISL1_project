@@ -1,0 +1,39 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_install_msigdbr
+#SBATCH --partition=acompile
+#SBATCH --qos=compile
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=01:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/install_msigdbr.%j.out
+
+# Install msigdbr (+ its data package msigdbdf) into the isl1_downstream env (user, 2026-11-23: Hallmark, KEGG,
+# Reactome, WikiPathways and GO gene sets offline for the 7.1o enrichment). Adds packages only: records the installed
+# package versions before and after and stops if any existing package changed version.
+# Run from the repo root: sbatch analysis/scripts/7.1o_install_msigdbr.sb
+
+set -euo pipefail
+R=/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/Rscript
+L=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs
+"$R" -e 'ip <- installed.packages()[, c("Package", "Version")]; write.csv(ip, commandArgs(TRUE)[1], row.names = FALSE)' "$L/msigdbr_before.csv"
+"$R" -e '
+cran <- "https://cloud.r-project.org"
+cat("R", R.version.string, "| library", .libPaths()[1], "\n")
+install.packages("msigdbr", repos = cran)
+if (!requireNamespace("msigdbdf", quietly = TRUE))
+  install.packages("msigdbdf", repos = c("https://igordot.r-universe.dev", cran))
+library(msigdbr)
+cat("msigdbr", as.character(packageVersion("msigdbr")), "\n")
+print(as.data.frame(msigdbr_collections()))
+h <- tryCatch(msigdbr(species = "Homo sapiens", collection = "H"),
+              error = function(e) msigdbr(species = "Homo sapiens", category = "H"))
+cat("hallmark sets:", length(unique(h$gs_name)), "\n")'
+"$R" -e 'ip <- installed.packages()[, c("Package", "Version")]; write.csv(ip, commandArgs(TRUE)[1], row.names = FALSE)' "$L/msigdbr_after.csv"
+"$R" -e '
+b <- read.csv(commandArgs(TRUE)[1]); a <- read.csv(commandArgs(TRUE)[2])
+m <- merge(b, a, by = "Package", suffixes = c(".before", ".after"), all = TRUE)
+cat("added:", paste(m$Package[is.na(m$Version.before)], collapse = ", "), "\n")
+ch <- m[!is.na(m$Version.before) & !is.na(m$Version.after) & m$Version.before != m$Version.after, ]
+if (nrow(ch)) { print(ch); stop("existing packages changed version") } else cat("no existing package changed\n")' \
+  "$L/msigdbr_before.csv" "$L/msigdbr_after.csv"

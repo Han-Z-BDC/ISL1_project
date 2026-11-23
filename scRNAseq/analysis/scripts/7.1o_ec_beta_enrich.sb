@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ec_beta_enrich
+#SBATCH --partition=acompile
+#SBATCH --qos=compile
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=00:30:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ec_beta_enrich.%j.out
+
+# Step 7.1o (enrichment): GO BP / MF / CC, KEGG, Reactome, WikiPathways and Hallmark over-representation of the D22 EC1
+# beta-axis quadrant categories -- see the .R header. Needs 7.1o (model). acompile: the first run downloads the MSigDB
+# release (msigdbr); later runs read the saved gene-set table.
+# Run from the repo root: sbatch analysis/scripts/7.1o_ec_beta_enrich.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+export TMPDIR=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/tmp; mkdir -p "$TMPDIR"
+/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/Rscript "${REPO_DIR}/analysis/scripts/7.1o_ec_beta_enrich.R"
