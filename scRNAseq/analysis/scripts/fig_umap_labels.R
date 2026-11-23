@@ -10,6 +10,11 @@
 # Output (git-ignored): plot/D22D40/umap_{day}.pdf (all cells), plot/D22D40/umap_{day}_genotype.pdf (control | KO)
 # High-resolution UMAP cores (user, 2026-11-22): the plotting square only (no axes, title, legend), PANEL_CM x PANEL_CM
 #   at PNG_DPI, white background: plot/D22D40/umap_core/umap_{day}.png, umap_{day}_ctr.png, umap_{day}_KO.png
+# D15 endocrine compartment (user, 2026-11-22): "day" D15_endocrine = the 7.1d subset (5,994 cells) on its own 2D
+#   UMAP, labels = r0.6 names (study_config/annotation/D15_endocrine_r0.6.tsv) from reports/labels/D15/
+#   endocrine_subclusters.csv; colours: pre_alpha / pre_alpha_KO, pre_beta1 / pre_beta2 and pre_EC are lighter shades
+#   of SC_alpha, SC_beta and SC_EC1 (pre_delta: lighter SC_delta); the ENP states and KO_only get distinct hues.
+#   Legend in ENDO_ORDER (lineage order). PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_umap_labels.R D15_endocrine
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_umap_labels.R D22 D40
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(grid) })
 # output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
@@ -25,7 +30,19 @@ pal <- fread("study_config/annotation/label_colours.tsv")
 pal <- setNames(pal$colour, pal$label)
 n_fmt <- function(n) trimws(format(as.integer(n), big.mark = ","))
 
+ENDO_ORDER <- c("ENP1", "ENP2", "ENP_FEV_high", "ENP_PHOX2A+", "pre_EC", "pre_beta1", "pre_beta2", "pre_alpha",
+                "pre_alpha_KO", "pre_delta", "KO_only")
+load_endocrine <- function() {
+  s <- fread("reports/labels/D15/endocrine_subclusters.csv"); setnames(s, 1, "barcode")
+  nm <- fread("study_config/annotation/D15_endocrine_r0.6.tsv")
+  x <- s[, .(barcode, UMAP1, UMAP2, label = nm$label[match(sub_r0p6, nm$subcluster)],
+             genotype = fifelse(grepl("-KO_", barcode), "KO", "ctr"))]
+  stopifnot(nrow(x) == 5994, !anyNA(x$label), setequal(x$label, ENDO_ORDER), all(ENDO_ORDER %in% names(pal)))
+  x[, label := factor(label, levels = ENDO_ORDER)]
+  set.seed(SEED); x[sample(.N)]
+}
 load_day <- function(day) {
+  if (day == "D15_endocrine") return(load_endocrine())
   l <- fread(file.path("reports/labels", day, "labels.csv"))
   u <- fread(file.path("reports/labels", day, "sct_umaps.csv.gz")); setnames(u, 1, "barcode")
   x <- merge(l[, .(barcode, genotype, label)], u[, .(barcode, UMAP1 = SCT_B_UMAP1, UMAP2 = SCT_B_UMAP2)],
@@ -73,7 +90,7 @@ save_fixed <- function(p, f) {
 for (day in days) {
   x <- load_day(day)
   p <- ggplot(x, aes(UMAP1, UMAP2, colour = label)) + geom_point(size = POINT_SIZE, stroke = 0) +
-    labs(title = sprintf("%s (%s cells)", day, n_fmt(nrow(x))))
+    labs(title = sprintf("%s (%s cells)", sub("_", " ", day), n_fmt(nrow(x))))
   save_fixed(umap_base(x, p), file.path(PLOT, sprintf("umap_%s.pdf", day)))
   core_png(umap_base(x, p), file.path(PLOT, "umap_core", sprintf("umap_%s.png", day)))
   for (gt in names(GENO)) {   # genotype cores: this genotype coloured, the other grey underneath
@@ -93,7 +110,7 @@ for (day in days) {
     geom_point(data = bg, colour = GREY, size = POINT_SIZE, stroke = 0) +
     geom_point(aes(colour = label), size = POINT_SIZE, stroke = 0) +
     facet_wrap(~panel, nrow = 1) +
-    labs(title = day)
+    labs(title = sub("_", " ", day))
   save_fixed(umap_base(x, p) + theme(panel.spacing = unit(0.4, "cm")),
              file.path(PLOT, sprintf("umap_%s_genotype.pdf", day)))
 }

@@ -620,6 +620,29 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   fibroblast reuse the D22 / D40 colours). Note: D22 / D40 call their AFP-high cells "hepatic".
   - Figures (local, plot/D15/): `PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_umap_labels.R D15` -> umap_D15.pdf,
     umap_D15_genotype.pdf, umap_core/umap_D15{,_ctr,_KO}.png; exploratory cluster plots `fig_d15_overview.R`.
+- 2026-11-22 (user: "make the D15 genotype composition plots like D22 and D40"): 7.1l rerun as `D15 D22 D40` (BH FDR
+  is per day, so D22 / D40 results unchanged). D15 propeller: KO higher ENP (24.6% -> 38.9%, FDR 0.002); KO lower
+  pre_alpha (6.7% -> 0%, FDR 1e-4), PP1 (FDR 0.008), PP2 (FDR 0.02); PP-ENP, PP-hepatic, fibroblast ns.
+  `fig_composition.R` takes `DAYS` (default D22,D40): `DAYS=D15 PLOT_DIR=plot/D15` -> composition_D15.pdf,
+  composition_log2ratio_D15.pdf, composition_stacked.pdf. Panel title wrapped to two lines, stacked caption on three
+  lines (no clipping; also applies to the D22D40 versions).
+- 2026-11-22 (user): UMAP of the D15 endocrine compartment (7.1d subset, 5,994 cells, its own 2D UMAP, r0.6 names).
+  Colours (label_colours.tsv; made more distinct on request, same day): lighter shades of the D22 / D40 colours for
+  the precursors: pre_alpha #5fa2d3 and pre_alpha_KO #b4d6ec (SC_alpha), pre_beta2 #fd8d3c and pre_beta1 #fdd49e
+  (SC_beta), pre_EC #fb9a99 (SC_EC1), pre_delta #c49c94 (SC_delta); other hues: ENP1 #bcbd22 (olive), ENP2 #2ca02c
+  (green), ENP_FEV_high #8e7cc3 (lavender), ENP_PHOX2A+ #4d4d4d (dark grey), KO_only #e7298a (magenta). pre_alpha is
+  shared with the whole-day D15 label, so umap_D15*.pdf / png were redrawn too. `PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_umap_labels.R D15_endocrine` ->
+  umap_D15_endocrine{,_genotype}.pdf, umap_core/umap_D15_endocrine{,_ctr,_KO}.png.
+- 2026-11-22 (user: "compare cell proportion by genotype here", D15 endocrine compartment): 7.1l takes
+  `D15_endocrine` (7.1d subset, r0.6 names; sample from the barcode; proportions are of the subset's cells per
+  sample); run as `D15 D22 D40 D15_endocrine` (FDR per day, other days unchanged). Propeller, KO vs control: lower
+  pre_alpha (18.3% -> 0%), pre_beta2 (12.1% -> 0%), pre_delta (4.0% -> 0%), pre_beta1 (13.0% -> 3.4%); higher pre_EC
+  (7.8% -> 23.8%), ENP_FEV_high (19.4% -> 29.1%), ENP_PHOX2A+ (7.0% -> 11.5%), ENP2 (12.0% -> 14.5%, FDR 0.04),
+  pre_alpha_KO and KO_only (named for their genotype, so their test is circular); ENP1 ns. All others FDR < 1e-4.
+  `DAYS=D15_endocrine PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_composition.R` (lineage order as the UMAP).
+  Stacked-bar file per day set: composition_stacked.pdf for D22 + D40, otherwise composition_stacked_{days}.pdf
+  (the D15 one is now composition_stacked_D15.pdf); display names without the underscore; one-day star table headed
+  "FDR".
 
 ## Open items
 

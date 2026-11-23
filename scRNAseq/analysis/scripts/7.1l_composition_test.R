@@ -12,7 +12,10 @@
 # Writes ${OUT_DIR}/day_analysis/composition_genotype/ (reruns overwrite):
 #   proportions.csv   day, label, sample, genotype, cells, total, proportion
 #   tests.csv         day, label, mean proportion control / KO, log2 ratio, propeller t / p / FDR, GLM log2 OR / p / FDR
-# Usage: Rscript 7.1l_composition_test.R D22 D40
+# D15_endocrine (user, 2026-11-22): the 7.1d D15 endocrine subset (5,994 cells) with its r0.6 names
+#   (day_analysis/D15/subcluster_endocrine/subclusters.csv + study_config/annotation/D15_endocrine_r0.6.tsv); proportions
+#   are of the subset's cells per sample, not of all D15 cells.
+# Usage: Rscript 7.1l_composition_test.R D15 D22 D40 D15_endocrine
 suppressPackageStartupMessages({ library(limma); library(data.table) })
 days <- commandArgs(TRUE); stopifnot(length(days) > 0)
 da <- file.path(Sys.getenv("OUT_DIR"), "day_analysis")
@@ -21,7 +24,16 @@ OFF <- 0.001
 
 props <- list(); tests <- list()
 for (day in days) {
-  l <- fread(file.path(da, day, "labels", "labels.csv"))
+  if (day == "D15_endocrine") {
+    sc <- fread(file.path(da, "D15", "subcluster_endocrine", "subclusters.csv")); setnames(sc, 1, "barcode")
+    nm <- fread(file.path(Sys.getenv("REPO_DIR"), "study_config", "annotation", "D15_endocrine_r0.6.tsv"))
+    l <- sc[, .(barcode, sample = sub("#.*$", "", sub("^[^-]*-", "", barcode)),
+                label = nm$label[match(sub_r0p6, nm$subcluster)])]
+    l[, genotype := sub("_rep.*$", "", sample)]
+    stopifnot(nrow(l) == 5994, !anyNA(l$label), uniqueN(l$sample) == 4)
+  } else {
+    l <- fread(file.path(da, day, "labels", "labels.csv"))
+  }
   l[, geno := ifelse(toupper(genotype) %like% "^KO", "KO", "ctr")]
   cnt <- dcast(l[, .N, by = .(label, sample)], label ~ sample, value.var = "N", fill = 0)
   m <- as.matrix(cnt[, -1]); rownames(m) <- cnt$label

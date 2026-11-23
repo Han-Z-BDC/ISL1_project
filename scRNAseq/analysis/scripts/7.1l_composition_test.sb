@@ -13,5 +13,5 @@
 
 set -euo pipefail
 source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
-export OUT_DIR
+export OUT_DIR REPO_DIR
 "${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.1l_composition_test.R" "$@"

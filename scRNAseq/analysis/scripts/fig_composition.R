@@ -6,13 +6,23 @@
 # 2. plot/D22D40/composition_log2ratio.pdf: log2(KO / control) mean proportion per label (0.1% offset), D22 and D40 side by
 #    side, filled = propeller FDR < 0.05.
 # Inputs (copied from Alpine, git-ignored): reports/composition/{proportions,tests}.csv (7.1l)
+# Days: DAYS env (comma list, default D22,D40); D15 (user, 2026-11-22) is drawn on its own:
+#   DAYS=D15 PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_composition.R (stacked bar: composition_stacked_D15.pdf)
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_composition.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2) })
 # output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
 PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
-pr <- fread("reports/composition/proportions.csv"); te <- fread("reports/composition/tests.csv")
+# D15_endocrine (user, 2026-11-22): legend / panel order = lineage order (as fig_umap_labels.R), not the tsv order:
+#   DAYS=D15_endocrine PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_composition.R
+ENDO_ORDER <- c("ENP1", "ENP2", "ENP_FEV_high", "ENP_PHOX2A+", "pre_EC", "pre_beta1", "pre_beta2", "pre_alpha",
+                "pre_alpha_KO", "pre_delta", "KO_only")
+if (identical(Sys.getenv("DAYS"), "D15_endocrine")) pal <- pal[c(ENDO_ORDER, setdiff(names(pal), ENDO_ORDER))]
+DAYS <- strsplit(Sys.getenv("DAYS", "D22,D40"), ",")[[1]]
+pr <- fread("reports/composition/proportions.csv")[day %in% DAYS]; te <- fread("reports/composition/tests.csv")[day %in% DAYS]
+stopifnot(nrow(te) > 0)
 GENO <- c(ctr = "Control", KO = "ISL1 KO")
+dn <- function(d) sub("_", " ", d)   # display name (D15_endocrine -> D15 endocrine); file names keep the id
 stars <- function(q) fifelse(q < 0.001, "***", fifelse(q < 0.01, "**", fifelse(q < 0.05, "*", "ns")))
 th <- theme_classic(base_size = 8) +
   theme(strip.background = element_blank(), strip.text = element_text(face = "bold", size = 7),
@@ -37,7 +47,7 @@ for (d in unique(te$day)) {
     scale_y_continuous(expand = expansion(mult = c(0, 0))) +
     facet_wrap(~label, scales = "free_y", nrow = 2) +
     labs(x = NULL, y = "% of cells in the sample",
-         title = sprintf("%s: cell type proportions, control vs ISL1 KO (2 replicates each; propeller)", d)) +
+         title = sprintf("%s: cell type proportions, control vs ISL1 KO\n(2 replicates each; propeller)", dn(d))) +
     th + theme(axis.text.x = element_text(angle = 45, hjust = 1))
   nc <- ceiling(length(lv) / 2)
   f <- file.path(PLOT, sprintf("composition_%s.pdf", d))
@@ -67,7 +77,7 @@ for (d in unique(te$day)) {
     scale_colour_manual(values = pal, guide = "none") +
     guides(size = guide_legend(override.aes = list(alpha = 1, colour = "black"))) +
     scale_x_continuous(limits = xr) +
-    labs(x = "log2(KO / control proportion)", y = NULL, title = sprintf("%s: ISL1 KO vs control", d)) +
+    labs(x = "log2(KO / control proportion)", y = NULL, title = sprintf("%s: ISL1 KO vs control", dn(d))) +
     th + theme(legend.position = "bottom")
   f <- sprintf(file.path(PLOT, "composition_log2ratio_%s.pdf"), d)
   ggsave(f, p, width = 3.4, height = 0.95 + 0.2 * nlevels(td$label), useDingbats = FALSE)
@@ -88,7 +98,7 @@ bars <- ggplot(sm, aes(sample, 100 * proportion, fill = label)) +
   geom_col(width = 0.8, colour = "white", linewidth = 0.1) +
   scale_fill_manual(values = pal, guide = "none") +
   scale_y_continuous(expand = c(0, 0)) +
-  facet_wrap(~day, nrow = 1) +
+  facet_wrap(~day, nrow = 1, labeller = as_labeller(dn)) +
   labs(x = NULL, y = "% of cells in the sample", title = "Cell type composition per sample") +
   th + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -107,12 +117,15 @@ star_tab <- ggplot() +
   geom_tile(data = key, aes(x = 0, y = y, fill = label), width = 0.35, height = 0.7) +
   geom_text(data = key, aes(x = 0.3, y = y, label = label), hjust = 0, size = 2.5) +
   geom_text(data = tab, aes(x = xd[day], y = y, label = txt), size = 2.5) +
-  annotate("text", x = xd, y = ny + 1, label = names(xd), fontface = "bold", size = 2.6) +
+  annotate("text", x = xd, y = ny + 1, label = if (length(xd) == 1) "FDR" else dn(names(xd)), fontface = "bold", size = 2.6) +
   scale_fill_manual(values = pal, guide = "none") +
   scale_x_continuous(limits = c(-0.3, max(xd) + 0.45), expand = c(0, 0)) +
   scale_y_continuous(limits = c(0.4, ny + 1.5), expand = c(0, 0)) +
-  labs(caption = "KO vs control, propeller FDR\n*** < 0.001, ** < 0.01, * < 0.05; \u2191 / \u2193 KO higher / lower;\n\u2013 not present that day") +
+  labs(caption = "KO vs control, propeller FDR\n*** < 0.001, ** < 0.01, * < 0.05;\n\u2191 / \u2193 KO higher / lower; \u2013 not present that day") +
   theme_void(base_size = 8) + theme(plot.caption = element_text(size = 6, hjust = 0, colour = "grey30"))
 p <- bars + star_tab + plot_layout(widths = c(1.5, 1))
-ggsave(file.path(PLOT, "composition_stacked.pdf"), p, width = 6.2, height = 3.6, device = cairo_pdf)
-cat("wrote plot/D22D40/composition_stacked.pdf\n")
+# file name: composition_stacked.pdf for the default D22 + D40, otherwise composition_stacked_{days}.pdf
+f <- file.path(PLOT, if (identical(DAYS, c("D22", "D40"))) "composition_stacked.pdf" else
+  sprintf("composition_stacked_%s.pdf", paste(DAYS, collapse = "_")))
+ggsave(f, p, width = max(5.4, 2.6 + 1.8 * length(days)), height = 3.6, device = cairo_pdf)
+cat("wrote", f, "\n")
