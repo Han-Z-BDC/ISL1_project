@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ec_beta_go
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --time=00:30:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ec_beta_go.%j.out
+
+# Step 7.1o (GO): GO BP over-representation of the D22 EC1 beta-axis quadrant categories -- see the .R header.
+# Needs 7.1o (model). GO.db / org.Hs.eg.db / fgsea are in the isl1_downstream env (as 7.1n).
+# Run from the repo root: sbatch analysis/scripts/7.1o_ec_beta_go.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/Rscript "${REPO_DIR}/analysis/scripts/7.1o_ec_beta_go.R"

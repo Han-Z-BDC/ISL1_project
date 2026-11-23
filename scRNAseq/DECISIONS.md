@@ -743,6 +743,17 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     -0.177 -> -0.175, control SC_beta 0.107, SC_alpha -0.003, SC_delta 0.010; EC score SC_EC1 -0.056 -> -0.025, SC_EC2
     0.060 -> 0.069. The beta score is also raised in control alpha / delta and the GHRL+ / ENP group (shared endocrine
     genes in the set); KO EC show no beta-score region. The all-cell job ran on amem (acpu queue too slow).
+  - GO of the EC1 quadrant categories (user, 2026-11-23; `7.1o_ec_beta_go.R` / `.sb`, isl1_downstream env, as 7.1n:
+    org.Hs.eg.db GOALL BP, fgsea::fora, terms 15-500 genes, BH per set, universe = the 19,389 genes of the 7.1o model;
+    `go_bp_quadrants_EC1.csv`, figure `ec_beta_GO_EC1.pdf`): beta-high up in KO EC (59 genes) and EC-high up in KO EC
+    (56) no term with padj < 0.05. Beta-high down in KO EC (142): 84 terms, cell-cell adhesion (cadherins /
+    protocadherins CDH8 / 11 / 13 / 18, PCDH7 / 10, FAT3, CNTN4, TENM3), sensory organ / ear / skeletal development (TGFB2,
+    WNT5A, BMP2, TBX3, TFAP2A), muscle contraction (GJA1, OXTR, SCN7A, TTN), synaptic signalling; no beta-cell identity
+    or insulin-secretion term. EC-high down in KO EC (263): 35 terms, extracellular matrix organisation (collagens
+    COL1A2 / 4A3 / 4A4 / 12A1 / 19A1, HMCN1, TNR, NPNT) and motile cilium / axoneme assembly (CFAP43 / 44 / 47 / 54, SPAG6,
+    ARMC2, DRC1, DNAAF1, MNS1). So the genes behind the quadrant counts are mostly adhesion / developmental / ECM /
+    cilium genes, not the beta or EC hormone programs; the ECM / adhesion part may partly be contaminating mesenchymal
+    RNA in the control samples.
 
 ## Open items
 
