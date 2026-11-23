@@ -722,8 +722,21 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     Control EC carry beta ambient RNA, which raises the control EC range; KO EC also stay below the lowest control
     beta cells.
   - Outputs `day_analysis/ec_beta_D22/` (de_{contrast}.csv, de_wide.csv, beta_shift.csv, quadrants.csv, pb_corr.csv,
-    score_genes.csv, cells.csv.gz, leaning_counts.csv, cells_summary.csv). Figures (`fig_ec_beta.R`,
-    `plot/D22D40/ec_beta/`): ec_beta_quadrant.pdf, ec_beta_scores.pdf, ec_beta_vs_INS.pdf, ec_beta_corr.pdf.
+    score_genes.csv, cells.csv.gz, cells_all.csv.gz, leaning_counts.csv, cells_summary.csv). Figures (`fig_ec_beta.R`,
+    `plot/D22D40/ec_beta/`): ec_beta_quadrant.pdf, ec_beta_scores.pdf, ec_beta_vs_INS.pdf, ec_beta_corr.pdf,
+    ec_beta_identity_heatmap.pdf, ec_beta_umap_{beta,EC}_score.pdf.
+  - Figure choices (user, 2026-11-23): the quadrant plot shows only PDX1, G6PC2, IAPP, PCSK1, MAFA, ERO1B, TPH1,
+    SLC18A1, FEV, LMX1A, DDC (colour = their KO call per EC type: ERO1B lower in KO in both, MAFA in EC1 only, the rest
+    not changed; PCSK1 is not on the EC2 axis); the fitted shift line still uses all axis genes. The full-gene version
+    was hard to read: its coloured groups are dominated by genes that are not beta / EC identity genes (side hormones
+    PYY / NTS / CRH up, likely ambient / contaminant genes such as DCN / GJA1 down, KO-line-wide CTSF / DLX5 / DLX6).
+    Identity-gene heatmap: 18 beta and 8 EC identity genes, scaled group means of the pseudobulks next to log2FC KO EC
+    vs control EC (* = called): only ISL1 (KO allele transcribed), SLC30A8 (EC1), ADRA2A (EC1) higher in KO EC; MAFA,
+    HADH, ERO1B (and ADCYAP1) lower; PDX1, MAFB, IAPP, G6PC2, GCK, ABCC8 and the EC genes TPH1, SLC18A1, DDC, FEV, LMX1A
+    not changed; INS pseudobulk not changed (+0.3 / -0.4). At D22 NKX6-1, NKX2-2 and NEUROD1 are higher in EC than in
+    beta (both genotypes). Beta / EC scores on the whole-day UMAP: all D22 cells scored with the same gene sets
+    (`cells_all.csv.gz`; the subset scores and thresholds above are unchanged), control | KO, beta score blue and EC
+    score green (user: gene expression stays red).
 
 ## Open items
 

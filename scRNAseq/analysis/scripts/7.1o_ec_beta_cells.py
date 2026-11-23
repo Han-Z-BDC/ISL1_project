@@ -12,7 +12,8 @@ of beta-like KO EC would be diluted; this layer looks at single cells.
   INS       INS per 10,000 SoupX counts (as fig_ins_distribution.R), Spearman with the beta index within KO EC
   pseudobulk  SoupX counts summed per KO sample x EC type x (beta-leaning 99th / other) and per control sample for
             SC_beta, input of the R subset mode
-Writes ${OUT_DIR}/day_analysis/ec_beta_D22/: cells.csv.gz, leaning_counts.csv, pb_subset_counts.csv.gz,
+  all cells  the same beta / EC scores computed on every D22 cell (user, 2026-11-23), for the whole-day UMAPs
+Writes ${OUT_DIR}/day_analysis/ec_beta_D22/: cells.csv.gz, cells_all.csv.gz, leaning_counts.csv, pb_subset_counts.csv.gz,
   pb_subset_samples.csv, cells_summary.csv
 Run: sbatch analysis/scripts/7.1o_ec_beta.sb
 """
@@ -42,11 +43,19 @@ is_beta = ((a.obs.label == "SC_beta") & (a.obs.genotype == "ctr")).to_numpy().as
 Gb = (G > 0).astype(float)
 nb_beta = np.asarray(Gb @ is_beta).ravel() / np.maximum(np.asarray(Gb.sum(1)).ravel(), 1)
 a.obs["beta_neighbours"] = nb_beta
-a = a[keep.to_numpy()].copy()
-a.obs["group"] = a.obs.genotype.astype(str) + "_" + a.obs.label.str.replace("SC_", "", regex=False)
-
 sg = pd.read_csv(OD / "score_genes.csv")
 bg, eg = [g for g in sg[sg.set == "beta"].gene if g in a.var_names], [g for g in sg[sg.set == "EC"].gene if g in a.var_names]
+# all D22 cells scored too (user, 2026-11-23: scores on the whole-day UMAP); separate output, the subset scores below
+# (and their thresholds) are computed on the subset as before
+al = a.copy()
+sc.tl.score_genes(al, bg, score_name="beta_score", ctrl_size=50, random_state=SEED)
+sc.tl.score_genes(al, eg, score_name="EC_score", ctrl_size=50, random_state=SEED)
+al.obs[["sample", "genotype", "label", "beta_score", "EC_score"]].to_csv(OD / "cells_all.csv.gz")
+print("all D22 cells, median scores by label x genotype:\n",
+      al.obs.groupby(["label", "genotype"], observed=True)[["beta_score", "EC_score"]].median().round(3).to_string())
+del al
+a = a[keep.to_numpy()].copy()
+a.obs["group"] = a.obs.genotype.astype(str) + "_" + a.obs.label.str.replace("SC_", "", regex=False)
 sc.tl.score_genes(a, bg, score_name="beta_score", ctrl_size=50, random_state=SEED)
 sc.tl.score_genes(a, eg, score_name="EC_score", ctrl_size=50, random_state=SEED)
 a.obs["beta_index"] = a.obs.beta_score - a.obs.EC_score

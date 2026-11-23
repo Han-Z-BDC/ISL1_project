@@ -2,15 +2,16 @@
 # Inputs (copied from Alpine, git-ignored): reports/ec_beta_D22/ (7.1o outputs: quadrants.csv, beta_shift.csv,
 #   pb_corr.csv, cells.csv.gz)
 # Outputs (git-ignored) in plot/D22D40/ec_beta/:
-#   ec_beta_quadrant.pdf     per EC type, each beta-axis gene (control beta vs control EC, FDR < 0.05, |log2FC| >= 1,
+#   ec_beta_quadrant.pdf     per EC type, the selected identity genes (MARK) on the beta axis (control beta vs control EC, FDR < 0.05, |log2FC| >= 1,
 #                            INS left out): x = log2FC control beta vs control EC, y = log2FC KO EC vs control EC;
 #                            coloured by quadrant of the KO call; slope (shift toward beta) and Spearman r; markers labelled
 #   ec_beta_scores.pdf       per-cell beta score, EC score and beta index (beta - EC) for the 5 groups; dashed line =
 #                            99th percentile of the control cells of the EC type (beyond = beta-leaning)
 #   ec_beta_vs_INS.pdf       KO EC beta score by INS quintile (INS per 10,000 SoupX counts), control EC / beta medians
 #   ec_beta_corr.pdf         correlation of the 5 group means (TMM logCPM, beta-axis genes, centred)
-#   ec_beta_score_umap.pdf   beta score on the D22 SCT B UMAP, control | KO (scored cells only; needs
-#                            reports/labels/D22/{labels.csv,sct_umaps.csv.gz})
+#   ec_beta_identity_heatmap.pdf  curated beta / EC identity genes: scaled group means and log2FC KO EC vs control EC
+#   ec_beta_umap_{beta,EC}_score.pdf   beta (blue) / EC (green) score of all D22 cells on the SCT B UMAP, control | KO (needs
+#                            reports/labels/D22/sct_umaps.csv.gz and cells_all.csv.gz)
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_ec_beta.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(ggrepel) })
 PLOT <- file.path(Sys.getenv("PLOT_DIR", "plot/D22D40"), "ec_beta"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
@@ -22,8 +23,8 @@ GLAB <- c(ctr_EC1 = "Control EC1", KO_EC1 = "ISL1 KO EC1", ctr_EC2 = "Control EC
 GCOL <- c(ctr_EC1 = pal[["SC_EC1"]], KO_EC1 = pal[["SC_EC1"]], ctr_EC2 = pal[["SC_EC2"]], KO_EC2 = pal[["SC_EC2"]],
           ctr_beta = pal[["SC_beta"]])
 GALPHA <- c(ctr_EC1 = 0.9, KO_EC1 = 0.35, ctr_EC2 = 0.9, KO_EC2 = 0.35, ctr_beta = 0.9)
-MARK <- c("PDX1", "NKX6-1", "MAFA", "MAFB", "IAPP", "G6PC2", "HADH", "PCSK1", "ERO1B", "ADCYAP1", "NKX2-2", "ISL1",
-          "TPH1", "SLC18A1", "DDC", "FEV", "LMX1A", "TAC1", "CHGA", "NEUROD1")
+# quadrant plot genes (user, 2026-11-23: show only these, coloured by their category)
+MARK <- c("PDX1", "G6PC2", "IAPP", "PCSK1", "MAFA", "ERO1B", "TPH1", "SLC18A1", "FEV", "LMX1A", "DDC")
 base <- theme_classic(base_size = 8) + theme(strip.background = element_blank(), strip.text = element_text(face = "bold"),
                                              plot.title = element_text(face = "bold"))
 
@@ -34,23 +35,28 @@ QCOL <- c("beta-high, up in KO EC" = "#d6604d", "beta-high, down in KO EC (check
 q[, quadrant := factor(quadrant, levels = names(QCOL))]
 q[, panel := factor(sprintf("%s: shift toward beta %.2f, Spearman %.2f (%s axis genes)", ec, sh$slope[match(ec, sh$ec)],
                             sh$spearman[match(ec, sh$ec)], format(sh$axis_genes[match(ec, sh$ec)], big.mark = ",")))]
-setorder(q, -quadrant)
-p <- ggplot(q, aes(beta_vs_EC, KO_vs_ctr_EC)) +
+QCOL["not changed in KO"] <- "#9e9e9e"   # only a few points now: a darker grey so they stay visible
+qm <- q[gene %in% MARK]
+miss <- lapply(c("EC1", "EC2"), function(k) setdiff(MARK, qm[ec == k, gene]))
+cat("quadrant genes not on the axis: EC1", miss[[1]], "| EC2", miss[[2]], "\n")
+lim_x <- max(abs(qm$beta_vs_EC)) * 1.1; lim_y <- max(abs(qm$KO_vs_ctr_EC), 2) * 1.25
+p <- ggplot(qm, aes(beta_vs_EC, KO_vs_ctr_EC)) +
   geom_hline(yintercept = 0, linewidth = 0.3, colour = "grey50") + geom_vline(xintercept = 0, linewidth = 0.3, colour = "grey50") +
   geom_abline(slope = 1, intercept = 0, linetype = "dotted", linewidth = 0.35) +
-  geom_point(aes(colour = quadrant), size = 0.7, stroke = 0) +
   geom_abline(data = q[, .(slope = sh$slope[match(ec[1], sh$ec)]), by = panel], aes(slope = slope, intercept = 0),
               colour = "black", linewidth = 0.5) +
-  geom_text_repel(data = q[gene %in% MARK], aes(label = gene), size = 2.1, max.overlaps = 30, segment.size = 0.2,
-                  min.segment.length = 0) +
+  geom_point(aes(colour = quadrant), size = 2) +
+  geom_text_repel(aes(label = gene, colour = quadrant), size = 2.4, segment.size = 0.2, min.segment.length = 0,
+                  show.legend = FALSE, seed = 1) +
   facet_wrap(~panel, nrow = 1) +
-  scale_colour_manual(values = QCOL, name = NULL, drop = FALSE) +
-  guides(colour = guide_legend(override.aes = list(size = 2.2), nrow = 2)) +
+  scale_colour_manual(values = QCOL, name = NULL, drop = TRUE) +
+  coord_cartesian(xlim = c(-lim_x, lim_x), ylim = c(-lim_y, lim_y)) +
   labs(x = "log2FC control beta vs control EC", y = "log2FC ISL1 KO EC vs control EC",
        title = "D22: are KO EC shifted toward beta?",
-       subtitle = "beta-axis genes (control beta vs control EC, FDR < 0.05, |log2FC| >= 1, INS left out); solid = fitted shift (0 = like control EC, 1 = like beta), dotted = y = x") +
+       subtitle = paste0("selected beta and EC identity genes; colour = KO call (FDR < 0.05, |log2FC| >= 0.5)\n",
+                         "solid = shift fitted on all beta-axis genes (0 = like control EC, 1 = like beta); dotted = y = x (fully beta-like)")) +
   base + theme(legend.position = "bottom")
-ggsave(file.path(PLOT, "ec_beta_quadrant.pdf"), p, width = 9, height = 5, useDingbats = FALSE)
+ggsave(file.path(PLOT, "ec_beta_quadrant.pdf"), p, width = 9, height = 4.6, useDingbats = FALSE)
 
 # 2. scores
 x <- fread(cmd = "gzcat reports/ec_beta_D22/cells.csv.gz")
@@ -110,46 +116,97 @@ p <- ggplot(cl, aes(a, b, fill = r)) + geom_tile(colour = "white") +
   base + theme(axis.text.x = element_text(angle = 40, hjust = 1), axis.line = element_blank(), axis.ticks = element_blank())
 ggsave(file.path(PLOT, "ec_beta_corr.pdf"), p, width = 4.4, height = 3.6, useDingbats = FALSE)
 
-# 5. beta score on the D22 UMAP, control | KO (user, 2026-11-23: "separately for KO and ctr"); style as the feature
-#    plots (fig_feature_dot.R): fixed square panels, other genotype light grey underneath, darker grey -> red; scored
-#    cells = SC_EC1 / SC_EC2 of both genotypes and control SC_beta, all other D22 cells grey; one colour scale for both
-#    panels, from the 1st to the 99th percentile of the scored cells (values outside drawn at the ends)
+# 5. beta and EC scores on the D22 UMAP, all D22 cells, control | KO (user, 2026-11-23: "separately for KO and ctr";
+#    "score all D22 cells"; gene expression stays red, scores in other colours: beta = blue, EC = green). Style as the
+#    feature plots (fig_feature_dot.R): fixed square panels, the other genotype light grey underneath, low -> high from
+#    grey; one colour scale per score for both panels, 1st to 99th percentile of all D22 cells (ends drawn at the limit)
 suppressPackageStartupMessages(library(grid))
-PANEL_CM <- 6; POINT_SIZE <- 0.6; OTHER <- "#f2f2f2"; UNSCORED <- "#f2f2f2"   # both lighter than the lowest score colour (#bdbdbd)
-SCALE <- c("#bdbdbd", "#fcbba1", "#ef3b2c", "#99000d")
+PANEL_CM <- 6; POINT_SIZE <- 0.6; OTHER <- "#f2f2f2"
+SCORE_SCALE <- list(beta_score = c("#d9d9d9", "#9ecae1", "#3182bd", "#08306b"),   # grey -> blue
+                    EC_score = c("#d9d9d9", "#a1d99b", "#31a354", "#00441b"))     # grey -> green
+SCORE_NAME <- c(beta_score = "beta score", EC_score = "EC score")
+SCORE_GENES <- c(beta_score = "100 beta-high genes", EC_score = "100 EC-high genes")
 GENO <- c(ctr = "Control", KO = "ISL1 KO")
-lb <- fread("reports/labels/D22/labels.csv")
+if (file.exists("reports/ec_beta_D22/cells_all.csv.gz")) {
 um <- fread("reports/labels/D22/sct_umaps.csv.gz"); setnames(um, 1, "barcode")
-u <- merge(lb[, .(barcode, genotype, label)], um[, .(barcode, UMAP1 = SCT_B_UMAP1, UMAP2 = SCT_B_UMAP2)], by = "barcode")
-setnames(x, 1, "barcode", skip_absent = TRUE)
-u <- merge(u, x[, .(barcode, beta_score)], by = "barcode", all.x = TRUE)
-lim <- quantile(u$beta_score, c(0.01, 0.99), na.rm = TRUE)
-u[, val := pmin(pmax(beta_score, lim[1]), lim[2])]
+ca <- fread(cmd = "gzcat reports/ec_beta_D22/cells_all.csv.gz"); setnames(ca, 1, "barcode")
+u <- merge(ca, um[, .(barcode, UMAP1 = SCT_B_UMAP1, UMAP2 = SCT_B_UMAP2)], by = "barcode")
+stopifnot(nrow(u) == nrow(ca))
 ng <- u[, .N, by = genotype]; fl <- setNames(sprintf("%s (%s cells)", GENO[ng$genotype], format(ng$N, big.mark = ",")), ng$genotype)
 u[, panel := factor(fl[genotype], levels = fl[names(GENO)])]
 bgd <- u[, .(UMAP1, UMAP2, panel = factor(fl[setdiff(names(GENO), genotype)], levels = levels(u$panel))), by = genotype]
 half <- max(diff(range(u$UMAP1)), diff(range(u$UMAP2))) / 2 * 1.08
 cx <- mean(range(u$UMAP1)); cy <- mean(range(u$UMAP2))
-setorder(u, val, na.last = FALSE)
-p <- ggplot(u, aes(UMAP1, UMAP2)) +
-  geom_point(data = bgd, colour = OTHER, size = POINT_SIZE, stroke = 0) +
-  geom_point(data = u[is.na(val)], colour = UNSCORED, size = POINT_SIZE, stroke = 0) +
-  geom_point(data = u[!is.na(val)], aes(colour = val), size = POINT_SIZE, stroke = 0) +
-  scale_colour_gradientn(colours = SCALE, limits = lim, name = "beta\nscore", breaks = function(l) pretty(l, 3)) +
-  scale_x_continuous(limits = cx + c(-half, half), expand = c(0, 0)) +
-  scale_y_continuous(limits = cy + c(-half, half), expand = c(0, 0)) +
-  coord_fixed() + facet_wrap(~panel, nrow = 1) +
-  labs(title = "D22: beta score (100 beta-high genes, INS left out)",
-       subtitle = "scored: SC_EC1 / SC_EC2 and control SC_beta; other cells grey") +
-  theme_classic(base_size = 8) +
-  theme(axis.text = element_blank(), axis.ticks = element_blank(), plot.title = element_text(face = "bold"),
-        strip.background = element_blank(), strip.text = element_text(face = "bold", size = 8, hjust = 0),
-        legend.key.height = unit(0.5, "cm"), legend.key.width = unit(0.25, "cm"), panel.spacing = unit(0.4, "cm"),
-        plot.margin = margin(4, 4, 4, 4))
-g <- ggplotGrob(p); pp <- g$layout[grepl("^panel", g$layout$name), ]
-for (i in unique(pp$l)) g$widths[i] <- unit(PANEL_CM, "cm")
-for (i in unique(pp$t)) g$heights[i] <- unit(PANEL_CM, "cm")
-f <- file.path(PLOT, "ec_beta_score_umap.pdf")
-pdf(f, width = convertWidth(sum(g$widths), "in", valueOnly = TRUE), height = convertHeight(sum(g$heights), "in", valueOnly = TRUE),
-    useDingbats = FALSE); grid.draw(g); invisible(dev.off())
+for (sc_ in names(SCORE_SCALE)) {
+  lim <- quantile(u[[sc_]], c(0.01, 0.99))
+  d <- u[, .(UMAP1, UMAP2, panel, val = pmin(pmax(get(sc_), lim[1]), lim[2]))]
+  setorder(d, val)
+  p <- ggplot(d, aes(UMAP1, UMAP2)) +
+    geom_point(data = bgd, colour = OTHER, size = POINT_SIZE, stroke = 0) +
+    geom_point(aes(colour = val), size = POINT_SIZE, stroke = 0) +
+    scale_colour_gradientn(colours = SCORE_SCALE[[sc_]], limits = lim, name = sub(" ", "\n", SCORE_NAME[[sc_]]),
+                           breaks = function(l) pretty(l, 3)) +
+    scale_x_continuous(limits = cx + c(-half, half), expand = c(0, 0)) +
+    scale_y_continuous(limits = cy + c(-half, half), expand = c(0, 0)) +
+    coord_fixed() + facet_wrap(~panel, nrow = 1) +
+    labs(title = sprintf("D22: %s (%s; control beta vs control EC, INS left out)", SCORE_NAME[[sc_]], SCORE_GENES[[sc_]]),
+         subtitle = "all D22 cells; scanpy score_genes on log1p") +
+    theme_classic(base_size = 8) +
+    theme(axis.text = element_blank(), axis.ticks = element_blank(), plot.title = element_text(face = "bold"),
+          strip.background = element_blank(), strip.text = element_text(face = "bold", size = 8, hjust = 0),
+          legend.key.height = unit(0.5, "cm"), legend.key.width = unit(0.25, "cm"), panel.spacing = unit(0.4, "cm"),
+          plot.margin = margin(4, 4, 4, 4))
+  g <- ggplotGrob(p); pp <- g$layout[grepl("^panel", g$layout$name), ]
+  for (i in unique(pp$l)) g$widths[i] <- unit(PANEL_CM, "cm")
+  for (i in unique(pp$t)) g$heights[i] <- unit(PANEL_CM, "cm")
+  f <- file.path(PLOT, sprintf("ec_beta_umap_%s.pdf", sc_))
+  pdf(f, width = convertWidth(sum(g$widths), "in", valueOnly = TRUE), height = convertHeight(sum(g$heights), "in", valueOnly = TRUE),
+      useDingbats = FALSE); grid.draw(g); invisible(dev.off())
+}
+} else cat("cells_all.csv.gz not there yet: score UMAPs skipped\n")
+
+# 6. identity-gene heatmap (user, 2026-11-23): curated beta and EC identity genes; left = group means of the 7.1m
+#    pseudobulks (TMM logCPM, >= 20 cells, scaled per gene across the 5 groups); right = log2FC KO EC vs control EC
+#    from the 7.1o model, * = FDR < 0.05 and |log2FC| >= 0.5. INS kept here (ambient INS in control samples: its
+#    control EC level is partly background)
+suppressPackageStartupMessages(library(edgeR))
+ID_GENES <- list(beta = c("INS", "ISL1", "PDX1", "NKX6-1", "MAFA", "MAFB", "NKX2-2", "NEUROD1", "PAX6", "IAPP", "G6PC2",
+                          "HADH", "PCSK1", "ERO1B", "GCK", "ABCC8", "SLC30A8", "ADCYAP1"),
+                 EC = c("TPH1", "SLC18A1", "DDC", "FEV", "LMX1A", "TAC1", "ADRA2A", "CHGA"))
+cnt <- fread("reports/ec_similarity/pb_counts_D22.csv.gz"); gn <- cnt[[1]]; cm2 <- as.matrix(cnt[, -1]); rownames(cm2) <- gn
+ps <- fread("reports/ec_similarity/pb_samples_D22.csv")[match(colnames(cm2), pb)]
+ps[, grp := paste(genotype, sub("^SC_", "", label), sep = "_")]
+k2 <- ps$cells >= 20 & ps$grp %in% GROUPS
+lc <- cpm(calcNormFactors(DGEList(cm2[, k2])), log = TRUE, prior.count = 2)
+gm <- sapply(GROUPS, function(g) rowMeans(lc[, ps$grp[k2] == g, drop = FALSE]))
+hg <- data.table(gene = unlist(ID_GENES), set = rep(names(ID_GENES), lengths(ID_GENES)))
+hg <- hg[gene %in% rownames(gm)]
+z <- gm[hg$gene, ]; z <- (z - rowMeans(z)) / apply(z, 1, sd)
+hz <- as.data.table(z, keep.rownames = "gene")
+hz <- melt(hz, id.vars = "gene", variable.name = "group", value.name = "z")
+hz[, group := factor(group, levels = GROUPS, labels = GLAB[GROUPS])]
+hz[, gene := factor(gene, levels = rev(hg$gene))]
+w <- fread(file.path(D, "de_wide.csv"))
+fc <- rbindlist(lapply(c("EC1", "EC2"), function(k) w[gene %in% hg$gene, .(gene, col = sprintf("KO vs control %s", k),
+  lfc = get(sprintf("lfc_KO_%s_vs_ctr_%s", k, k)), FDR = get(sprintf("FDR_KO_%s_vs_ctr_%s", k, k)))]))
+fc[, star := fifelse(FDR < 0.05 & abs(lfc) >= 0.5, "*", "")]
+fc[, gene := factor(gene, levels = rev(hg$gene))]
+nb <- sum(hg$set == "beta")
+th <- theme_classic(base_size = 8) + theme(axis.line = element_blank(), axis.ticks = element_blank(),
+  axis.text.x = element_text(angle = 40, hjust = 1), plot.title = element_text(face = "bold"), legend.key.width = unit(0.25, "cm"))
+p1 <- ggplot(hz, aes(group, gene, fill = z)) + geom_tile(colour = "white", linewidth = 0.3) +
+  geom_hline(yintercept = length(hg$gene) - nb + 0.5, linewidth = 0.5) +
+  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b", limits = c(-2, 2), oob = scales::squish,
+                       name = "scaled\nlogCPM") +
+  labs(x = NULL, y = NULL, title = "Group means (pseudobulk)") + th
+p2 <- ggplot(fc, aes(col, gene, fill = lfc)) + geom_tile(colour = "white", linewidth = 0.3) +
+  geom_text(aes(label = sprintf("%.1f%s", lfc, star)), size = 2) +
+  geom_hline(yintercept = length(hg$gene) - nb + 0.5, linewidth = 0.5) +
+  scale_fill_gradient2(low = "#4d9221", mid = "white", high = "#c51b7d", limits = c(-3, 3), oob = scales::squish,
+                       name = "log2FC\nKO - ctr") +
+  labs(x = NULL, y = NULL, title = "KO EC vs control EC") + th + theme(axis.text.y = element_blank())
+suppressPackageStartupMessages(library(patchwork))
+ggsave(file.path(PLOT, "ec_beta_identity_heatmap.pdf"), p1 + p2 + plot_layout(widths = c(5, 2)),
+       width = 6.6, height = 0.15 * nrow(hg) + 1.6, useDingbats = FALSE)
+cat("identity genes not in the tested set:", setdiff(unlist(ID_GENES), hg$gene), "\n")
 cat("wrote", PLOT, "\n")
