@@ -737,7 +737,12 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
     not changed; INS pseudobulk not changed (+0.3 / -0.4). At D22 NKX6-1, NKX2-2 and NEUROD1 are higher in EC than in
     beta (both genotypes). Beta / EC scores on the whole-day UMAP: all D22 cells scored with the same gene sets
     (`cells_all.csv.gz`; the subset scores and thresholds above are unchanged), control | KO, beta score blue and EC
-    score green (user: gene expression stays red).
+    score green (user: gene expression stays red); high-resolution cores (user, 2026-11-23) in
+    `plot/D22D40/ec_beta/png/umap_{beta,EC}_score_{ctr,KO}.png` (6 cm at 600 dpi, panel only, as the feature-plot
+    cores; colour bars in the PDFs). All-cell medians (control -> KO): beta score SC_EC1 -0.169 -> -0.169, SC_EC2
+    -0.177 -> -0.175, control SC_beta 0.107, SC_alpha -0.003, SC_delta 0.010; EC score SC_EC1 -0.056 -> -0.025, SC_EC2
+    0.060 -> 0.069. The beta score is also raised in control alpha / delta and the GHRL+ / ENP group (shared endocrine
+    genes in the set); KO EC show no beta-score region. The all-cell job ran on amem (acpu queue too slow).
 
 ## Open items
 
