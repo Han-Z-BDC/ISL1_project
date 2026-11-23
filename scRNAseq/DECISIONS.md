@@ -45,7 +45,7 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   settings), 30 PCs, 15 neighbours, UMAP in 2D and 3D, Leiden 0.2-1.2. Markers vs the rest of the compartment.
   Output: `day_analysis/D15/subcluster_endocrine/` (report, `umap3d.html` interactive 3D UMAP).
 
-## Current state (2026-11-21)
+## Current state (2026-11-23)
 
 - 7.1b clustering on SCT B done for D15, D22 and D40.
 - D15: overview resolution 0.2; endocrine subset (7.1d) rerun without the non-endocrine cells (2026-11-19), 11
@@ -661,6 +661,33 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
 - 2026-11-22 (user): D22 pseudobulk correlation heatmap (fig_ec_similarity.R, ec_corr_D22.pdf) without GHRL+ (its
   single control pseudobulk); display only, the 7.1m correlations are unchanged (gene centring over all pseudobulks of
   the day). Page 0.3 in wider so the legend title is not clipped (D40 too).
+- Figures regenerated on Alpine (user, 2026-11-23: "regenerate them on Alpine, follow the color schemes and all
+  settings"; `plot/` was only on the other Mac). The repo's `fig_*.R` scripts, unchanged, with the commands and
+  settings above (gene lists, DAYS / PLOT_DIR / DOT_ONLY), in `/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/fig_regen/`:
+  `reports/` there links to the matching Alpine outputs (day labels, SCT UMAPs, composition_genotype, ec_similarity,
+  ec_deseq2, figure_data), `bin/gzcat` wraps zcat, UpSetR (missing from single.cell) is in its own `Rlib/` (the env is
+  unchanged). Job script `/scratch/alpine/hzhu10@xsede.org/fig_regen.sb` (13 commands); 141 files, copied to
+  `scRNAseq/plot/` on the Mac.
+- **D15 endocrine trajectory figures** (user, 2026-11-23: "make the figures 1-8 from existing outputs"; Slingshot and
+  CellRank are the main trajectory analyses; independence of the two is not a concern for the user). Nothing rerun.
+  `analysis/scripts/fig_d15_trajectory.R` -> `plot/D15/trajectory/`, style as fig_umap_labels.R (6 cm square UMAP panels,
+  label_colours.tsv in lineage order, control | KO with the other genotype grey); every pseudotime is Slingshot's (7.3a,
+  PCs 1-30; the CellRank pseudotime kernel uses it too). 1 `slingshot_umap.pdf` lineage curves over the labelled cells;
+  2 `lineage_tree.pdf` subclusters at their UMAP centres with the lineage edges; 3 `ko_stop_density.pdf` pseudotime
+  density per lineage (curve weight >= 0.5), control vs KO, condiments progression statistic, KO 95th percentile;
+  4 `cellrank_fates_umap.pdf` fate probability per end state (pseudotime kernel, run on all cells); 5
+  `cellrank_fate_heatmap.pdf` mean fate per subcluster x genotype (>= 20 cells); 6 `cellrank_end_states.pdf`
+  data-driven macrostates of the all-cell / control-only / KO-only runs (the control-only run also calls ENP1
+  terminal); 7 `alpha_bias_umap.pdf`, `alpha_bias_hist.pdf` (7.3i, D15); 8 `gene_dynamics.pdf` binned curves along the
+  beta, alpha and EC lineages as 7.3h for ISL1, PDX1, FOXO1, PBX3, MEIS3, PAX6, LMO2, NKX6-1, MNX1, ARX, ETV1, PAX4,
+  MAFB, NEUROD1, NEUROD4, LHX1, FEV (gene list = argument). D15 figure data re-exported with 10 more genes (ETV1,
+  LMO2, PAX4, PAX6, FOXO1, MEIS3, PBX3, NEUROD4, LHX1, MAFB; 50 genes, the 40 before unchanged). Inputs:
+  `reports/trajectory/D15/` = `day_analysis/D15/trajectory/`. Rerun on Alpine: `sbatch /scratch/alpine/hzhu10@xsede.org/fig_traj.sb`.
+- Which gene findings depend on CellRank (2026-11-23): the main ISL1-dependent gene lists (7.3m full tradeSeq, 7.3l
+  replicate pseudobulk, the k = 10 patterns of 7.3h on them, 7.3g window calls, the 7.3f after-stop calls) use Slingshot
+  and expression only; CellRank gives the lineage labels on genes (driver / program flags, 7.3d / 7.3j), the fates,
+  end states and alpha / beta bias (7.3i), the 7.3f / 7.4g "lost in KO" calls (CellRank-gated) and part of the 7.3k
+  gene selection.
 
 ## Open items
 
