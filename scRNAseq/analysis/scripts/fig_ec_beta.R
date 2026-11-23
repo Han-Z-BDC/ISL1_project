@@ -2,7 +2,7 @@
 # Inputs (copied from Alpine, git-ignored): reports/ec_beta_D22/ (7.1o outputs: quadrants.csv, beta_shift.csv,
 #   pb_corr.csv, cells.csv.gz)
 # Outputs (git-ignored) in plot/D22D40/ec_beta/:
-#   ec_beta_quadrant.pdf     per EC type, the selected identity genes (MARK) on the beta axis (control beta vs control EC, FDR < 0.05, |log2FC| >= 1,
+#   ec_beta_quadrant.pdf     per EC type, every gene on the beta axis, selected identity genes (MARK) large and labelled (control beta vs control EC, FDR < 0.05, |log2FC| >= 1,
 #                            INS left out): x = log2FC control beta vs control EC, y = log2FC KO EC vs control EC;
 #                            coloured by quadrant of the KO call; slope (shift toward beta) and Spearman r; markers labelled
 #   ec_beta_scores.pdf       per-cell beta score, EC score and beta index (beta - EC) for the 5 groups; dashed line =
@@ -35,28 +35,31 @@ QCOL <- c("beta-high, up in KO EC" = "#d6604d", "beta-high, down in KO EC (check
 q[, quadrant := factor(quadrant, levels = names(QCOL))]
 q[, panel := factor(sprintf("%s: shift toward beta %.2f, Spearman %.2f (%s axis genes)", ec, sh$slope[match(ec, sh$ec)],
                             sh$spearman[match(ec, sh$ec)], format(sh$axis_genes[match(ec, sh$ec)], big.mark = ",")))]
-QCOL["not changed in KO"] <- "#9e9e9e"   # only a few points now: a darker grey so they stay visible
+# all axis genes coloured by quadrant; the selected genes (MARK) larger, outlined and labelled (user, 2026-11-23)
 qm <- q[gene %in% MARK]
 miss <- lapply(c("EC1", "EC2"), function(k) setdiff(MARK, qm[ec == k, gene]))
 cat("quadrant genes not on the axis: EC1", miss[[1]], "| EC2", miss[[2]], "\n")
-lim_x <- max(abs(qm$beta_vs_EC)) * 1.1; lim_y <- max(abs(qm$KO_vs_ctr_EC), 2) * 1.25
-p <- ggplot(qm, aes(beta_vs_EC, KO_vs_ctr_EC)) +
+setorder(q, -quadrant)
+p <- ggplot(q, aes(beta_vs_EC, KO_vs_ctr_EC)) +
   geom_hline(yintercept = 0, linewidth = 0.3, colour = "grey50") + geom_vline(xintercept = 0, linewidth = 0.3, colour = "grey50") +
   geom_abline(slope = 1, intercept = 0, linetype = "dotted", linewidth = 0.35) +
+  geom_point(aes(colour = quadrant), size = 0.7, stroke = 0) +
   geom_abline(data = q[, .(slope = sh$slope[match(ec[1], sh$ec)]), by = panel], aes(slope = slope, intercept = 0),
               colour = "black", linewidth = 0.5) +
-  geom_point(aes(colour = quadrant), size = 2) +
-  geom_text_repel(aes(label = gene, colour = quadrant), size = 2.4, segment.size = 0.2, min.segment.length = 0,
-                  show.legend = FALSE, seed = 1) +
+  geom_point(data = qm, aes(fill = quadrant), shape = 21, size = 2.4, colour = "black", stroke = 0.4, show.legend = FALSE) +
+  geom_text_repel(data = qm, aes(label = gene), size = 2.4, segment.size = 0.25, min.segment.length = 0,
+                  box.padding = 0.4, max.overlaps = Inf, seed = 1) +
   facet_wrap(~panel, nrow = 1) +
-  scale_colour_manual(values = QCOL, name = NULL, drop = TRUE) +
-  coord_cartesian(xlim = c(-lim_x, lim_x), ylim = c(-lim_y, lim_y)) +
+  scale_colour_manual(values = QCOL, name = NULL, drop = FALSE) +
+  scale_fill_manual(values = QCOL, drop = FALSE) +
+  guides(colour = guide_legend(override.aes = list(size = 2.2), nrow = 2)) +
   labs(x = "log2FC control beta vs control EC", y = "log2FC ISL1 KO EC vs control EC",
        title = "D22: are KO EC shifted toward beta?",
-       subtitle = paste0("selected beta and EC identity genes; colour = KO call (FDR < 0.05, |log2FC| >= 0.5)\n",
-                         "solid = shift fitted on all beta-axis genes (0 = like control EC, 1 = like beta); dotted = y = x (fully beta-like)")) +
+       subtitle = paste0("beta-axis genes (control beta vs control EC, FDR < 0.05, |log2FC| >= 1, INS left out); colour = KO call ",
+                         "(FDR < 0.05, |log2FC| >= 0.5); large outlined = selected identity genes\n",
+                         "solid = fitted shift (0 = like control EC, 1 = like beta); dotted = y = x (fully beta-like)")) +
   base + theme(legend.position = "bottom")
-ggsave(file.path(PLOT, "ec_beta_quadrant.pdf"), p, width = 9, height = 4.6, useDingbats = FALSE)
+ggsave(file.path(PLOT, "ec_beta_quadrant.pdf"), p, width = 9, height = 5, useDingbats = FALSE)
 
 # 2. scores
 x <- fread(cmd = "gzcat reports/ec_beta_D22/cells.csv.gz")
