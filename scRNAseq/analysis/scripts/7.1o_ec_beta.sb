@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=isl1_ec_beta
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=30G
+#SBATCH --time=02:00:00
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/logs/ec_beta.%j.out
+
+# Step 7.1o: D22 KO EC vs control EC vs control beta -- layer 1 (edgeR model of the 7.1m pseudobulks), layer 2
+# (per-cell beta / EC scores, beta-leaning KO EC), then the subset DE. See the .R / .py headers. Needs 7.1m.
+# Run from the repo root: sbatch analysis/scripts/7.1o_ec_beta.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/scRNAseq/study_config/config.sh
+export OUT_DIR REPO_DIR
+echo "[$(date '+%F %T')] layer 1 model"
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.1o_ec_beta_model.R" model
+echo "[$(date '+%F %T')] layer 2 cells"
+"${TOOLS}/python" "${REPO_DIR}/analysis/scripts/7.1o_ec_beta_cells.py"
+echo "[$(date '+%F %T')] layer 2 subset DE"
+"${TOOLS}/Rscript" "${REPO_DIR}/analysis/scripts/7.1o_ec_beta_model.R" subset
+echo "[$(date '+%F %T')] done"
