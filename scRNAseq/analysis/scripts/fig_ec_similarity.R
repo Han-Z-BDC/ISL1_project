@@ -25,7 +25,9 @@ for (d in days) {
   c <- fread(file.path(D, sprintf("corr_%s.csv", d))); m <- as.matrix(c[, -1]); rownames(m) <- c$pb
   info <- data.table(pb = rownames(m))   # "<label> <genotype> <rep>"; labels may contain spaces
   info[, `:=`(label = sub(" \\S+ \\S+$", "", pb), geno = sub("^.* (\\S+) \\S+$", "\\1", pb), rep = sub("^.* ", "", pb))]
-  info <- info[label %in% ENDO][, label := factor(label, intersect(names(pal), ENDO))]
+  # GHRL+ (D22, 1 control pseudobulk) left out of the heatmap (user, 2026-11-22); the correlations themselves are
+  # unchanged (7.1m centres each gene over all of the day's pseudobulks, incl. the non-endocrine ones not shown)
+  info <- info[label %in% setdiff(ENDO, "GHRL+")][, label := factor(label, intersect(names(pal), ENDO))]
   setorder(info, label, geno, rep)
   info[, name := sprintf("%s %s %s", label, ifelse(geno == "KO", "KO", "ctr"), rep)]
   x <- as.data.table(as.table(m[info$pb, info$pb]))
@@ -38,7 +40,7 @@ for (d in days) {
     th + theme(axis.text.x = element_text(angle = 60, hjust = 1), axis.line = element_blank(),
                axis.ticks = element_blank())
   n <- nrow(info)
-  ggsave(file.path(PLOT, sprintf("ec_corr_%s.pdf", d)), p, width = 1.6 + 0.24 * n, height = 1.2 + 0.24 * n,
+  ggsave(file.path(PLOT, sprintf("ec_corr_%s.pdf", d)), p, width = 1.9 + 0.24 * n, height = 1.2 + 0.24 * n,
          useDingbats = FALSE)
 }
 

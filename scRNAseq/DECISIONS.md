@@ -643,6 +643,24 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   Stacked-bar file per day set: composition_stacked.pdf for D22 + D40, otherwise composition_stacked_{days}.pdf
   (the D15 one is now composition_stacked_D15.pdf); display names without the underscore; one-day star table headed
   "FDR".
+- 2026-11-22 (user): marker dot plot of the D15 endocrine compartment (control | KO columns, as D22 / D40), genes
+  picked from per-subtype % expressing in control cells (one-off query, not kept) and the 7.1d r0.6 markers:
+  general ENP NEUROG3, NEUROD1, SOX4; ENP1 DLK1 (79% vs <= 53%); FEV; ENP_PHOX2A+ PHOX2A (89% vs <= 37%); EC LMX1A,
+  ADRA2A (pre_EC 90% vs <= 38%); beta NKX6-1, MNX1, PDX1, INS; pre_beta2 = beta-specific set: ISL1 (95%; pre_EC 43%),
+  HADH (89% vs <= 45%, delta 83%), NPTX2 (60% vs <= 33%), with NKX6-1 (86%; alpha 9%, delta 17%); pre_beta1 FXYD2
+  (70%; pre_EC 49%, others <= 50%); alpha ARX, GCG; delta SST, HHEX. pre_beta1 has no beta gene that separates it
+  well from pre_EC (shares NKX6-1, MNX1, LMX1A, FEV, INS; low ISL1 62%, HADH 44%); its top 7.1d markers are
+  liver-like (SERPINA1, APOA1, FTCD). ENP2 marker calling (user, same day; one-off query, table on scratch
+  day_analysis/D15/subcluster_endocrine/ENP2_markers.csv, local copy reports/labels/D15/): control cells, ENP2 vs
+  every other subtype (mean >= 1.5x the next subtype, >= 10 points more % expressing, >= 30% of ENP2, Wilcoxon vs
+  rest padj < 0.01) -> 16 genes, none a classic endocrine gene; the next subtype is mostly ENP_FEV_high. Added to the
+  plot (user): TNFRSF11B (50% vs 21%; osteoprotegerin, beta-cell proliferation) and PIEZO2 (53% vs 32%; EC
+  mechanosensor). D15 figure data re-exported with 11 more genes (fig_export_genes.py D15, 40 genes).
+  `DOT_ONLY=1 PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_feature_dot.R D15_endocrine NEUROG3 NEUROD1 SOX4
+  DLK1 TNFRSF11B PIEZO2 FEV PHOX2A LMX1A ADRA2A NKX6-1 MNX1 PDX1 INS ISL1 HADH NPTX2 FXYD2 ARX GCG SST HHEX` -> dotplot_D15_endocrine.pdf.
+- 2026-11-22 (user): D22 pseudobulk correlation heatmap (fig_ec_similarity.R, ec_corr_D22.pdf) without GHRL+ (its
+  single control pseudobulk); display only, the 7.1m correlations are unchanged (gene centring over all pseudobulks of
+  the day). Page 0.3 in wider so the legend title is not clipped (D40 too).
 
 ## Open items
 

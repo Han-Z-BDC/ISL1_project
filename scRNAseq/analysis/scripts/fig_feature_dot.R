@@ -11,6 +11,10 @@
 #   (e.g. KO SC_alpha) is drawn as a small grey cross.
 # Inputs (copied from Alpine, git-ignored): reports/labels/{day}/labels.csv, reports/labels/{day}/sct_umaps.csv.gz,
 #   reports/figure_data/{day}_genes.csv.gz (fig_export_genes.py)
+# D15_endocrine (user, 2026-11-22): the 7.1d D15 endocrine subset with its r0.6 names (reports/labels/D15/
+#   endocrine_subclusters.csv + study_config/annotation/D15_endocrine_r0.6.tsv), its own 2D UMAP, expression from
+#   reports/figure_data/D15_genes.csv.gz; rows in lineage order (ENDO_ORDER, as fig_umap_labels.R).
+# DOT_ONLY=1: dot plot only, no feature plots.
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_feature_dot.R D22 GCG ARX INS ...
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(grid) })
 # output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
@@ -24,9 +28,21 @@ a <- commandArgs(TRUE); day <- a[1]; genes <- a[-1]; stopifnot(length(genes) > 0
 pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
 n_fmt <- function(n) trimws(format(as.integer(n), big.mark = ","))
 
-l <- fread(file.path("reports/labels", day, "labels.csv"))
-u <- fread(file.path("reports/labels", day, "sct_umaps.csv.gz")); setnames(u, 1, "barcode")
-e <- fread(cmd = sprintf("gzcat reports/figure_data/%s_genes.csv.gz", day))
+ENDO_ORDER <- c("ENP1", "ENP2", "ENP_FEV_high", "ENP_PHOX2A+", "pre_EC", "pre_beta1", "pre_beta2", "pre_alpha",
+                "pre_alpha_KO", "pre_delta", "KO_only")
+if (day == "D15_endocrine") {
+  s <- fread("reports/labels/D15/endocrine_subclusters.csv"); setnames(s, 1, "barcode")
+  nm <- fread("study_config/annotation/D15_endocrine_r0.6.tsv")
+  l <- s[, .(barcode, genotype = fifelse(grepl("-KO_", barcode), "KO", "ctr"),
+             label = nm$label[match(sub_r0p6, nm$subcluster)])]
+  u <- s[, .(barcode, SCT_B_UMAP1 = UMAP1, SCT_B_UMAP2 = UMAP2)]
+  e <- fread(cmd = "gzcat reports/figure_data/D15_genes.csv.gz")
+  pal <- pal[c(ENDO_ORDER, setdiff(names(pal), ENDO_ORDER))]
+} else {
+  l <- fread(file.path("reports/labels", day, "labels.csv"))
+  u <- fread(file.path("reports/labels", day, "sct_umaps.csv.gz")); setnames(u, 1, "barcode")
+  e <- fread(cmd = sprintf("gzcat reports/figure_data/%s_genes.csv.gz", day))
+}
 genes <- intersect(genes, names(e))
 x <- merge(merge(l[, .(barcode, genotype, label)], u[, .(barcode, UMAP1 = SCT_B_UMAP1, UMAP2 = SCT_B_UMAP2)]), e,
            by = "barcode")
@@ -48,8 +64,9 @@ save_fixed <- function(p, f) {
 }
 
 # ---- feature plots
-fd <- file.path(PLOT, sprintf("feature_%s", day)); dir.create(fd, showWarnings = FALSE, recursive = TRUE)
-for (gn in genes) {
+fd <- file.path(PLOT, sprintf("feature_%s", day))
+if (Sys.getenv("DOT_ONLY") != "1") dir.create(fd, showWarnings = FALSE, recursive = TRUE)
+for (gn in if (Sys.getenv("DOT_ONLY") == "1") character(0) else genes) {
   v <- x[[gn]]
   cap <- max(quantile(v[v > 0], 0.99), 0.1)
   d <- x[, .(UMAP1, UMAP2, genotype, panel, val = pmin(get(gn), cap))]
@@ -84,7 +101,7 @@ for (gn in genes) {
            dpi = PNG_DPI, bg = "white", create.dir = TRUE)
   }
 }
-cat(sprintf("wrote %d feature plots to %s\n", length(genes), fd))
+if (Sys.getenv("DOT_ONLY") != "1") cat(sprintf("wrote %d feature plots to %s\n", length(genes), fd))
 
 # ---- dot plot
 lv <- intersect(names(pal), unique(x$label))
@@ -104,7 +121,7 @@ p <- ggplot(dp, aes(g, label)) +
   scale_colour_gradientn(colours = SCALE, limits = c(0, 1), breaks = c(0, 0.5, 1), name = "mean log1p\n(scaled)") +
   guides(colour = guide_colourbar(barheight = unit(1.4, "cm"), barwidth = unit(0.25, "cm"))) +
   facet_grid(. ~ gene, switch = "x") +
-  labs(x = NULL, y = NULL, title = sprintf("%s: marker genes, control (Ctr) and ISL1 KO", day),
+  labs(x = NULL, y = NULL, title = sprintf("%s: marker genes, control (Ctr) and ISL1 KO", sub("_", " ", day)),
        caption = sprintf("\u00d7 = fewer than %d cells of that cell type in that genotype", MIN_CELLS)) +
   theme_classic(base_size = 8) +
   theme(plot.title = element_text(face = "bold"), strip.background = element_blank(),
