@@ -11,7 +11,8 @@
 #   ec_beta_corr.pdf         correlation of the 5 group means (TMM logCPM, beta-axis genes, centred)
 #   ec_beta_identity_heatmap.pdf  curated beta / EC identity genes: scaled group means and log2FC KO EC vs control EC
 #   ec_beta_umap_{beta,EC}_score.pdf   beta (blue) / EC (green) score of all D22 cells on the SCT B UMAP, control | KO (needs
-#                            reports/labels/D22/sct_umaps.csv.gz and cells_all.csv.gz)
+#                            reports/labels/D22/sct_umaps.csv.gz and cells_all.csv.gz); high-resolution cores
+#                            png/umap_{beta,EC}_score_{ctr,KO}.png (6 cm at 600 dpi, panel only)
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_ec_beta.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(ggrepel) })
 PLOT <- file.path(Sys.getenv("PLOT_DIR", "plot/D22D40"), "ec_beta"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
@@ -142,7 +143,7 @@ half <- max(diff(range(u$UMAP1)), diff(range(u$UMAP2))) / 2 * 1.08
 cx <- mean(range(u$UMAP1)); cy <- mean(range(u$UMAP2))
 for (sc_ in names(SCORE_SCALE)) {
   lim <- quantile(u[[sc_]], c(0.01, 0.99))
-  d <- u[, .(UMAP1, UMAP2, panel, val = pmin(pmax(get(sc_), lim[1]), lim[2]))]
+  d <- u[, .(UMAP1, UMAP2, panel, genotype, val = pmin(pmax(get(sc_), lim[1]), lim[2]))]
   setorder(d, val)
   p <- ggplot(d, aes(UMAP1, UMAP2)) +
     geom_point(data = bgd, colour = OTHER, size = POINT_SIZE, stroke = 0) +
@@ -165,6 +166,19 @@ for (sc_ in names(SCORE_SCALE)) {
   f <- file.path(PLOT, sprintf("ec_beta_umap_%s.pdf", sc_))
   pdf(f, width = convertWidth(sum(g$widths), "in", valueOnly = TRUE), height = convertHeight(sum(g$heights), "in", valueOnly = TRUE),
       useDingbats = FALSE); grid.draw(g); invisible(dev.off())
+  # high-resolution cores (user, 2026-11-23; as the feature plots): plotting square only, one PNG per genotype, same
+  # limits, scale and point size as the PDF, other genotype light grey underneath; the colour bar is in the PDF
+  for (gt in names(GENO)) {
+    pc <- ggplot(d[genotype == gt], aes(UMAP1, UMAP2)) +
+      geom_point(data = d[genotype != gt], colour = OTHER, size = POINT_SIZE, stroke = 0) +
+      geom_point(aes(colour = val), size = POINT_SIZE, stroke = 0) +
+      scale_colour_gradientn(colours = SCORE_SCALE[[sc_]], limits = lim) +
+      scale_x_continuous(limits = cx + c(-half, half), expand = c(0, 0)) +
+      scale_y_continuous(limits = cy + c(-half, half), expand = c(0, 0)) +
+      coord_fixed() + theme_void() + theme(legend.position = "none", plot.margin = margin(0, 0, 0, 0))
+    ggsave(file.path(PLOT, "png", sprintf("umap_%s_%s.png", sc_, gt)), pc, width = PANEL_CM, height = PANEL_CM,
+           units = "cm", dpi = 600, bg = "white", create.dir = TRUE)
+  }
 }
 } else cat("cells_all.csv.gz not there yet: score UMAPs skipped\n")
 
