@@ -14,7 +14,8 @@
 # Labelled genes: the user's lineage-gene list (fig_d15_trajectory.R GENES) that are in the set.
 # Outputs in plot/D15/trajectory/ (git-ignored):
 #   gene_patterns_heatmap.pdf   heatmap, cluster strip (genes, TFs), labelled genes at the right
-#   gene_patterns_curves.pdf    mean z per cluster along beta / alpha / EC (control solid, KO dashed), IQR ribbon
+#   gene_patterns_curves.pdf    mean z per cluster along beta / alpha / EC (control solid, KO dashed), IQR ribbon;
+#                               panels 0.55 x 0.72 in
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_d15_gene_patterns.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(patchwork) })
 PLOT <- Sys.getenv("PLOT_DIR", "plot/D15/trajectory"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
@@ -125,10 +126,19 @@ pc <- ggplot(mc, aes(pseudotime, mean, colour = lineage, fill = lineage, linetyp
   scale_linetype_manual(values = c(ctr = "solid", KO = "22"), breaks = names(GENO), labels = GENO, name = NULL) +
   labs(x = "Slingshot pseudotime", y = "mean z-score (ribbon = interquartile range)",
        title = "D15 trajectory gene clusters: mean curves",
-       subtitle = "control solid, ISL1 KO dashed; no line where a genotype has < 15 cells") +
+       subtitle = "control solid, ISL1 KO dashed;\nno line where a genotype has < 15 cells") +
+  scale_x_continuous(breaks = c(0, 100, 200)) +
   theme_classic(base_size = 7) +
   theme(strip.background = element_blank(), strip.text.y.left = element_text(angle = 0, face = "bold"),
         strip.text.x = element_text(face = "bold"), strip.placement = "outside", plot.title = element_text(face = "bold"),
-        plot.title.position = "plot", legend.position = "top", panel.spacing.y = unit(0.15, "cm"))
+        plot.title.position = "plot", legend.position = "top", panel.spacing.y = unit(0.15, "cm"),
+        panel.spacing.x = unit(0.1, "cm"))
 f <- file.path(PLOT, "gene_patterns_curves.pdf")
-ggsave(f, pc, width = 4.6, height = 9, useDingbats = FALSE); cat("wrote", f, "\n")
+# fixed panel size (user, 2026-11-24: the three lineages together as wide as one lineage was before, ~1.6 in)
+CURVE_W <- 0.55; CURVE_H <- 0.72   # inches per panel
+g <- ggplotGrob(pc); pp <- g$layout[grepl("^panel", g$layout$name), ]
+for (i in unique(pp$l)) g$widths[i] <- unit(CURVE_W, "in")
+for (i in unique(pp$t)) g$heights[i] <- unit(CURVE_H, "in")
+w <- grid::convertWidth(sum(g$widths), "in", valueOnly = TRUE); h <- grid::convertHeight(sum(g$heights), "in", valueOnly = TRUE)
+pdf(f, width = w, height = h, useDingbats = FALSE); grid::grid.draw(g); invisible(dev.off())
+cat(sprintf("wrote %s: %.2f x %.2f in\n", f, w, h))

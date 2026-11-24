@@ -836,7 +836,8 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   cluster strip with gene and TF counts; labelled genes = the gene_dynamics list in the set (PDX1, FOXO1, ISL1, LMO2,
   PBX3 C1; MAFB C3; ARX, ETV1, PAX6 C4; MEIS3 C5; PAX4 C6; FEV C7; MNX1, NEUROD4, NKX6-1 C8; LHX1 C10; NEUROD1 not in
   the set). `gene_patterns_curves.pdf`: mean z per cluster along each lineage, control solid / KO dashed,
-  interquartile ribbon, lineage colours as gene_dynamics. Clusters are not yet grouped or named for the paper; the
+  interquartile ribbon, lineage colours as gene_dynamics; fixed panels 0.55 x 0.72 in (user, 2026-11-24: the three
+  lineages together as wide as one lineage was before). Clusters are not yet grouped or named for the paper; the
   line-wide genes are still in. Rerun on Alpine: `sbatch /scratch/alpine/hzhu10@xsede.org/fig_gp.sb`.
 
 ## Open items
