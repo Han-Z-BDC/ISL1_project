@@ -10,8 +10,10 @@
 #   tests (also for TSS-bound alone).
 # 3 TSS signal: one TSS per gene (GTF gene record start, strand-aware), +/- 3 kb, 50 bp bins, the per-day mean ISL1
 #   bigWigs (CUT&RUN step 08, background-normalised CPM) via deepTools computeMatrix (run by the .sb between the two
-#   modes). Rows: clusters C1-C10, then 1,000 background genes (random, seed 1234) as reference; within a block,
-#   genes sorted by the mean signal over +/- 500 bp and the three days (highest at the top).
+#   modes) for clusters C1-C10 and 1,000 background genes (random, seed 1234). Heatmap: clusters only, genes sorted
+#   within a cluster by the mean signal over +/- 500 bp and the three days (highest at the top); sized to match the
+#   scRNAseq gene-pattern heatmap (3.5 in tall, each day as wide as one beta / alpha curve). Profiles: clusters and
+#   background.
 # usage: Rscript 12_trajectory_binding.R prep <gene_patterns_k10.csv> <pb_curve.csv> <links.tsv> <genes.gtf> <out dir>
 #        Rscript 12_trajectory_binding.R plot <out dir>
 # Output in <out dir>: genes.tsv (gene, cluster, bound per stage, TSS / enhancer only), binding_by_cluster.tsv,
@@ -141,30 +143,37 @@ if (mode == "plot") {
   hm[s, `:=`(row = i.row, group = i.group), on = "gene"]
   CAP <- quantile(hm$signal, 0.99); cat("colour cap (99th percentile):", signif(CAP, 3), "\n")
   hm[, sc := pmin(pmax(signal, 0), CAP)]
-  ns <- s[, .N, by = group]
+  # heatmap: clusters only (user, 2026-11-24: no background), sized to sit next to the scRNAseq gene-pattern heatmap
+  # (fig_d15_gene_patterns.R: heatmap area 2.5 x 3.5 in, 52 bins over 6 curves with 0.06 cm gaps, 0.04 cm gaps between
+  # clusters): each day as wide as one beta / alpha curve there (9 bins), panel area 3.5 in tall, cluster heights in
+  # proportion to their genes, same gaps
+  CL <- setdiff(GROUPS, "background")
+  hmc <- hm[group %in% CL]; hmc[, group := factor(as.character(group), levels = CL)]
+  GAP_X <- 0.06; GAP_Y <- 0.04                                   # cm
+  DAY_W <- (2.5 - 5 * GAP_X / 2.54) / 52 * 9; HM_H <- 3.5        # inches
+  ns <- s[group %in% CL, .N, by = group]
   BL <- setNames(sprintf("%s\n%s", ns$group, format(ns$N, big.mark = ",")), as.character(ns$group))
-  BL["background"] <- sprintf("background\n%s random", format(ns[group == "background", N], big.mark = ","))
-  hm[, glab := factor(BL[as.character(group)], levels = BL[GROUPS])]
-  HM_W <- 2.4; HM_H <- 4.2
-  p3 <- ggplot(hm, aes(pos, row, fill = sc)) + geom_raster() +
+  hmc[, glab := factor(BL[as.character(group)], levels = BL[CL])]
+  p3 <- ggplot(hmc, aes(pos, row, fill = sc)) + geom_raster() +
     facet_grid(glab ~ day, scales = "free_y", space = "free_y", switch = "y") +
     scale_fill_gradientn(colours = c("white", "#fee391", "#fe9929", "#cc4c02", "#662506"), limits = c(0, CAP),
                          name = "ISL1\nsignal") +
-    scale_x_continuous(breaks = c(-2000, 0, 2000), labels = c("-2 kb", "TSS", "+2 kb"), expand = c(0, 0)) +
+    scale_x_continuous(breaks = c(-2000, 0, 2000), labels = c("-2", "0", "+2"), expand = c(0, 0)) +
     scale_y_continuous(expand = c(0, 0), breaks = NULL) +
-    labs(x = NULL, y = NULL, title = "ISL1 CUT&RUN at the TSS\nof the trajectory gene clusters",
-         subtitle = sprintf(paste0("per-day mean of 3 libraries (background-normalised CPM,\n50 bp bins); genes sorted ",
-                                   "by mean signal over +/- %d bp\nand the 3 days; colour capped at the 99th percentile"), CORE)) +
+    labs(x = "kb from TSS", y = NULL, title = "ISL1 CUT&RUN at the TSS",
+         subtitle = sprintf(paste0("mean of 3 libraries per day,\nbackground-normalised CPM;\nsorted by mean signal ",
+                                   "+/- %d bp;\ncapped at the 99th percentile"), CORE)) +
     theme_minimal(base_size = 7) +
-    theme(panel.grid = element_blank(), panel.spacing.x = unit(0.08, "cm"), panel.spacing.y = unit(0.04, "cm"),
+    theme(panel.grid = element_blank(), panel.spacing.x = unit(GAP_X, "cm"), panel.spacing.y = unit(GAP_Y, "cm"),
           strip.text.y.left = element_text(angle = 0, hjust = 1, size = 5.5, lineheight = 0.9),
-          strip.text.x = element_text(face = "bold"), strip.placement = "outside", axis.text.x = element_text(size = 5),
+          strip.text.x = element_text(face = "bold", size = 6), strip.placement = "outside", axis.text.x = element_text(size = 5),
           plot.title = element_text(face = "bold"), plot.title.position = "plot", legend.key.height = unit(0.4, "cm"),
           legend.key.width = unit(0.25, "cm"))
   g3 <- ggplotGrob(p3); pp <- g3$layout[grepl("^panel", g3$layout$name), ]
-  hts <- ns[match(GROUPS, as.character(group)), N]
-  for (j in seq_along(unique(pp$t))) g3$heights[sort(unique(pp$t))[j]] <- unit(HM_H * hts[j] / sum(hts), "in")
-  for (i in unique(pp$l)) g3$widths[i] <- unit(HM_W / 3, "in")
+  hts <- ns[match(CL, as.character(group)), N]; PH <- HM_H - (length(CL) - 1) * GAP_Y / 2.54
+  for (j in seq_along(unique(pp$t))) g3$heights[sort(unique(pp$t))[j]] <- unit(PH * hts[j] / sum(hts), "in")
+  for (i in unique(pp$l)) g3$widths[i] <- unit(DAY_W, "in")
+  cat(sprintf("TSS heatmap: day width %.3f in, panel area %.2f in tall\n", DAY_W, HM_H))
   w <- grid::convertWidth(sum(g3$widths), "in", valueOnly = TRUE); h <- grid::convertHeight(sum(g3$heights), "in", valueOnly = TRUE)
   pdf(file.path(od, "isl1_tss_heatmap.pdf"), width = w, height = h, useDingbats = FALSE, bg = "white"); grid::grid.draw(g3); invisible(dev.off())
   cat(sprintf("isl1_tss_heatmap.pdf: %.2f x %.2f in\n", w, h))

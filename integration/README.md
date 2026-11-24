@@ -422,8 +422,10 @@ k = 10) have an ISL1 site, per CUT&RUN stage and at any stage, and the ISL1 sign
   test per cluster and stage on bound / not bound, BH over all cluster x stage tests (separately for TSS-bound).
   20 genes without a GTF gene TSS (mitochondrial, renamed duplicates) dropped.
 - TSS signal: one TSS per gene (GTF gene start), ±3 kb in 50 bp bins, deepTools computeMatrix on the per-day mean ISL1
-  bigWigs (CUT&RUN step 08); the clusters plus 1,000 random background genes (seed 1234); within a block, genes sorted
-  by mean signal over ±500 bp and the three days. The bigWigs are copied to node-local disk first (read from
+  bigWigs (CUT&RUN step 08); the clusters plus 1,000 random background genes (seed 1234). Heatmap (user, 2026-11-24):
+  clusters only, genes sorted within a cluster by mean signal over ±500 bp and the three days; sized to sit next to the
+  scRNAseq gene-pattern heatmap (panel area 3.5 in tall, cluster heights in proportion to their genes, each day as
+  wide as one beta / alpha curve there, 0.41 in). The mean profiles keep the background (dashed). The bigWigs are copied to node-local disk first (read from
   /scratch, the parallel workers stalled on I/O).
 
 | Bound (TSS or enhancer) | any stage | D15 | D18 | D22 |
