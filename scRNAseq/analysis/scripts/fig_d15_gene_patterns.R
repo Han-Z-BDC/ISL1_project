@@ -16,7 +16,7 @@
 #   gene_patterns_heatmap.pdf   heatmap, cluster strip (genes, TFs), labelled genes at the right; heatmap area
 #                               2.5 x 3.5 in
 #   gene_patterns_curves.pdf    mean z per cluster along beta / alpha / EC (control solid, KO dashed), IQR ribbon;
-#                               panels 0.55 x 0.45 in; red dashed line = KO stop on beta / alpha (KO 95th
+#                               panels 0.55 x 0.72 in; red dashed line = KO stop on beta / alpha (KO 95th
 #                               percentile of Slingshot pseudotime, as ko_stop_density.pdf)
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_d15_gene_patterns.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(patchwork) })
@@ -156,7 +156,7 @@ pc <- ggplot(mc, aes(pseudotime, mean, colour = lineage, fill = lineage, linetyp
         panel.spacing.x = unit(0.1, "cm"))
 f <- file.path(PLOT, "gene_patterns_curves.pdf")
 # fixed panel size (user, 2026-11-24: the three lineages together as wide as one lineage was before, ~1.6 in)
-CURVE_W <- 0.55; CURVE_H <- 0.45   # inches per panel (height 0.72 -> 0.45: user, 2026-11-24, "height shorter")
+CURVE_W <- 0.55; CURVE_H <- 0.72   # inches per panel
 g <- ggplotGrob(pc); pp <- g$layout[grepl("^panel", g$layout$name), ]
 for (i in unique(pp$l)) g$widths[i] <- unit(CURVE_W, "in")
 for (i in unique(pp$t)) g$heights[i] <- unit(CURVE_H, "in")

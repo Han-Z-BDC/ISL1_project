@@ -276,40 +276,43 @@ if (mode == "mode") {
                                   frac = pmax(frac, frac_background), lab = sprintf("%.0f%%%s", 100 * frac, star(padj)))]
   bgl <- g[group == "background", .(frac = sapply(DAYS, function(d) mean(get(paste(d, "all", sep = "|")))))][,
     stage := DAYS]
-  ns <- g[, .N, by = group]
-  GL <- setNames(sprintf("%s (%s)", ns$group, format(ns$N, big.mark = ",", trim = TRUE)), ns$group)
-  GL["background"] <- sprintf("background\n(%s)", format(ns[group == "background", N], big.mark = ","))
+  ns <- g[, .N, by = group]; GL <- setNames(sprintf("%s (%s)", ns$group, format(ns$N, big.mark = ",")), ns$group)
   MCOL <- c("TSS only" = "#08306b", "TSS + enhancer" = "#4292c6", "enhancer only" = "#c6dbef")
-  # bar plot only (user, 2026-11-24), sized to sit with scRNAseq gene_patterns_curves.pdf: page as wide (PAGE_W), about
-  # half its height (PAGE_H), each stage panel as wide as one lineage panel there (0.55 in, 0.1 cm gaps)
-  PAGE_W <- 2.55; PAGE_H <- 6.46 / 2; PANEL_W <- 0.55
   pa <- ggplot(fr, aes(frac, group, fill = category)) + geom_col(width = 0.75) +
     geom_vline(data = bgl, aes(xintercept = frac), linetype = "dashed", linewidth = 0.3, colour = "grey30") +
-    geom_text(data = tot, aes(x = frac + 0.03, y = group, label = lab), inherit.aes = FALSE, hjust = 0, size = 1.6) +
+    geom_text(data = tot, aes(x = frac + 0.02, y = group, label = lab), inherit.aes = FALSE, hjust = 0, size = 1.9) +
     facet_grid(. ~ stage) +
     scale_fill_manual(values = MCOL, breaks = CAT[1:3], name = NULL) +
-    scale_x_continuous(limits = c(0, 1.45), breaks = c(0, 0.5, 1), labels = c("0", "50", "100"), expand = c(0, 0)) +
+    scale_x_continuous(limits = c(0, 1.12), breaks = c(0, 0.5, 1), labels = c("0", "50%", "100%"), expand = c(0, 0)) +
     scale_y_discrete(labels = GL) +
-    labs(x = "% genes with an ISL1 site", y = NULL, title = "ISL1 binding per cluster",
-         subtitle = paste0("TSS = site within +/- 1 kb; enhancer = ABC-linked\nsite only; dashed = background; ",
-                           "*, **, *** BH FDR\n< 0.05, 0.01, 0.001 (all bound vs background, Fisher)")) +
-    guides(fill = guide_legend(nrow = 1, keywidth = unit(0.22, "cm"), keyheight = unit(0.22, "cm"))) +
+    labs(x = "genes with an ISL1 site (sites called that day)", y = NULL,
+         title = "ISL1 binding of the D15 trajectory gene clusters: TSS and enhancers",
+         subtitle = paste0("TSS = site within +/- 1 kb of a TSS; enhancer = site linked only through an ABC element; ",
+                           "dashed = background (all);\n* BH FDR < 0.05, ** < 0.01, *** < 0.001, all bound vs background ",
+                           "(Fisher)")) +
     theme_classic(base_size = 7) +
     theme(strip.background = element_blank(), strip.text = element_text(face = "bold"), legend.position = "bottom",
-          legend.text = element_text(size = 5.5), legend.margin = margin(0, 0, 0, 0),
-          plot.title = element_text(face = "bold"), plot.title.position = "plot", axis.text.y = element_text(size = 6),
-          plot.subtitle = element_text(size = 6), panel.spacing.x = unit(0.1, "cm"),
-          plot.margin = margin(4, 4, 4, 4))
-  ga <- ggplotGrob(pa); pp <- ga$layout[grepl("^panel", ga$layout$name), ]
-  for (i in unique(pp$l)) ga$widths[i] <- unit(PANEL_W, "in")
-  pt <- unique(pp$t); ga$heights[pt] <- unit(0, "in")
-  other_h <- grid::convertHeight(sum(ga$heights), "in", valueOnly = TRUE)
-  ga$heights[pt] <- unit(PAGE_H - other_h, "in")
-  w <- grid::convertWidth(sum(ga$widths), "in", valueOnly = TRUE)
-  if (w < PAGE_W) ga$widths[length(ga$widths)] <- ga$widths[length(ga$widths)] + unit(PAGE_W - w, "in")
-  w <- grid::convertWidth(sum(ga$widths), "in", valueOnly = TRUE); h <- grid::convertHeight(sum(ga$heights), "in", valueOnly = TRUE)
-  pdf(file.path(od, "isl1_binding_mode.pdf"), width = w, height = h, useDingbats = FALSE, bg = "white")
-  grid::grid.draw(ga); invisible(dev.off())
-  cat(sprintf("isl1_binding_mode.pdf: %.2f x %.2f in (panel area %.2f in tall)\n", w, h, PAGE_H - other_h))
+          plot.title = element_text(face = "bold"), plot.title.position = "plot", legend.key.size = unit(0.3, "cm"),
+          panel.spacing.x = unit(0.25, "cm"))
+  orl <- melt(out[, .(stage, category, group, Fisher = odds_ratio, padj_F = padj, adjusted = odds_ratio_adj,
+                      padj_A = padj_adj)], id.vars = c("stage", "category", "group"),
+              measure.vars = list(c("Fisher", "adjusted"), c("padj_F", "padj_A")), variable.name = "test",
+              value.name = c("or", "padj"))
+  orl[, test := factor(c("Fisher", "adjusted")[as.integer(test)], levels = c("Fisher", "adjusted"))]
+  orl[, `:=`(l2 = pmax(pmin(log2(or), 1.5), -1.5), lab = star(padj), group = factor(as.character(group), levels = rev(CL)))]
+  pb2 <- ggplot(orl, aes(category, group, fill = l2)) + geom_tile(colour = "white", linewidth = 0.4) +
+    geom_text(aes(label = lab), size = 2, vjust = 0.75) +
+    facet_grid(test ~ stage) +
+    scale_fill_gradient2(low = "#2166ac", mid = "#f7f7f7", high = "#b2182b", limits = c(-1.5, 1.5),
+                         name = "log2 odds ratio\nvs background") +
+    labs(x = NULL, y = NULL, subtitle = paste0("odds ratio vs background per category. Fisher = Fisher's exact test; ",
+                                               "adjusted = logistic regression with\nlog2(1 + ABC elements of the gene) and ",
+                                               "mean logCPM as covariates. * BH FDR < 0.05, ** < 0.01, *** < 0.001\n",
+                                               "(BH within a category, over cluster x stage)")) +
+    theme_minimal(base_size = 7) +
+    theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 40, hjust = 1),
+          strip.text = element_text(face = "bold"), legend.key.size = unit(0.3, "cm"))
+  p <- pa / pb2 + plot_layout(heights = c(1, 1.5))
+  ggsave(file.path(od, "isl1_binding_mode.pdf"), p, width = 6.2, height = 6.4, useDingbats = FALSE)
   cat("wrote", file.path(od, "isl1_binding_mode.pdf"), "\n")
 }

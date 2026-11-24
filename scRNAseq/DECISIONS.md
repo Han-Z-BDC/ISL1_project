@@ -266,9 +266,8 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       `gene_pattern_k.csv`, quick PNGs; `gene_patterns_k10_before_tS.csv` = the assignment before the tradeSeq genes.
       Rerun: `sbatch --export=ALL,GENESET=pseudobulk analysis/scripts/7.3h_gene_patterns.sb 10`. Figures: see "D15 trajectory gene
       figures" below.
-    - ISL1 binding of the clusters (CUT&RUN TSS / ABC links per stage, TSS / enhancer binding mode, TSS signal
-      heatmap): integration step 12 (`integration/README.md`); figures copied to `plot/D15/trajectory/isl1_*.pdf`;
-      `isl1_binding_mode.pdf` is sized to sit with `gene_patterns_curves.pdf` (same width, half the height).
+    - ISL1 binding of the clusters (CUT&RUN TSS / ABC links per stage and any stage, TSS signal heatmap): integration
+      step 12 (`integration/README.md`); figures copied to `plot/D15/trajectory/isl1_*.pdf`.
     - Human TF list: Lambert et al. 2018, Cell 172:650 ("The Human Transcription Factors", humantfs.ccbr.utoronto.ca,
       TF_names_v_1.01.txt, 1,639 genes; downloaded 2026-11-21 with the user's OK, CRLF removed) in
       `study_config/annotation/TF_names_v_1.01.txt`. LMO2 is not in the list (LIM-only, no DNA-binding domain).
@@ -840,8 +839,8 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   page 3.9 x 5.05 in, curve names on two lines, gene labels 5 pt; cluster strip with gene and TF counts; labelled genes = the gene_dynamics list in the set (PDX1, FOXO1, ISL1, LMO2,
   PBX3 C1; MAFB C3; ARX, ETV1, PAX6 C4; MEIS3 C5; PAX4 C6; FEV C7; MNX1, NEUROD4, NKX6-1 C8; LHX1 C10; NEUROD1 not in
   the set). `gene_patterns_curves.pdf`: mean z per cluster along each lineage, control solid / KO dashed,
-  interquartile ribbon, lineage colours as gene_dynamics; fixed panels 0.55 x 0.45 in, page 2.55 x 6.46 in (user,
-  2026-11-24: the three lineages together as wide as one lineage was before; then shorter); red dashed line on beta / alpha = KO stop (KO 95th percentile
+  interquartile ribbon, lineage colours as gene_dynamics; fixed panels 0.55 x 0.72 in (user, 2026-11-24: the three
+  lineages together as wide as one lineage was before); red dashed line on beta / alpha = KO stop (KO 95th percentile
   of Slingshot pseudotime, curve weight >= 0.5: beta 151, alpha 158; as ko_stop_density.pdf). Clusters are not yet grouped or named for the paper; the
   line-wide genes are still in. Rerun on Alpine: `sbatch /scratch/alpine/hzhu10@xsede.org/fig_gp.sb`.
 

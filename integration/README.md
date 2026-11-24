@@ -459,10 +459,8 @@ enhancers a gene has and its expression):
   non-self-promoter elements linked to the gene (ABC >= 0.02) in ENP2, ENP3 or early_SC_alpha (median 6 in the
   background, 7-9 in the clusters). 14,449 genes with a logCPM. More ABC elements raise the chance of an
   enhancer-only site (OR 2.3-2.7 per doubling) and lower TSS-only (0.5-0.7).
-- Figure `isl1_binding_mode.pdf` (user, 2026-11-24: the bar plot only): stacked bars (TSS only / TSS + enhancer /
-  enhancer only) per stage with the total bound and its Fisher stars, background dashed; 2.55 x 3.23 in, as wide as
-  and half as tall as scRNAseq `gene_patterns_curves.pdf`, each stage panel 0.55 in like one lineage panel there. The
-  odds ratios per category (Fisher and adjusted) are in `binding_mode.tsv`.
+- Figure `isl1_binding_mode.pdf`: stacked bars (TSS only / TSS + enhancer / enhancer only) with the total bound and
+  its Fisher stars, background dashed; below, log2 odds ratios per category (Fisher and adjusted) with stars.
 
 Results:
 - Enhancer only is the category where clusters exceed the background (background 19% / 27% / 24% at D15 / D18 /
