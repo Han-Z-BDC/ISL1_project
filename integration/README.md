@@ -67,7 +67,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 09 Target genes of the peak-call overlap classes | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB; needs CUT&RUN step 12) | `results/09_peak_overlap/`: `class_groups.tsv` (per class: step 08 VST and groups), `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb) |
 | 10 Pre-specified beta − alpha binding contrast | `scripts/10_beta_alpha_contrast.sb` (acpu, 1 CPU, 3 GB; `MODE=dry_run` now, `primary` for the unified time course) | `results/10_beta_alpha_contrast/`: `sets.tsv`, `set_sites.tsv`, `library_values.tsv`, `contrasts.tsv`, `site_level.tsv` |
 | 11 Direct-activated and direct-repressed genes with a stage-specific KO effect | `scripts/11_direct_stage.sb` (acpu, 2 CPUs, 7 GB; needs step 02; runs `11_direct_stage.R` for each label) | `results/11_activated_stage/`, `results/11_repressed_stage/`: `genes.tsv` (per gene of the label: pattern, LRT_interaction padj, scaled profile, clusters k2-k8, group: the k = 4 cluster or constant), `elbow.tsv`, `centers.tsv`, `patterns.tsv`, `groups.tsv` (per group: genes, median log2FC, significant on all days) |
-| 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters | `scripts/12_trajectory_binding.sb` (acpu, 4 CPUs, 15 GB; needs CUT&RUN steps 08 and 13, scRNAseq 7.3h / 7.3l) | `results/12_trajectory_binding/`: `genes.tsv` (per gene: cluster or background, bound per stage, TSS-bound), `binding_by_cluster.tsv` (fraction bound, odds ratio, BH FDR vs background), `tss.bed`, `tss_matrix.gz` (deepTools), `tss_signal.tsv` (per gene and day, ±500 bp), `isl1_binding_by_cluster.pdf`, `isl1_tss_heatmap.pdf`, `isl1_tss_profile.pdf` |
+| 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters | `scripts/12_trajectory_binding.sb` (acpu, 4 CPUs, 15 GB; needs CUT&RUN steps 08 and 13, scRNAseq 7.3h / 7.3l) | `results/12_trajectory_binding/`: `genes.tsv` (per gene: cluster or background, bound per stage, TSS-bound), `binding_by_cluster.tsv` (fraction bound, odds ratio, BH FDR vs background), `tss.bed`, `tss_matrix.gz` (deepTools), `tss_signal.tsv` (per gene and day, ±500 bp), `genes_mode.tsv` and `binding_mode.tsv` (binding mode per stage: fraction, Fisher and adjusted odds ratios), `isl1_binding_by_cluster.pdf`, `isl1_binding_mode.pdf`, `isl1_tss_heatmap.pdf`, `isl1_tss_profile.pdf` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -445,4 +445,33 @@ k = 10) have an ISL1 site, per CUT&RUN stage and at any stage, and the ISL1 sign
 - TSS-bound alone is lower than the background in most clusters (OR 0.4-0.8; background 53% at any stage), and the
   mean TSS signal is highest in the background block: the background holds many broadly expressed genes with strong
   promoter signal. ISL1 TSS signal rises from D15 / D18 to D22 in every block.
+
+Binding mode, TSS or enhancer (user, 2026-11-24: per stage only; four categories; plus a check for the number of
+enhancers a gene has and its expression):
+
+- Per gene and stage, from the sites called that day: TSS = a site within ±1 kb of a TSS of the gene (step 13 source
+  TSS or TSS+ABC); enhancer = a site linked only through an ABC element (source ABC). Categories: TSS only, TSS +
+  enhancer, enhancer only, all (any of them; the same genes as "bound" above).
+- Fisher's exact test per cluster, stage and category against the background (category vs not, all genes); BH within
+  a category over cluster x stage.
+- Adjusted check: logistic regression per stage and category, category ~ cluster (background = reference) +
+  log2(1 + ABC elements of the gene) + mean logCPM along the D15 lineages (7.3l); ABC elements = distinct
+  non-self-promoter elements linked to the gene (ABC >= 0.02) in ENP2, ENP3 or early_SC_alpha (median 6 in the
+  background, 7-9 in the clusters). 14,449 genes with a logCPM. More ABC elements raise the chance of an
+  enhancer-only site (OR 2.3-2.7 per doubling) and lower TSS-only (0.5-0.7).
+- Figure `isl1_binding_mode.pdf`: stacked bars (TSS only / TSS + enhancer / enhancer only) with the total bound and
+  its Fisher stars, background dashed; below, log2 odds ratios per category (Fisher and adjusted) with stars.
+
+Results:
+- Enhancer only is the category where clusters exceed the background (background 19% / 27% / 24% at D15 / D18 /
+  D22). C4 (alpha) is the clearest: 33% at D15 (OR 2.1, adjusted 1.7, FDR 6e-4), 40% at D18; C1 (beta) 28% at D15
+  (OR 1.7, adjusted 1.5, FDR 0.03). Their higher total binding at D15 comes from enhancer-only genes and holds after
+  the adjustment (all bound: C1 adjusted OR 1.4, C4 1.5).
+- At D18 / D22 most clusters (C1, C4, C6-C9) have more enhancer-only genes than the background in the Fisher test, but
+  after the adjustment only C6, C7 and C9 keep it at one or two stages: part of the enhancer excess reflects genes
+  with many ABC elements.
+- TSS only is lower than the background in most clusters (C6, C8, C10 at every stage); TSS + enhancer is lower at D22
+  after the adjustment in C3, C6-C10. C10 (higher in KO) is less bound in every category.
+- So the ISL1-dependent beta (C1) and alpha (C4) clusters are bound early (D15) and mainly through distal enhancers;
+  no cluster is enriched for TSS binding.
 
