@@ -833,12 +833,13 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   maximum z; columns = beta / alpha / EC x control / ISL1 KO bins; bins with < 15 cells in both genotypes dropped
   (bin 1 of every lineage, bin 2 of EC: sparse curve starts); dark grey = no KO cells (beta / alpha bins 8-10, past
   the KO stop), light grey = < 15 cells (control EC bin 10); z-score as the clustering input, colour limits +-2.5;
-  heatmap area 2.5 in wide (user, 2026-11-24: columns narrower; about half the earlier width), curve names on two
-  lines; cluster strip with gene and TF counts; labelled genes = the gene_dynamics list in the set (PDX1, FOXO1, ISL1, LMO2,
+  small size (user, 2026-11-24: columns narrower, then rows shorter, to fit a figure panel): heatmap area 2.5 x 3.5 in,
+  page 3.9 x 5.05 in, curve names on two lines, gene labels 5 pt; cluster strip with gene and TF counts; labelled genes = the gene_dynamics list in the set (PDX1, FOXO1, ISL1, LMO2,
   PBX3 C1; MAFB C3; ARX, ETV1, PAX6 C4; MEIS3 C5; PAX4 C6; FEV C7; MNX1, NEUROD4, NKX6-1 C8; LHX1 C10; NEUROD1 not in
   the set). `gene_patterns_curves.pdf`: mean z per cluster along each lineage, control solid / KO dashed,
   interquartile ribbon, lineage colours as gene_dynamics; fixed panels 0.55 x 0.72 in (user, 2026-11-24: the three
-  lineages together as wide as one lineage was before). Clusters are not yet grouped or named for the paper; the
+  lineages together as wide as one lineage was before); red dashed line on beta / alpha = KO stop (KO 95th percentile
+  of Slingshot pseudotime, curve weight >= 0.5: beta 151, alpha 158; as ko_stop_density.pdf). Clusters are not yet grouped or named for the paper; the
   line-wide genes are still in. Rerun on Alpine: `sbatch /scratch/alpine/hzhu10@xsede.org/fig_gp.sb`.
 
 ## Open items
