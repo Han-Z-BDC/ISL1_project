@@ -67,6 +67,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 09 Target genes of the peak-call overlap classes | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB; needs CUT&RUN step 12) | `results/09_peak_overlap/`: `class_groups.tsv` (per class: step 08 VST and groups), `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb) |
 | 10 Pre-specified beta − alpha binding contrast | `scripts/10_beta_alpha_contrast.sb` (acpu, 1 CPU, 3 GB; `MODE=dry_run` now, `primary` for the unified time course) | `results/10_beta_alpha_contrast/`: `sets.tsv`, `set_sites.tsv`, `library_values.tsv`, `contrasts.tsv`, `site_level.tsv` |
 | 11 Direct-activated and direct-repressed genes with a stage-specific KO effect | `scripts/11_direct_stage.sb` (acpu, 2 CPUs, 7 GB; needs step 02; runs `11_direct_stage.R` for each label) | `results/11_activated_stage/`, `results/11_repressed_stage/`: `genes.tsv` (per gene of the label: pattern, LRT_interaction padj, scaled profile, clusters k2-k8, group: the k = 4 cluster or constant), `elbow.tsv`, `centers.tsv`, `patterns.tsv`, `groups.tsv` (per group: genes, median log2FC, significant on all days) |
+| 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters | `scripts/12_trajectory_binding.sb` (acpu, 4 CPUs, 15 GB; needs CUT&RUN steps 08 and 13, scRNAseq 7.3h / 7.3l) | `results/12_trajectory_binding/`: `genes.tsv` (per gene: cluster or background, bound per stage, TSS-bound), `binding_by_cluster.tsv` (fraction bound, odds ratio, BH FDR vs background), `tss.bed`, `tss_matrix.gz` (deepTools), `tss_signal.tsv` (per gene and day, ±500 bp), `isl1_binding_by_cluster.pdf`, `isl1_tss_heatmap.pdf`, `isl1_tss_profile.pdf` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -408,3 +409,38 @@ padj < 0.05), 1,224 not shown to change between stages (constant group). k = 4 (
 - Sustained, from D18: gain from D18 on, still there at D22; Early, transient: gain at D15, fading by D22 (the
   endocrine progenitor genes); Late, D22 only: gain at D22 only; Transient, D18 only: gain at D18 only. Unlike the activated genes, an early effect is common
   here (132 stage-specific genes gain most at D15).
+
+### 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters
+
+User, 2026-11-24: how many genes of each D15 trajectory gene cluster (scRNAseq 7.3h, 3,118 KO vs control genes,
+k = 10) have an ISL1 site, per CUT&RUN stage and at any stage, and the ISL1 signal at their TSS.
+
+- Binding = CUT&RUN step 13 links: a merged ISL1 site (pooled macs3_ge2 consensus of D15 / D18 / D22) within ±1 kb of
+  any TSS of the gene, or overlapping an ABC element linked to it (ENP2, ENP3, early_SC_alpha; "enhancer only" when no
+  TSS link). Per stage: the site is called on that day; any stage: any linked site.
+- Background: the 11,374 other genes tested along the D15 lineages (7.3l), expressed but not called. Fisher's exact
+  test per cluster and stage on bound / not bound, BH over all cluster x stage tests (separately for TSS-bound).
+  20 genes without a GTF gene TSS (mitochondrial, renamed duplicates) dropped.
+- TSS signal: one TSS per gene (GTF gene start), ±3 kb in 50 bp bins, deepTools computeMatrix on the per-day mean ISL1
+  bigWigs (CUT&RUN step 08); the clusters plus 1,000 random background genes (seed 1234); within a block, genes sorted
+  by mean signal over ±500 bp and the three days. The bigWigs are copied to node-local disk first (read from
+  /scratch, the parallel workers stalled on I/O).
+
+| Bound (TSS or enhancer) | any stage | D15 | D18 | D22 |
+|---|---|---|---|---|
+| background | 77% | 33% | 65% | 72% |
+| C1 | 80% | **42%** | **72%** | 75% |
+| C4 | 78% | **44%** | 70% | 72% |
+| C10 | **63%** (lower) | 25% | **53%** (lower) | **58%** (lower) |
+| C2, C3, C5-C9 | 73-79% | 30-37% | 60-69% | 64-72% (C8 64%, lower) |
+
+- About three quarters of all expressed genes are linked to an ISL1 site, so the bound fraction of every cluster is
+  high; the clusters differ only modestly from the background.
+- More bound than the background: C1 (beta, ISL1-dependent: ISL1, PDX1, FOXO1, PBX3, LMO2) at D15 (OR 1.50, FDR
+  0.002) and D18 (OR 1.38, FDR 0.04); C4 (alpha: ARX, ETV1, PAX6, HHEX) at D15 (OR 1.64, FDR 2e-4). The excess is in
+  enhancer-only (ABC) links, not TSS links.
+- Less bound: C10 (higher in KO, EC rise in KO) at any stage, D18 and D22 (OR 0.50-0.61); C8 at D22 (OR 0.68).
+- TSS-bound alone is lower than the background in most clusters (OR 0.4-0.8; background 53% at any stage), and the
+  mean TSS signal is highest in the background block: the background holds many broadly expressed genes with strong
+  promoter signal. ISL1 TSS signal rises from D15 / D18 to D22 in every block.
+

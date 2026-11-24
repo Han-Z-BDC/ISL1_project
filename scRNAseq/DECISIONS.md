@@ -266,6 +266,8 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       `gene_pattern_k.csv`, quick PNGs; `gene_patterns_k10_before_tS.csv` = the assignment before the tradeSeq genes.
       Rerun: `sbatch --export=ALL,GENESET=pseudobulk analysis/scripts/7.3h_gene_patterns.sb 10`. Figures: see "D15 trajectory gene
       figures" below.
+    - ISL1 binding of the clusters (CUT&RUN TSS / ABC links per stage and any stage, TSS signal heatmap): integration
+      step 12 (`integration/README.md`); figures copied to `plot/D15/trajectory/isl1_*.pdf`.
     - Human TF list: Lambert et al. 2018, Cell 172:650 ("The Human Transcription Factors", humantfs.ccbr.utoronto.ca,
       TF_names_v_1.01.txt, 1,639 genes; downloaded 2026-11-21 with the user's OK, CRLF removed) in
       `study_config/annotation/TF_names_v_1.01.txt`. LMO2 is not in the list (LIM-only, no DNA-binding domain).

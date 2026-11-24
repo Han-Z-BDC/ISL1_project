@@ -18,10 +18,15 @@ CNR_SAMPLES=${CNR_DIFF}/samples.tsv           # library -> day, batch
 CNR_TABLES=${CNR_DIFF}/tables                 # per-site differential binding tables
 CHROM_SIZES=${CNR_RESULTS}/genome.txt
 CNR_OVERLAP=${CNR_RESULTS}/peak_overlap      # step 12: overlap classes of the per-day peak calls (step 09)
+CNR_ABC=${CNR_RESULTS}/abc_targets          # CUT&RUN step 13: ISL1 site -> gene links (TSS +/- 1 kb, ABC)
+CNR_TRACKS=${CNR_RESULTS}/tracks/groups/ISL1 # CUT&RUN step 08: per-day mean ISL1 bigWigs
 
 # ---- Bulk RNA-seq: Ctr vs ISL1 KO, D15 / D18 / D22 (run YJZ5LS) ---------------------------------
 BULK_DE=${PROJECT}/bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2
 GTF=/pl/active/ZhuLab_BDC/genome/refdata-cellranger-arc-GRCh38-2020-A-2.0.0/genes/genes.gtf
+
+# ---- scRNA-seq D15 trajectory genes (scRNAseq 7.3h k = 10 clusters, 7.3l tested genes; integration step 12)
+SC_TRAJ=/scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/out_all/day_analysis/D15/trajectory/pseudobulk
 
 # ---- Islet cell-type marker genes (step 06, report section 06)
 MARKERS=${INT_DIR}/markers.tsv
@@ -29,3 +34,4 @@ MARKERS=${INT_DIR}/markers.tsv
 # ---- Environments -------------------------------------------------------------------------------
 PY=/projects/hzhu10@xsede.org/software/anaconda/envs/bulkRNAseq/bin/python
 R_ENV=/projects/hzhu10@xsede.org/software/anaconda/envs/r_env
+CNR_TOOLS=/projects/hzhu10@xsede.org/software/anaconda/envs/cutnrun/bin   # deepTools (step 12)
