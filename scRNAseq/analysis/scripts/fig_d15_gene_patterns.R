@@ -13,7 +13,7 @@
 # Rows: clusters C1-C10 (7.3h numbering), genes within a cluster ordered by the column of their maximum z (stable).
 # Labelled genes: the user's lineage-gene list (fig_d15_trajectory.R GENES) that are in the set.
 # Outputs in plot/D15/trajectory/ (git-ignored):
-#   gene_patterns_heatmap.pdf   heatmap, cluster strip (genes, TFs), labelled genes at the right
+#   gene_patterns_heatmap.pdf   heatmap, cluster strip (genes, TFs), labelled genes at the right; heatmap area 2.5 in wide
 #   gene_patterns_curves.pdf    mean z per cluster along beta / alpha / EC (control solid, KO dashed), IQR ribbon;
 #                               panels 0.55 x 0.72 in
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_d15_gene_patterns.R
@@ -63,7 +63,7 @@ cv[, clab := factor(CLAB[as.character(cluster)], levels = CLAB[order(cs$cluster)
 cv[, zc := pmax(pmin(z, ZLIM), -ZLIM)]
 grey <- cv[is.na(z), .(gene, curve, bin, row, clab, reason = fifelse(genotype == "KO" & lineage != "EC" & cells == 0,
                                                                     "no KO cells", "< 15 cells"))]
-CURVE_LAB <- setNames(sprintf("%s %s", sub(" .*", "", levels(cv$curve)), GENO[sub(".* ", "", levels(cv$curve))]),
+CURVE_LAB <- setNames(sprintf("%s\n%s", sub(" .*", "", levels(cv$curve)), GENO[sub(".* ", "", levels(cv$curve))]),
                       levels(cv$curve))
 GREY_NOKO <- "#9e9e9e"; GREY_FEW <- "#d9d9d9"
 hm <- ggplot(cv, aes(bin, row)) +
@@ -74,12 +74,12 @@ hm <- ggplot(cv, aes(bin, row)) +
                        name = "z-score") +
   facet_grid(clab ~ curve, scales = "free", space = "free", switch = "y", labeller = labeller(curve = CURVE_LAB)) +
   scale_x_continuous(expand = c(0, 0), breaks = NULL) + scale_y_continuous(expand = c(0, 0), breaks = NULL) +
-  labs(x = "pseudotime (Slingshot, 10 equal-width bins; sparse start bins dropped)", y = NULL,
+  labs(x = "pseudotime (Slingshot, 10 equal-width bins;\nsparse start bins dropped)", y = NULL,
        title = sprintf("D15 KO vs control trajectory genes (%s), k-means k = 10", n_fmt(nrow(cl))),
-       subtitle = "z-score per gene across the six curves; dark grey = no KO cells (past the KO stop), light grey = < 15 cells") +
+       subtitle = "z-score per gene across the six curves;\ndark grey = no KO cells (past the KO stop), light grey = < 15 cells") +
   theme_minimal(base_size = 7) +
   theme(panel.grid = element_blank(), panel.spacing.x = unit(0.06, "cm"), panel.spacing.y = unit(0.04, "cm"),
-        strip.text.y.left = element_text(angle = 0, hjust = 1, size = 6), strip.text.x = element_text(face = "bold"),
+        strip.text.y.left = element_text(angle = 0, hjust = 1, size = 6), strip.text.x = element_text(face = "bold", size = 6),
         strip.placement = "outside", plot.title = element_text(face = "bold"), plot.title.position = "plot",
         legend.position = "bottom", legend.key.height = unit(0.25, "cm"), legend.key.width = unit(0.6, "cm"))
 
@@ -108,9 +108,11 @@ lb <- ggplot(lab) +
   scale_x_continuous(limits = c(0, 2), expand = c(0, 0)) + scale_y_continuous(expand = c(0, 0)) +
   coord_cartesian(clip = "off") +
   theme_void(base_size = 7) + theme(strip.text = element_blank(), panel.spacing.y = unit(0.04, "cm"))
-p <- hm + lb + plot_layout(widths = c(1, 0.12))
+# narrow columns (user, 2026-11-24: "make the heatmap columns narrower too"): heatmap area HM_W wide, label column LAB_W
+HM_W <- 2.5; LAB_W <- 0.5   # inches
+p <- hm + lb + plot_layout(widths = unit(c(HM_W, LAB_W), "in"))
 f <- file.path(PLOT, "gene_patterns_heatmap.pdf")
-ggsave(f, p, width = 6.3, height = 8.2, useDingbats = FALSE); cat("wrote", f, "\n")
+ggsave(f, p, width = HM_W + LAB_W + 0.9, height = 8.2, useDingbats = FALSE); cat("wrote", f, "\n")
 
 # ---- mean curves per cluster
 mc <- cv[!is.na(z), .(mean = mean(z), q1 = quantile(z, 0.25), q3 = quantile(z, 0.75)),
