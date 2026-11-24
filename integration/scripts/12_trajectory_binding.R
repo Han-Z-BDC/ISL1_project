@@ -287,32 +287,21 @@ if (mode == "mode") {
     scale_y_discrete(labels = GL) +
     labs(x = "genes with an ISL1 site (sites called that day)", y = NULL,
          title = "ISL1 binding of the D15 trajectory gene clusters: TSS and enhancers",
-         subtitle = paste0("TSS = site within +/- 1 kb of a TSS; enhancer = site linked only through an ABC element; ",
-                           "dashed = background (all);\n* BH FDR < 0.05, ** < 0.01, *** < 0.001, all bound vs background ",
+         subtitle = paste0("TSS = site within +/- 1 kb of a TSS; enhancer = site linked only through an ABC element;\n",
+                           "dashed = background (all); * BH FDR < 0.05, ** < 0.01, *** < 0.001, all bound vs background ",
                            "(Fisher)")) +
     theme_classic(base_size = 7) +
     theme(strip.background = element_blank(), strip.text = element_text(face = "bold"), legend.position = "bottom",
           plot.title = element_text(face = "bold"), plot.title.position = "plot", legend.key.size = unit(0.3, "cm"),
           panel.spacing.x = unit(0.25, "cm"))
-  orl <- melt(out[, .(stage, category, group, Fisher = odds_ratio, padj_F = padj, adjusted = odds_ratio_adj,
-                      padj_A = padj_adj)], id.vars = c("stage", "category", "group"),
-              measure.vars = list(c("Fisher", "adjusted"), c("padj_F", "padj_A")), variable.name = "test",
-              value.name = c("or", "padj"))
-  orl[, test := factor(c("Fisher", "adjusted")[as.integer(test)], levels = c("Fisher", "adjusted"))]
-  orl[, `:=`(l2 = pmax(pmin(log2(or), 1.5), -1.5), lab = star(padj), group = factor(as.character(group), levels = rev(CL)))]
-  pb2 <- ggplot(orl, aes(category, group, fill = l2)) + geom_tile(colour = "white", linewidth = 0.4) +
-    geom_text(aes(label = lab), size = 2, vjust = 0.75) +
-    facet_grid(test ~ stage) +
-    scale_fill_gradient2(low = "#2166ac", mid = "#f7f7f7", high = "#b2182b", limits = c(-1.5, 1.5),
-                         name = "log2 odds ratio\nvs background") +
-    labs(x = NULL, y = NULL, subtitle = paste0("odds ratio vs background per category. Fisher = Fisher's exact test; ",
-                                               "adjusted = logistic regression with\nlog2(1 + ABC elements of the gene) and ",
-                                               "mean logCPM as covariates. * BH FDR < 0.05, ** < 0.01, *** < 0.001\n",
-                                               "(BH within a category, over cluster x stage)")) +
-    theme_minimal(base_size = 7) +
-    theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 40, hjust = 1),
-          strip.text = element_text(face = "bold"), legend.key.size = unit(0.3, "cm"))
-  p <- pa / pb2 + plot_layout(heights = c(1, 1.5))
-  ggsave(file.path(od, "isl1_binding_mode.pdf"), p, width = 6.2, height = 6.4, useDingbats = FALSE)
+  # bar plot only (user, 2026-11-24: "make the bar plot only, keep the current size"): stage panels fixed at the size
+  # they had above the odds-ratio tiles (1.32 x 1.58 in); the odds ratios stay in binding_mode.tsv
+  ga <- ggplotGrob(pa); pp <- ga$layout[grepl("^panel", ga$layout$name), ]
+  for (i in unique(pp$l)) ga$widths[i] <- unit(1.32, "in")
+  for (i in unique(pp$t)) ga$heights[i] <- unit(1.58, "in")
+  w <- grid::convertWidth(sum(ga$widths), "in", valueOnly = TRUE); h <- grid::convertHeight(sum(ga$heights), "in", valueOnly = TRUE)
+  pdf(file.path(od, "isl1_binding_mode.pdf"), width = w, height = h, useDingbats = FALSE, bg = "white")
+  grid::grid.draw(ga); invisible(dev.off())
+  cat(sprintf("isl1_binding_mode.pdf: %.2f x %.2f in\n", w, h))
   cat("wrote", file.path(od, "isl1_binding_mode.pdf"), "\n")
 }
