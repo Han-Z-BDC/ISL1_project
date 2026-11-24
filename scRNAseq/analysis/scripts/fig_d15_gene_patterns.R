@@ -28,7 +28,8 @@ LIN <- c("beta", "alpha", "EC")
 LABEL_GENES <- c("ISL1", "PDX1", "FOXO1", "PBX3", "MEIS3", "PAX6", "LMO2", "NKX6-1", "MNX1", "ARX", "ETV1", "PAX4",
                  "MAFB", "NEUROD1", "NEUROD4", "LHX1", "FEV")
 pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$colour, pal$label)
-LCOL <- c(beta = unname(pal["SC_beta"]), alpha = unname(pal["SC_alpha"]), EC = unname(pal["SC_EC1"]))
+# lineage colours = the end states on the D15 endocrine UMAP (user, 2026-11-24): pre_beta2, pre_alpha, pre_EC
+LCOL <- c(beta = unname(pal["pre_beta2"]), alpha = unname(pal["pre_alpha"]), EC = unname(pal["pre_EC"]))
 n_fmt <- function(n) trimws(format(as.integer(n), big.mark = ","))
 
 cl <- fread(file.path(GP, "gene_patterns_k10.csv"), select = c("gene", "cluster"))
