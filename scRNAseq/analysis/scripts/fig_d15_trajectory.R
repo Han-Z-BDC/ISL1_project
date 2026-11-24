@@ -16,7 +16,8 @@
 #   3b ko_stop_celltypes.pdf   cells per pseudotime bin stacked by subcluster, per lineage, control / KO
 #   3 ko_stop_density.pdf         pseudotime density on each lineage (curve weight >= 0.5), control vs KO; condiments
 #                                 progression statistic per lineage; dashed = KO 95th percentile
-#   4 cellrank_fates_umap.pdf     fate probability per end state (rows) on the UMAP, control | KO
+#   4 cellrank_fates_umap.pdf     fate probability per end state (rows) on the UMAP, control | KO; nodes + arrows of
+#                                 that end state's Slingshot path per genotype (dashed circle = < 20 cells)
 #   5 cellrank_fate_heatmap.pdf   mean fate probability per subcluster x genotype
 #   6 cellrank_end_states.pdf     data-driven macrostates of the all-cell, control-only and KO-only runs (terminal filled)
 #   7 alpha_bias_umap.pdf, alpha_bias_hist.pdf   P(alpha) / (P(alpha) + P(beta)) of ENP1, ENP2, ENP_FEV_high,
@@ -244,17 +245,67 @@ fl[, fate := factor(sprintf("%s (%s)", END_NAME[as.character(fate)], fate), leve
 fl[, gpanel := factor(GENO[genotype], levels = GENO)]
 fbg <- fl[, .(UMAP1, UMAP2, gpanel = factor(GENO[setdiff(names(GENO), genotype)], levels = GENO)), by = .(genotype, fate)]
 setorder(fl, p)
+# lineage nodes on the fate panels (user, 2026-11-24): only the Slingshot path ending at that panel's end state, per
+# genotype: node = that genotype's subcluster at its median UMAP position, area = that genotype's cells (one scale for
+# all panels), label colour with a white outline, dark arrows with a white outline (user, 2026-11-24: bigger and
+# clearer when small: nodes max size 10, dashed circles 1 mm line); a subcluster with < MIN_NODE cells of
+# that genotype (KO: pre_alpha, pre_beta2, pre_delta = 0; control: KO_only = 11) = dashed empty circle at the other
+# genotype's position, with a dashed arrow into it
+MIN_NODE <- 20
+gc <- x[, .(UMAP1 = median(UMAP1), UMAP2 = median(UMAP2), n = .N), by = .(label, genotype)]
+NODE_MAX <- gc[, max(n)]
+lin_of <- setNames(names(lend), lend)   # end subcluster -> lineage
+nodes <- rbindlist(lapply(ends, function(e) rbindlist(lapply(names(GENO), function(gt) {
+  pth <- paths[[lin_of[[e]]]]
+  rbindlist(lapply(seq_along(pth), function(i) {
+    own <- gc[label == pth[i] & genotype == gt]; oth <- gc[label == pth[i] & genotype != gt]
+    ok <- nrow(own) == 1 && own$n >= MIN_NODE
+    src <- if (ok) own else oth
+    data.table(fate = sprintf("%s (%s)", END_NAME[[e]], e), genotype = gt, step = i, label = pth[i],
+               UMAP1 = src$UMAP1, UMAP2 = src$UMAP2, n = if (ok) own$n else 0L, present = ok)
+  }))
+}))))
+nodes[, `:=`(fate = factor(fate, levels(fl$fate)), gpanel = factor(GENO[genotype], levels = GENO))]
+R_MISS <- 2.4 / 60 * 2 * half   # dashed circle radius: 2.4 mm on the 6 cm panel
+NODE_SIZE_MAX <- 10
+MM <- 2 * half / (PANEL_CM * 10)   # data units per mm on the panel
+# arrows run from edge to edge of the nodes (node radius ~ 0.41 mm per size unit + outline, 0.5 mm gap)
+nodes[, r := fifelse(present, (0.41 * NODE_SIZE_MAX * sqrt(n / NODE_MAX) + 0.4) * MM, R_MISS)]
+edges <- nodes[, {
+  i <- seq_len(.N - 1)
+  dx <- UMAP1[i + 1] - UMAP1[i]; dy <- UMAP2[i + 1] - UMAP2[i]; d <- sqrt(dx^2 + dy^2)
+  s0 <- (r[i] + 0.3 * MM) / d; s1 <- 1 - (r[i + 1] + 0.5 * MM) / d
+  .(x0 = UMAP1[i] + s0 * dx, y0 = UMAP2[i] + s0 * dy, x1 = UMAP1[i] + s1 * dx, y1 = UMAP2[i] + s1 * dy,
+    dashed = !present[i + 1], keep = s1 > s0)
+}, by = .(fate, genotype, gpanel)][keep == TRUE]   # nodes that touch get no arrow
+node_layers <- function(nd, ed) list(
+  # arrows with a white outline (user, 2026-11-24): a wider white copy underneath, then the dark arrow
+  geom_segment(data = ed, aes(x0, y0, xend = x1, yend = y1), linewidth = 2.1, colour = "white", lineend = "round",
+               arrow = arrow(length = unit(0.26, "cm"), type = "closed")),
+  geom_segment(data = ed[dashed == FALSE], aes(x0, y0, xend = x1, yend = y1), linewidth = 0.9, colour = "grey15",
+               arrow = arrow(length = unit(0.2, "cm"), type = "closed")),
+  geom_segment(data = ed[dashed == TRUE], aes(x0, y0, xend = x1, yend = y1), linewidth = 0.8, colour = "grey15",
+               linetype = "22", arrow = arrow(length = unit(0.2, "cm"), type = "open")),
+  ggforce::geom_circle(data = nd[present == FALSE], aes(x0 = UMAP1, y0 = UMAP2, r = R_MISS), inherit.aes = FALSE,
+                       colour = "grey10", linetype = "22", linewidth = 1, fill = NA),
+  geom_point(data = nd[present == TRUE], aes(UMAP1, UMAP2, fill = label, size = n), shape = 21, colour = "white",
+             stroke = 1.1),
+  scale_fill_manual(values = pal, guide = "none"),
+  scale_size_area(max_size = NODE_SIZE_MAX, limits = c(0, NODE_MAX), guide = "none"))
 p <- ggplot(fl, aes(UMAP1, UMAP2)) +
   geom_point(data = fbg, colour = GREY, size = POINT_SIZE, stroke = 0) +
-  geom_point(aes(colour = p), size = POINT_SIZE, stroke = 0) +
+  geom_point(aes(colour = p), size = POINT_SIZE, stroke = 0) + node_layers(nodes, edges) +
   facet_grid(fate ~ gpanel, switch = "y") + FATE_SCALE + umap_theme +
   theme(strip.text.y.left = element_text(angle = 0, hjust = 1)) +
-  labs(title = "CellRank fate probabilities (pseudotime kernel, run on all cells)")
+  labs(title = "CellRank fate probabilities (pseudotime kernel, run on all cells)",
+       subtitle = sprintf(paste0("nodes: the Slingshot path to that end state, per genotype (median position, area = cells)\n",
+                                 "dashed circle = < %d cells of that genotype"), MIN_NODE))
 save_fixed(p, file.path(PLOT, "cellrank_fates_umap.pdf"))
 for (f in levels(fl$fate)) for (gt in names(GENO)) core_png(list(
   geom_point(data = fl[fate == f & genotype != gt], aes(UMAP1, UMAP2), colour = GREY, size = POINT_SIZE,
              stroke = 0),
   geom_point(data = fl[fate == f & genotype == gt], aes(UMAP1, UMAP2, colour = p), size = POINT_SIZE, stroke = 0),
+  node_layers(nodes[fate == f & genotype == gt], edges[fate == f & genotype == gt]),
   FATE_SCALE), file.path(PNG, sprintf("cellrank_fate_%s_%s.png", gsub("[^A-Za-z0-9_]", "", sub(" .*", "", f)), gt)))
 
 # 5. mean fate per subcluster x genotype

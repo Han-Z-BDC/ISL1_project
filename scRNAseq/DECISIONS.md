@@ -814,6 +814,21 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   that genotype's pseudotime on the lineage (same cells; KO line = the dashed line of ko_stop_density.pdf), KO in red
   on beta / alpha / delta, control in blue on EC / KO_only; none on PHOX2A+.
 
+- CellRank fate UMAP nodes (user, 2026-11-24: "add node ... only for the lineage of interest in that particular
+  heatmap, separately for control and KO"; "dashed circles for missing nodes"): `cellrank_fates_umap.pdf` and the 12
+  `png/cellrank_fate_*` cores draw, per panel, the Slingshot path ending at that end state (e.g. alpha: ENP1 > ENP2 >
+  ENP_FEV_high > pre_alpha_KO > pre_alpha). Nodes per genotype: that genotype's cells of the subcluster at their median
+  UMAP position, area = that genotype's cells (one scale for all panels, max = largest group), label colour with a
+  white outline, arrows as the lineage tree. Subcluster with < 20 cells of that genotype = dashed empty circle at the
+  other genotype's position with a dashed arrow into it (KO: pre_alpha, pre_beta2, pre_delta = 0 cells; control:
+  KO_only = 11). On the lineage tree, node area = cells of the subcluster (both genotypes).
+
+- Fate UMAP nodes, legibility at small size (user, 2026-11-24: nodes bigger, empty circle thicker, arrows more obvious
+  with a white outline; previewed and approved): node area max size 10 (was 7), white outline 1.1; dashed circle 1 mm
+  line, 2.4 mm radius, near-black; arrows grey15, 0.9 line, 0.2 cm head, on a white copy 2.1 wide (white outline);
+  arrows now run from node edge to node edge (no arrow where nodes touch: KO EC panel, ENP_FEV_high / pre_beta1 /
+  pre_EC).
+
 ## Open items
 
 - Step 1.4 does not yet count the NF > 0.6 cells removed at the per-day merge.
