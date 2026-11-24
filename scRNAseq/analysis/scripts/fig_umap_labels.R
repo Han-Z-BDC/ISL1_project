@@ -12,8 +12,9 @@
 #   at PNG_DPI, white background: plot/D22D40/umap_core/umap_{day}.png, umap_{day}_ctr.png, umap_{day}_KO.png
 # D15 endocrine compartment (user, 2026-11-22): "day" D15_endocrine = the 7.1d subset (5,994 cells) on its own 2D
 #   UMAP, labels = r0.6 names (study_config/annotation/D15_endocrine_r0.6.tsv) from reports/labels/D15/
-#   endocrine_subclusters.csv; colours: pre_alpha / pre_alpha_KO, pre_beta1 / pre_beta2 and pre_EC are lighter shades
-#   of SC_alpha, SC_beta and SC_EC1 (pre_delta: lighter SC_delta); the ENP states and KO_only get distinct hues.
+#   endocrine_subclusters.csv; colours (label_colours.tsv, user 2026-11-23): dark / saturated hues of their own, none
+#   from the D22 SC_alpha / SC_beta / SC_EC1 / SC_EC2 blue, orange, red, purple, so they stay distinct on the
+#   D15 + D22 integration UMAP.
 #   Legend in ENDO_ORDER (lineage order). PLOT_DIR=plot/D15 Rscript analysis/scripts/fig_umap_labels.R D15_endocrine
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_umap_labels.R D22 D40
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(grid) })
@@ -21,6 +22,7 @@ suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(
 PLOT <- Sys.getenv("PLOT_DIR", "plot/D22D40"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 PANEL_CM <- 6          # side of the square plotting region, all UMAPs
 POINT_SIZE <- 0.6
+POINT_SIZE_ENDO <- 1.1   # D15_endocrine (5,994 cells; user, 2026-11-23: dots larger, 0.6 looked too sparse)
 GREY <- "#e3e3e3"      # the other genotype on the split UMAPs
 GENO <- c(ctr = "Control", KO = "ISL1 KO")
 SEED <- 1234
@@ -88,6 +90,7 @@ save_fixed <- function(p, f) {
 }
 
 for (day in days) {
+  POINT_SIZE <- if (day == "D15_endocrine") POINT_SIZE_ENDO else 0.6
   x <- load_day(day)
   p <- ggplot(x, aes(UMAP1, UMAP2, colour = label)) + geom_point(size = POINT_SIZE, stroke = 0) +
     labs(title = sprintf("%s (%s cells)", sub("_", " ", day), n_fmt(nrow(x))))

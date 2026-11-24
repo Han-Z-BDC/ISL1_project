@@ -765,6 +765,55 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       partly be contaminating mesenchymal RNA in the control samples; the cilium genes look like a control EC1 feature
       lost in KO.
 
+- D15 endocrine UMAP dot size (user, 2026-11-23: "make the dots a bit larger, the cell number is low, and look too
+  sparse"): `fig_umap_labels.R` uses point size 1.1 for `D15_endocrine` (was 0.6, still used for D22 / D40);
+  regenerated `plot/D15/umap_D15_endocrine{,_genotype}.pdf` and `plot/D15/umap_core/umap_D15_endocrine{,_ctr,_KO}.png`.
+
+- D15 trajectory figures, dot size and UMAP cores (user, 2026-11-23: "same for the trajectory plots"; "I also need png of
+  the UMAP core without any labels"): `fig_d15_trajectory.R` POINT_SIZE 1.1 (was 0.6, as the D15 endocrine UMAPs);
+  new PNG cores in `plot/D15/trajectory/png/` (6 cm at 600 dpi, plotting square only: no axes, title, legend, strip or
+  text labels; Slingshot curves and tree arrows kept): `slingshot_umap_{ctr,KO}`, `lineage_tree`,
+  `cellrank_fate_{beta,alpha,EC,PHOX2A,KO_only,delta}_{ctr,KO}`, `alpha_bias_umap_{ctr,KO}` (17 files). Gene-dynamics
+  legend order pinned to Control, ISL1 KO (`breaks`; it flipped when run on the Mac). Run locally: the 7.3a / 7.3d /
+  7.3i inputs copied from `day_analysis/D15/trajectory/` to `reports/trajectory/D15/` and the 50-gene
+  `figure_data/D15_genes.csv.gz` to `reports/figure_data/` (git-ignored); all 9 PDFs regenerated, data unchanged.
+
+- D15 endocrine colours redone (user, 2026-11-23: "need to be darker, too light on white"; "will integrate these
+  cells with D22 alpha, beta, EC1 and EC2 ... different enough from the existing D22 cell colors"). The earlier
+  lighter / darker shades of the D22 alpha / beta / EC1 hues were not distinguishable on the D15 + D22 scVI UMAP
+  (`integration_D15_D22_endocrine_alpha_beta_EC/umap_scvi.csv`, previewed). New colours in `label_colours.tsv`, hues
+  not used by D22: ENP1 #9a9a00, ENP2 #1b7837, ENP_FEV_high #e7298a, ENP_PHOX2A+ #6e6e6e, pre_EC #3c3cff, pre_beta1
+  #e0b000, pre_beta2 #965a00, pre_alpha #00b3c4, pre_alpha_KO #3cb44b, pre_delta #00695c, KO_only #000000. CIEDE2000
+  distance to SC_alpha / SC_beta / SC_EC1 / SC_EC2 >= 21 for every label in the integration; closest D15 pair
+  ENP1 / pre_beta1 (15.8, far apart on the UMAP). Redrawn: D15 endocrine UMAPs + cores, composition_*_D15_endocrine,
+  dotplot_D15_endocrine, all trajectory figures + cores. Alpine outputs that use these colours (7.2d integration
+  report, 7.4c scVelo) not rerun.
+  Revised the same day (user: "pre_EC, pre_beta2 and KO_only are too close"; lighter is fine with good contrast on
+  white): pre_EC #5c0033 -> #3c3cff (blue-violet, contrast 6.4:1 on white), pre_beta2 #7f5200 -> #965a00 (golden brown,
+  5.2:1); KO_only stays black. Chosen over a dusty rose pre_EC (#b48787), which was lost among SC_EC2 / ENP_FEV_high on
+  the scVI UMAP. Same figures redrawn.
+
+- D15 Slingshot UMAP, all cells (user, 2026-11-23: "the slingshot trajectory UMAP of the full UMAP, not split by
+  genotype, and png of the core"): `fig_d15_trajectory.R` adds `plot/D15/trajectory/slingshot_umap_all.pdf` (one
+  6 cm panel, all 5,994 cells by label, lineage curves with end names) and `png/slingshot_umap_all.png` (core, no
+  labels; curves kept).
+
+- D15 lineage tree background (user, 2026-11-23: background cells "more obvious"): four options previewed (darker grey,
+  pale label colours, each with / without outlined nodes); user chose darker grey + outlined nodes. `lineage_tree.pdf`
+  and `png/lineage_tree.png`: background cells #d0d0d0 (was #f0f0f0), subcluster nodes filled with a 0.8 white outline.
+
+- D15 cell types along pseudotime and fate UMAP background (user, 2026-11-23). (a) "distribution of cell types along
+  the pseudotime for ctrl and KO": three versions previewed (counts, share per bin, per-subcluster strips); user chose
+  counts. `fig_d15_trajectory.R` 3b -> `plot/D15/trajectory/ko_stop_celltypes.pdf`: same cells as ko_stop_density
+  (curve weight >= 0.5, so the shared ENP trunk is in every lineage), 20 equal-width pseudotime bins per lineage,
+  cells per bin stacked by subcluster, control / KO rows. (b) `cellrank_fates_umap.pdf` and its PNG cores: the
+  other genotype's cells in GREY #e3e3e3 at full point size (was #f2f2f2 at 0.8x), as `slingshot_umap.pdf`.
+
+- `ko_stop_celltypes.pdf` stop lines (user, 2026-11-23: "a line across ctr and KO at where KO cells stop for alpha, beta
+  and delta and where ctr cells stop for EC and KO_only"): dashed line across both rows at the 95th percentile of
+  that genotype's pseudotime on the lineage (same cells; KO line = the dashed line of ko_stop_density.pdf), KO in red
+  on beta / alpha / delta, control in blue on EC / KO_only; none on PHOX2A+.
+
 ## Open items
 
 - Step 1.4 does not yet count the NF > 0.6 cells removed at the per-day merge.

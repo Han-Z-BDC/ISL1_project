@@ -11,7 +11,9 @@
 #   reports/figure_data/D15_genes.csv.gz           (fig_export_genes.py D15; log1p, all D15 cells)
 # Outputs in plot/D15/trajectory/ (git-ignored):
 #   1 slingshot_umap.pdf          lineage curves on the endocrine UMAP, cells by label, control | KO
+#     slingshot_umap_all.pdf      the same, all cells on one panel (not split by genotype)
 #   2 lineage_tree.pdf            subclusters at their UMAP centres (size = cells), Slingshot lineage edges, arrows
+#   3b ko_stop_celltypes.pdf   cells per pseudotime bin stacked by subcluster, per lineage, control / KO
 #   3 ko_stop_density.pdf         pseudotime density on each lineage (curve weight >= 0.5), control vs KO; condiments
 #                                 progression statistic per lineage; dashed = KO 95th percentile
 #   4 cellrank_fates_umap.pdf     fate probability per end state (rows) on the UMAP, control | KO
@@ -19,6 +21,8 @@
 #   6 cellrank_end_states.pdf     data-driven macrostates of the all-cell, control-only and KO-only runs (terminal filled)
 #   7 alpha_bias_umap.pdf, alpha_bias_hist.pdf   P(alpha) / (P(alpha) + P(beta)) of ENP1, ENP2, ENP_FEV_high,
 #                                 pre_alpha_KO (7.3i); x = P(alpha) + P(beta) < 0.05
+#   png/ UMAP cores (no labels): slingshot_umap_{ctr,KO,all}, lineage_tree, cellrank_fate_{end}_{ctr,KO},
+#     alpha_bias_umap_{ctr,KO}
 #   8 gene_dynamics.pdf           binned curves along the beta, alpha and EC lineages, control (solid) vs KO (dashed);
 #                                 as 7.3h: curve weight >= 0.5, 10 equal-width bins, curve-weighted mean log1p, 3-bin
 #                                 moving average, no line where a genotype has < 15 cells in the bin
@@ -26,7 +30,8 @@
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(grid) })
 PLOT <- Sys.getenv("PLOT_DIR", "plot/D15/trajectory"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
 TR <- "reports/trajectory/D15"
-PANEL_CM <- 6; POINT_SIZE <- 0.6; GREY <- "#e3e3e3"; SEED <- 1234
+PANEL_CM <- 6; POINT_SIZE <- 1.1; GREY <- "#e3e3e3"; SEED <- 1234
+# POINT_SIZE 1.1 (was 0.6; user, 2026-11-23: dots larger, 5,994 cells looked too sparse; as fig_umap_labels.R D15_endocrine)
 GENO <- c(ctr = "Control", KO = "ISL1 KO")
 GCOL <- c(ctr = "#2166ac", KO = "#d6604d")
 ENDO_ORDER <- c("ENP1", "ENP2", "ENP_FEV_high", "ENP_PHOX2A+", "pre_EC", "pre_beta1", "pre_beta2", "pre_alpha",
@@ -78,6 +83,16 @@ save_fixed <- function(p, f) {   # every panel PANEL_CM x PANEL_CM (as fig_umap_
   pdf(f, width = w, height = h, useDingbats = FALSE); grid.draw(g); invisible(dev.off())
   cat(sprintf("%s: page %.2f x %.2f in, %d panel(s)\n", f, w, h, nrow(pp)))
 }
+# UMAP cores (user, 2026-11-23: "png of the UMAP core without any labels"): one PNG per panel, the plotting square only
+# (no axes, title, legend, strip or text labels; curves / tree arrows kept), PANEL_CM x PANEL_CM at PNG_DPI, white
+# background, same limits and point size as the PDF panels, in plot/D15/trajectory/png/
+PNG_DPI <- 600
+core_png <- function(layers, f) {
+  dir.create(dirname(f), showWarnings = FALSE, recursive = TRUE)
+  p <- ggplot() + layers + umap_theme + theme_void() + theme(legend.position = "none", plot.margin = margin(0, 0, 0, 0))
+  ggsave(f, p, width = PANEL_CM, height = PANEL_CM, units = "cm", dpi = PNG_DPI, bg = "white")
+}
+PNG <- file.path(PLOT, "png")
 
 # ---- Slingshot inputs
 sl <- fread(file.path(TR, "slingshot_pc30_cells.csv")); setnames(sl, 1, "barcode")
@@ -101,6 +116,27 @@ p <- ggplot(x, aes(UMAP1, UMAP2)) +
   facet_wrap(~panel, nrow = 1) + label_scale() + umap_theme +
   labs(title = "D15 endocrine: Slingshot lineages (PCs 1-30, start ENP1, fixed ends)")
 save_fixed(p, file.path(PLOT, "slingshot_umap.pdf"))
+for (gt in names(GENO)) core_png(list(
+  geom_point(data = x[genotype != gt], aes(UMAP1, UMAP2), colour = GREY, size = POINT_SIZE, stroke = 0),
+  geom_point(data = x[genotype == gt], aes(UMAP1, UMAP2, colour = label), size = POINT_SIZE, stroke = 0),
+  geom_path(data = cv, aes(UMAP1, UMAP2, group = lineage), colour = "black", linewidth = 0.55,
+            arrow = arrow(length = unit(0.12, "cm"), type = "closed")),
+  scale_colour_manual(values = pal)), file.path(PNG, sprintf("slingshot_umap_%s.png", gt)))
+# 1b. same, all cells together (user, 2026-11-23: "full UMAP, not split by genotype", plus PNG core)
+p <- ggplot(x, aes(UMAP1, UMAP2)) +
+  geom_point(aes(colour = label), size = POINT_SIZE, stroke = 0) +
+  geom_path(data = cv, aes(group = lineage), colour = "black", linewidth = 0.55,
+            arrow = arrow(length = unit(0.12, "cm"), type = "closed")) +
+  geom_label(data = ce, aes(label = name), size = 2.2, label.size = 0, label.padding = unit(0.06, "lines"),
+             fill = "white", alpha = 0.85, nudge_y = 0.35) +
+  label_scale() + umap_theme +
+  labs(title = sprintf("D15 endocrine: Slingshot lineages, all cells (%s)", n_fmt(nrow(x))))
+save_fixed(p, file.path(PLOT, "slingshot_umap_all.pdf"))
+core_png(list(
+  geom_point(data = x, aes(UMAP1, UMAP2, colour = label), size = POINT_SIZE, stroke = 0),
+  geom_path(data = cv, aes(UMAP1, UMAP2, group = lineage), colour = "black", linewidth = 0.55,
+            arrow = arrow(length = unit(0.12, "cm"), type = "closed")),
+  scale_colour_manual(values = pal)), file.path(PNG, "slingshot_umap_all.png"))
 
 # 2. lineage tree: subclusters at their UMAP medians, edges along the Slingshot paths
 cen <- x[, .(UMAP1 = median(UMAP1), UMAP2 = median(UMAP2), n = .N), by = label]
@@ -108,16 +144,29 @@ ed <- unique(rbindlist(lapply(paths, function(p) data.table(from = head(p, -1), 
 ed <- merge(merge(ed, cen[, .(from = label, x0 = UMAP1, y0 = UMAP2)], by = "from"),
             cen[, .(to = label, x1 = UMAP1, y1 = UMAP2)], by = "to")
 ed[, `:=`(x1s = x0 + 0.82 * (x1 - x0), y1s = y0 + 0.82 * (y1 - y0))]
+# background cells #d0d0d0 and nodes with a white outline (user, 2026-11-23: background "more obvious"; chose the
+# darker grey + outlined nodes of four previewed options)
+TREE_BG <- "#d0d0d0"
+node <- function() geom_point(data = cen, aes(UMAP1, UMAP2, fill = label, size = n), shape = 21, colour = "white",
+                              stroke = 0.8)
+nt <- table(x$label)
 p <- ggplot() +
-  geom_point(data = x, aes(UMAP1, UMAP2), colour = "#f0f0f0", size = POINT_SIZE, stroke = 0) +
+  geom_point(data = x, aes(UMAP1, UMAP2), colour = TREE_BG, size = POINT_SIZE, stroke = 0) +
   geom_segment(data = ed, aes(x0, y0, xend = x1s, yend = y1s), linewidth = 0.6, colour = "grey30",
                arrow = arrow(length = unit(0.14, "cm"), type = "closed")) +
-  geom_point(data = cen, aes(UMAP1, UMAP2, colour = label, size = n)) +
+  node() +
   geom_label(data = cen, aes(UMAP1, UMAP2, label = label), size = 2.1, vjust = -0.9, label.size = 0,
              label.padding = unit(0.05, "lines"), fill = "white", alpha = 0.8) +
-  scale_size_area(max_size = 7, guide = "none") + label_scale() + umap_theme +
+  scale_size_area(max_size = 7, guide = "none") +
+  scale_fill_manual(values = pal, name = NULL, labels = function(b) sprintf("%s (%s)", b, n_fmt(nt[b]))) +
+  guides(fill = guide_legend(override.aes = list(size = 2.5, stroke = 0.4))) + umap_theme +
   labs(title = "Slingshot lineage tree", subtitle = "subclusters at their UMAP centres, size = cells")
 save_fixed(p, file.path(PLOT, "lineage_tree.pdf"))
+core_png(list(
+  geom_point(data = x, aes(UMAP1, UMAP2), colour = TREE_BG, size = POINT_SIZE, stroke = 0),
+  geom_segment(data = ed, aes(x0, y0, xend = x1s, yend = y1s), linewidth = 0.6, colour = "grey30",
+               arrow = arrow(length = unit(0.14, "cm"), type = "closed")),
+  node(), scale_size_area(max_size = 7), scale_fill_manual(values = pal)), file.path(PNG, "lineage_tree.png"))
 
 # 3. where KO stops: pseudotime density per lineage, control vs KO
 te <- fread(file.path(TR, "slingshot_pc30_tests.csv"))
@@ -151,6 +200,41 @@ p <- ggplot(dd, aes(pt, fill = genotype, colour = genotype)) +
 ggsave(file.path(PLOT, "ko_stop_density.pdf"), p, width = 7.8, height = 5.2, useDingbats = FALSE)
 cat("wrote", file.path(PLOT, "ko_stop_density.pdf"), "\n")
 
+# 3b. cell types along each lineage (user, 2026-11-23: "distribution of cell types along the pseudotime for ctrl and
+# KO"; option 1 of three previewed): same cells as 3 (curve weight >= 0.5, so the shared ENP trunk is in every
+# lineage), Slingshot pseudotime in 20 equal-width bins per lineage, bars = cells per bin stacked by subcluster,
+# control (top) and KO (bottom)
+NB <- 20
+dl <- rbindlist(lapply(names(paths), function(L) {
+  sl[get(paste0("w_", L)) >= 0.5 & !is.na(get(paste0("pt_", L))), .(barcode, lineage = L, genotype, pt = get(paste0("pt_", L)))]
+}))
+dl <- merge(dl, x[, .(barcode, label)], by = "barcode")
+dl[, `:=`(lo = min(pt), w = (max(pt) - min(pt)) / NB), by = lineage]
+dl[, bin := pmin(NB, floor((pt - lo) / w) + 1)][, mid := lo + (bin - 0.5) * w]
+cb <- dl[, .N, by = .(lineage, genotype, bin, mid, w, label)]
+cb[, lin := factor(lname[lineage], lname[names(paths)])][, geno := factor(GENO[genotype], GENO)]
+# stop lines (user, 2026-11-23): where the KO cells stop on the beta, alpha and delta lineages and where the control
+# cells stop on the EC and KO_only lineages = 95th percentile of that genotype's pseudotime (as the dashed line in 3),
+# drawn across both rows, coloured by genotype
+STOP_BY <- c(beta = "KO", alpha = "KO", delta = "KO", EC = "ctr", KO_only = "ctr")
+sp <- rbindlist(lapply(names(paths), function(L) {
+  g <- STOP_BY[END_NAME[[lend[[L]]]]]; if (is.na(g)) return(NULL)
+  data.table(lineage = L, genotype = g, q = quantile(dl[lineage == L & genotype == g, pt], 0.95))
+}))
+sp[, lin := factor(lname[lineage], levels(cb$lin))]
+p <- ggplot(cb, aes(mid, N, fill = label)) + suppressWarnings(geom_col(aes(width = w * 0.95))) +   # width is used
+  geom_vline(data = sp, aes(xintercept = q, colour = genotype), linetype = "dashed", linewidth = 0.6) +
+  scale_colour_manual(values = GCOL, breaks = names(GENO), labels = c(ctr = "control stops (95th pct)", KO = "KO stops (95th pct)"),
+                      name = NULL) +
+  facet_grid(geno ~ lin, scales = "free_x") + scale_fill_manual(values = pal, name = NULL) +
+  labs(x = "Slingshot pseudotime (cells with curve weight >= 0.5)", y = "cells per bin",
+       title = "Cell types along each lineage, control vs KO",
+       subtitle = sprintf("%d equal-width pseudotime bins per lineage; the shared ENP trunk appears in every lineage", NB)) +
+  theme_classic(base_size = 8) + theme(strip.background = element_blank(), strip.text = element_text(face = "bold"),
+                                       plot.title = element_text(face = "bold"), legend.key.size = unit(0.3, "cm"))
+ggsave(file.path(PLOT, "ko_stop_celltypes.pdf"), p, width = 11, height = 4.2, useDingbats = FALSE)
+cat("wrote", file.path(PLOT, "ko_stop_celltypes.pdf"), "\n")
+
 # 4. CellRank fates on the UMAP (pseudotime kernel, run on all cells)
 fa <- fread(file.path(TR, "cellrank_pseudotime_fates.csv")); setnames(fa, 1, "barcode")
 ends <- intersect(names(END_NAME), names(fa))
@@ -161,12 +245,17 @@ fl[, gpanel := factor(GENO[genotype], levels = GENO)]
 fbg <- fl[, .(UMAP1, UMAP2, gpanel = factor(GENO[setdiff(names(GENO), genotype)], levels = GENO)), by = .(genotype, fate)]
 setorder(fl, p)
 p <- ggplot(fl, aes(UMAP1, UMAP2)) +
-  geom_point(data = fbg, colour = "#f2f2f2", size = POINT_SIZE * 0.8, stroke = 0) +
+  geom_point(data = fbg, colour = GREY, size = POINT_SIZE, stroke = 0) +
   geom_point(aes(colour = p), size = POINT_SIZE, stroke = 0) +
   facet_grid(fate ~ gpanel, switch = "y") + FATE_SCALE + umap_theme +
   theme(strip.text.y.left = element_text(angle = 0, hjust = 1)) +
   labs(title = "CellRank fate probabilities (pseudotime kernel, run on all cells)")
 save_fixed(p, file.path(PLOT, "cellrank_fates_umap.pdf"))
+for (f in levels(fl$fate)) for (gt in names(GENO)) core_png(list(
+  geom_point(data = fl[fate == f & genotype != gt], aes(UMAP1, UMAP2), colour = GREY, size = POINT_SIZE,
+             stroke = 0),
+  geom_point(data = fl[fate == f & genotype == gt], aes(UMAP1, UMAP2, colour = p), size = POINT_SIZE, stroke = 0),
+  FATE_SCALE), file.path(PNG, sprintf("cellrank_fate_%s_%s.png", gsub("[^A-Za-z0-9_]", "", sub(" .*", "", f)), gt)))
 
 # 5. mean fate per subcluster x genotype
 fs <- fread(file.path(TR, "cellrank_pseudotime_fate_summary.csv"))
@@ -225,6 +314,13 @@ p <- ggplot(x, aes(UMAP1, UMAP2)) +
   labs(title = "Alpha vs beta bias of the progenitors (CellRank, pseudotime kernel)",
        subtitle = "ENP1, ENP2, ENP_FEV_high, pre_alpha_KO; x = P(alpha) + P(beta) < 0.05")
 save_fixed(p, file.path(PLOT, "alpha_bias_umap.pdf"))
+abu <- merge(ab, x[, .(barcode, UMAP1, UMAP2)], by = "barcode")
+for (gt in names(GENO)) core_png(list(
+  geom_point(data = x[genotype == gt], aes(UMAP1, UMAP2), colour = GREY, size = POINT_SIZE, stroke = 0),
+  geom_point(data = abu[genotype == gt & S >= 0.05], aes(UMAP1, UMAP2, colour = bias), size = POINT_SIZE, stroke = 0),
+  geom_point(data = abu[genotype == gt & S < 0.05], aes(UMAP1, UMAP2), colour = "black", shape = 4, size = 0.6,
+             stroke = 0.3),
+  BIAS_SCALE), file.path(PNG, sprintf("alpha_bias_umap_%s.png", gt)))
 md <- ab[, .(m = median(bias, na.rm = TRUE), n = .N), by = .(lab, genotype)]
 md[, txt := sprintf("%s median %.2f (n %s)", GENO[genotype], m, n_fmt(n))]
 md[, genotype := factor(genotype, levels = names(GENO))]
@@ -273,7 +369,7 @@ p <- ggplot(cur, aes(mid, smooth, colour = lineage, linetype = genotype)) +
   geom_line(linewidth = 0.6, na.rm = TRUE) +
   facet_grid(gene ~ lineage, scales = "free", switch = "y") +
   scale_colour_manual(values = LCOL, guide = "none") +
-  scale_linetype_manual(values = c(ctr = "solid", KO = "22"), labels = GENO, name = NULL) +
+  scale_linetype_manual(values = c(ctr = "solid", KO = "22"), breaks = names(GENO), labels = GENO, name = NULL) +
   labs(x = "Slingshot pseudotime", y = "mean log1p (curve-weighted, 3-bin smoothed)",
        title = "Gene dynamics along the beta, alpha and EC lineages",
        subtitle = "control solid, ISL1 KO dashed; no line where a genotype has < 15 cells in the bin") +
