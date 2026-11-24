@@ -239,38 +239,36 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
       4 of the 8 genes 7.3f called beta-lost in both matchings (GRIN3A, SMC2, SLC7A2, AC109466.1) are among them, so
       they are line-wide differences rather than beta-specific (PDX1, ACVR1C, FOXO1, TENM2 are not). Window
       differences also partly reflect different label mixes of KO and control cells at the same pseudotime.
-  - 7.3h **gene patterns** (user, 2026-11-21): unbiased clustering only (no rule-based classes), binned curves now
-    (tradeSeq smoothers can replace them later), genes = **only the KO vs control trajectory results**: 7.3f stop calls
-    (pseudotime match), 7.3f "on after stop, missing in KO", 7.3g window calls (2,656 genes; CellRank programs are labels,
-    not a source; the 42 line-wide genes stay in, flagged). Curves: 10 equal-width pseudotime bins per lineage,
-    curve-weighted mean log1p, 3-bin moving average; bins with < 15 cells of a genotype left out (KO never reaches beta
-    / alpha bins 8-10). Features z-scored per gene across the 6 curves; k-means, k 4-20 by silhouette.
-    - First pass: silhouette is low at every k (0.23 at k = 4 down to 0.13), so the patterns are a continuum; k = 4
-      chosen (stable across seeds, ARI 0.995). C1 802 genes: rise late on the control beta and alpha lineages, not on
-      EC, KO never reaches them (GCG, SCG5, SCG3, GNAS, TTR, TENM2); C2 602: early progenitor genes falling on every
-      lineage (SOX4, DLK1, CDKN1C, TOX, DCC); C3 826: rise toward the EC end and mid beta / alpha, KO the same on EC
-      (CHGA, INS, CRYBA2); C4 426: transient mid-path peak that control turns off late on beta / alpha while KO stays
-      high (RUNX1T1, NEGR1, SCG2, C9orf16).
-    - Finer cuts (user, 2026-11-21: try k 8-10): `gene_patterns_k{8,9,10}.csv` (+ clusters, heatmaps, curves, and
-      `gene_pattern_split_k4_to_k*.csv`); k-means agreement across seeds 0.97 / 0.97 / 0.95. At k = 10: C1 370 rise late
-      toward beta (less alpha, little EC), KO flat (TTR, APOA2, ISL1, SCGN, CALB2, PTPRN2, TENM2); C2 148 lower in KO on
-      all three lineages from the start (13 line-wide; VIM, AFP, ID2, S100A11); C3 343 early progenitor genes falling in
-      both genotypes (SOX4, DLK1, CDKN1C, TOX, RFX6); C4 216 dip then late rise on alpha in control, KO no recovery
-      (CPE, RGS4, NPAS3, PTPRG); C5 324 alpha-only rise in control, KO starts but stops (GCG, SCG5, SCG3, GNAS, SLC30A8,
-      ALDH1A1, GAST); C6 130 high early in KO only (LDHA, SLC2A1, ZEB2, JPT1); C7 427 rise toward beta and the EC end in
-      both genotypes, KO follows (INS, CRYBA2, STMN2, APOA1); C8 255 mid-path rise that control turns off late on beta /
-      alpha while KO keeps rising, higher in KO on EC (CHGA, LMX1A, MNX1, FEV, NR0B1); C9 241 transient mid-path peak in
-      both, turned off late (RUNX1T1, SCG2, cilia genes); C10 202 rise on the EC branch, stronger in KO and up in KO at
-      the beta / alpha stop (PTHLH, NETO1, NTM, KCNJ3, BHMT, DUSP4) = "switched to EC in KO".
-    - **Working classification: k = 10** (user, 2026-11-21): `gene_patterns_k10.csv`, `gene_pattern_clusters_k10.csv`,
-      `gene_patterns_{curves,heatmap}_k10.png` (rerun: `sbatch analysis/scripts/7.3h_gene_patterns.sb 4,8,9,10`; the
-      plain-named files are the silhouette-best k = 4). To recheck with tradeSeq (7.3e) curves when they exist.
-    - TFs per cluster (user, 2026-11-21): human TF list = Lambert et al. 2018, Cell 172:650 ("The Human Transcription
-      Factors", humantfs.ccbr.utoronto.ca, TF_names_v_1.01.txt, 1,639 genes; downloaded 2026-11-21 with the user's OK,
-      CRLF removed) in `study_config/annotation/TF_names_v_1.01.txt`. 169 of the 2,656 genes are TFs (C1 19: ISL1, PDX1,
-      FOXO1, TBX3, PBX3, ...; C5 21: ARX, ETV1, PAX6, HHEX, MAF, NR2F1, ESRRG, MEF2C, ...; C8 16: FEV, LMX1A, MNX1, NR0B1,
-      ASCL1, CUX2, ...; C10 16: NEUROD4, TWIST1, HEY2, NFIA, TBX5, JUN, ...). LMO2 is not in the list (LIM-only, no
-      DNA-binding domain). Lists: scRNAseq/reports/trajectory/gene_patterns_k10/ (local, not in git).
+  - 7.3h **gene patterns** (user, 2026-11-21): unbiased clustering only (no rule-based classes), binned curves (tradeSeq
+    smoothers not used). **Genes = the 3,118 KO vs control trajectory genes** (`GENESET=pseudobulk`): the 7.3l
+    replicate-pseudobulk calls (curve, single window, past the stop, KO states) plus the 7.3m tradeSeq calls (29 "tS
+    only"); the KO-line-wide genes stay in, flagged (`line_wide`, 396 of 3,118). Curves: 10 equal-width pseudotime bins
+    per lineage (beta, alpha, EC; curve weight >= 0.5), curve-weighted mean log1p, 3-bin moving average; bins with
+    < 15 cells of a genotype left out (bin 1 of every curve and bin 2 of both EC curves: sparse curve starts; KO beta /
+    alpha bins 8-10: 0 KO cells; control EC bin 10: 6 cells). Features z-scored per gene across the 6 curves; k-means,
+    k 4-20.
+    - Silhouette is low at every k (0.25 at k = 4, 0.17 at k = 10): the patterns are a continuum and the clusters are
+      summaries. k = 10 agreement across seeds 0.94.
+    - **Working classification: k = 10** (user, 2026-11-21). Clusters (genes; TFs, Lambert 2018):
+      C1 352 late rise toward beta (less alpha), KO flat and lower (ISL1, PDX1, FOXO1, PBX3, LMO2, TBX3; TENM2, CALB2,
+      ACVR1C); C2 177 high at the curve start in control, KO lower from the start, many line-wide (SOX2, HMGA2,
+      TFAP2B; H19); C3 347 rise on all three lineages, KO follows control (MAFB, IRX2, GLIS3; CHGA, INS, TTR, SCG3);
+      C4 369 late alpha rise, KO starts but stops (ARX, ETV1, PAX6, HHEX, MAF, ESRRG; GCG, SCG5, GNAS, SLC30A8);
+      C5 239 dip then late rise on alpha (less beta), KO no recovery (MEIS1, MEIS3, NPAS3, TCF4; CPE, RGS4);
+      C6 410 early progenitor genes falling in both genotypes (NEUROG3, SOX4, RFX6, PAX4, HES1; DCC, CDKN1C, TOX);
+      C7 253 transient mid-path peak that control turns off late on beta / alpha, KO keeps it at the stop (FEV, CUX2;
+      SCG2, NEGR1, PEG10); C8 469 rise to the EC end in both genotypes, mid-path peak on beta / alpha kept in KO
+      (LMX1A, MNX1, NKX6-1, NEUROD4, TWIST1, NR0B1; CRYBA2, APOA1); C9 313 transient mid-path peak in both, a little
+      higher in KO (INSM1, NKX2-2; TUBB3, CDKAL1); C10 189 higher in KO on every lineage, strong EC rise in KO (LHX1,
+      ZEB1, MYC, OTX2; DUSP4, BHMT, NTM, LDHA). TFs per cluster 19 / 12 / 18 / 22 / 15 / 35 / 11 / 30 / 10 / 15.
+    - Outputs `day_analysis/D15/trajectory/pseudobulk/gene_patterns/`: `gene_patterns_k10.csv` (cluster, silhouette,
+      sources, program flags per gene), `gene_pattern_clusters_k10.csv`, `gene_pattern_curves.csv`,
+      `gene_pattern_k.csv`, quick PNGs; `gene_patterns_k10_before_tS.csv` = the assignment before the tradeSeq genes.
+      Rerun: `sbatch --export=ALL,GENESET=pseudobulk analysis/scripts/7.3h_gene_patterns.sb 10`. Figures: see "D15 trajectory gene
+      figures" below.
+    - Human TF list: Lambert et al. 2018, Cell 172:650 ("The Human Transcription Factors", humantfs.ccbr.utoronto.ca,
+      TF_names_v_1.01.txt, 1,639 genes; downloaded 2026-11-21 with the user's OK, CRLF removed) in
+      `study_config/annotation/TF_names_v_1.01.txt`. LMO2 is not in the list (LIM-only, no DNA-binding domain).
   - Genes along every lineage (helpers `plot_gene_lineages_D15.py`, 6 D15 lineages, and `plot_gene_lineages_D15_D22.py`,
     8 lineages of the full D15 + D22 integration or 4 of the subset; from expression, any gene; user, 2026-11-21):
     LMO2, ETV1, PAX4, PAX6, PDX1, FOXO1, MEIS3, PBX3, NEUROD1, NEUROD4, LHX1, FEV, MNX1, ARX, NKX6-1, MAFB; page
@@ -828,6 +826,18 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   line, 2.4 mm radius, near-black; arrows grey15, 0.9 line, 0.2 cm head, on a white copy 2.1 wide (white outline);
   arrows now run from node edge to node edge (no arrow where nodes touch: KO EC panel, ENP_FEV_high / pre_beta1 /
   pre_EC).
+
+- **D15 trajectory gene figures** (user, 2026-11-24: "drop the sparse start bins and build the figure"):
+  `analysis/scripts/fig_d15_gene_patterns.R` -> `plot/D15/trajectory/`, from the 7.3h outputs (nothing recomputed).
+  `gene_patterns_heatmap.pdf`: the 3,118 genes in C1-C10, genes ordered within a cluster by the column of their
+  maximum z; columns = beta / alpha / EC x control / ISL1 KO bins; bins with < 15 cells in both genotypes dropped
+  (bin 1 of every lineage, bin 2 of EC: sparse curve starts); dark grey = no KO cells (beta / alpha bins 8-10, past
+  the KO stop), light grey = < 15 cells (control EC bin 10); z-score as the clustering input, colour limits +-2.5;
+  cluster strip with gene and TF counts; labelled genes = the gene_dynamics list in the set (PDX1, FOXO1, ISL1, LMO2,
+  PBX3 C1; MAFB C3; ARX, ETV1, PAX6 C4; MEIS3 C5; PAX4 C6; FEV C7; MNX1, NEUROD4, NKX6-1 C8; LHX1 C10; NEUROD1 not in
+  the set). `gene_patterns_curves.pdf`: mean z per cluster along each lineage, control solid / KO dashed,
+  interquartile ribbon, lineage colours as gene_dynamics. Clusters are not yet grouped or named for the paper; the
+  line-wide genes are still in. Rerun on Alpine: `sbatch /scratch/alpine/hzhu10@xsede.org/fig_gp.sb`.
 
 ## Open items
 
