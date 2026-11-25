@@ -854,7 +854,7 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   `plot/D15/feature_D15_endocrine/{gene}.pdf` + `png/{gene}_{ctr,KO}.png` (control | KO, other genotype light grey,
   darker grey to red, one scale capped at the 99th percentile of expressing cells); FEATURE_ONLY skips the dot plot so
   the D15 endocrine dot plot is not overwritten; D15 endocrine point size 1.1 as its UMAPs. Genes must be in
-  `figure_data/D15_genes.csv.gz` (fig_export_genes.py D15).
+  `figure_data/D15_genes.csv.gz` (fig_export_genes.py D15). Drawn (both plot types): ARX, PDX1, ETV1, LMO2, PAX6, FOXO1 (user, 2026-11-24).
 
 ## Open items
 
