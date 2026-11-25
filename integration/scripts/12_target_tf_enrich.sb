@@ -16,3 +16,5 @@ O=${RESULTS}/12_trajectory_binding
 /projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/Rscript "${INT_DIR}/scripts/12_target_tf_enrich.R" \
   "${O}" "${PROJECT}/scRNAseq/study_config/annotation/TF_names_v_1.01.txt" \
   /scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/out_all/reference/msigdb_2026.1.Hs.csv.gz
+# candidate TF summary of C1, C4 and C7 + C8 (TFs chosen by the user, 2026-11-25)
+"${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/12_tf_summary.R" "${O}"

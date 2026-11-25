@@ -576,3 +576,19 @@ target genes overlap an already chosen term's by Jaccard >= 0.5, top 6; columns 
 [database], a dot wherever padj < 0.05 (size = target genes, colour = -log10 padj capped at 10); no grid, cells
 0.15 x 0.115 in. C7 and C10 have only 3 and 2 non-redundant terms.
 
+Candidate TF summary (user, 2026-11-25: "show candidate TFs per cluster, focus on C1, C4 and C8 ... just a summary of
+TF names"):  (run at the end of ) -> 
+(3.4 x 1.45 in) and . Layout B (user): three columns of TF names, each with ISL1 binding at
+D15 / D18 / D22 (filled = TSS site, open = enhancer only, grey = not bound); header = direct targets, TFs (ISL1 not
+counted) and the within-cluster result. TFs chosen by the user from a table ranked by binding (bound at D15 or at >= 2
+stages first) then the best-lineage FDR of the 7.3l pseudobulk KO test:
+
+| Column | TFs |
+|---|---|
+| C1 | SIM1, PDX1, PBX3, FOXO1, TBX3 (top 5) |
+| C4 | PAX6, ETV1, ARX, HHEX, CREB3L2 |
+| C7 + C8 | FEV, ASCL2 (C7), LMX1A, MNX1, HEY2 (C8) |
+
+ISL1 itself is left out (user: many of its binding sites come from the ISL1 cDNA). C7 and C8 are shown together
+(user). FEV, MNX1 and HEY2 are first bound at D18; all five C7 + C8 TFs are enhancer-bound.
+
