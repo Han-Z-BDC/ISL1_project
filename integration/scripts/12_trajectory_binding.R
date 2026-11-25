@@ -441,26 +441,42 @@ if (mode == "within") {
   print(res[, .(stage, group, frac = round(frac, 3), others = round(frac_other, 3), share_t = round(share_of_targets, 3),
                 share_g = round(share_of_genes, 3), OR = round(odds_ratio, 2), padj = signif(padj, 2))])
 
+  # figure (user, 2026-11-25: "statistics in this way, but the plot like the previous version with TSS only, TSS and
+  # enhancer and enhancer only stacks"): bars stacked by binding mode as isl1_binding_mode.pdf (genes_mode.tsv), label =
+  # all bound + stars of the within-cluster Fisher test, dashed = all C1-C10; no background row
   star <- function(p) fifelse(p < 0.001, "***", fifelse(p < 0.01, "**", fifelse(p < 0.05, "*", "")))
-  res[, `:=`(group = factor(group, levels = rev(CL)), dir = factor(fifelse(padj < 0.05 & odds_ratio > 1, "enriched",
-                fifelse(padj < 0.05 & odds_ratio < 1, "depleted", "n.s.")), levels = c("enriched", "depleted", "n.s.")),
-             lab = sprintf("%.0f%%%s", 100 * frac, star(padj)))]
+  CAT <- c("TSS only", "TSS + enhancer", "enhancer only")
+  gm <- fread(file.path(od, "genes_mode.tsv"), check.names = FALSE)[group != "background"]
+  fr <- rbindlist(lapply(DAYS, function(d) {
+    x <- gm[, lapply(.SD, mean), by = group, .SDcols = paste(d, CAT, sep = "|")]
+    setnames(x, c("group", CAT)); x[, stage := d]
+  }))
+  stopifnot(all.equal(fr[, rowSums(.SD), .SDcols = CAT],
+                      res[match(paste(fr$stage, fr$group), paste(stage, group)), frac]))   # same totals as the test
+  fr <- melt(fr, id.vars = c("group", "stage"), variable.name = "category", value.name = "frac")
+  fr[, category := factor(category, levels = rev(CAT))]
+  res[, `:=`(group = factor(group, levels = rev(CL)), lab = sprintf("%.0f%%%s", 100 * frac, star(padj)))]
   avg <- res[, .(frac_all = frac_all[1]), by = stage]
   SL <- setNames(sprintf("%s\nchi-square p = %s", chi$stage, format.pval(chi$p, digits = 2)), chi$stage)
   res[, stage := factor(SL[stage], levels = SL)]; avg[, stage := factor(SL[stage], levels = SL)]
+  fr[, stage := factor(SL[stage], levels = SL)]
+  fr[, group := factor(group, levels = rev(CL))]
   ns <- g[, .N, by = group]; GL <- setNames(sprintf("%s (%s)", ns$group, ns$N), ns$group)
-  p <- ggplot(res, aes(frac, group, fill = dir)) + geom_col(width = 0.75) +
+  MCOL <- c("TSS only" = "#08306b", "TSS + enhancer" = "#4292c6", "enhancer only" = "#c6dbef")   # as isl1_binding_mode.pdf
+  p <- ggplot(fr, aes(frac, group, fill = category)) + geom_col(width = 0.75) +
     geom_vline(data = avg, aes(xintercept = frac_all), linetype = "dashed", linewidth = 0.3, colour = "grey30") +
-    geom_text(aes(x = pmax(frac, frac_all) + 0.03, label = lab), hjust = 0, size = 1.9) +
+    geom_text(data = res, aes(x = pmax(frac, frac_all) + 0.02, y = group, label = lab), inherit.aes = FALSE,
+              hjust = 0, size = 1.9) +
     facet_grid(. ~ stage) +
-    scale_fill_manual(values = c(enriched = "#b2182b", depleted = "#2166ac", n.s. = "#bdbdbd"), drop = FALSE, name = NULL) +
+    scale_fill_manual(values = MCOL, breaks = CAT, name = NULL) +
     scale_x_continuous(limits = c(0, 1.12), breaks = c(0, 0.5, 1), labels = c("0", "50%", "100%"), expand = c(0, 0)) +
     scale_y_discrete(labels = GL) +
-    labs(x = "genes with an ISL1 site (TSS or ABC enhancer, sites called that day)", y = NULL,
+    labs(x = "genes with an ISL1 site (sites called that day)", y = NULL,
          title = "ISL1 targets: each cluster vs the other trajectory clusters",
-         subtitle = paste0("universe = the 3,118 C1-C10 genes; dashed = all C1-C10; Fisher's exact test, two-sided,\n",
-                           "cluster vs the other nine; BH over 10 clusters x 3 stages: * FDR < 0.05, ** < 0.01, *** < 0.001;\n",
-                           "chi-square: does the target fraction differ among the ten clusters")) +
+         subtitle = paste0("TSS = site within +/- 1 kb of a TSS; enhancer = site linked only through an ABC element;\n",
+                           "dashed = all 3,118 C1-C10 genes; all bound, cluster vs the other nine (Fisher, two-sided),\n",
+                           "BH over 10 clusters x 3 stages: * FDR < 0.05, ** < 0.01, *** < 0.001; chi-square: does the\n",
+                           "target fraction differ among the ten clusters")) +
     theme_classic(base_size = 7) +
     theme(strip.background = element_blank(), strip.text = element_text(face = "bold"), legend.position = "bottom",
           plot.title = element_text(face = "bold"), plot.title.position = "plot", legend.key.size = unit(0.3, "cm"),
