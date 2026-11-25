@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=int12_target_enrich
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+#SBATCH --output=/pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/logs/%x.%j.out
+# Step 12 (after 12_trajectory_binding.sb): TFs among the direct ISL1 targets of each D15 trajectory cluster and their
+# GO BP / MF / CC, KEGG, Reactome and Hallmark over-representation -- see the .R header.
+# Submit from integration/:  sbatch scripts/12_target_tf_enrich.sb
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/integration/config.sh
+O=${RESULTS}/12_trajectory_binding
+/projects/hzhu10@xsede.org/software/anaconda/envs/isl1_downstream/bin/Rscript "${INT_DIR}/scripts/12_target_tf_enrich.R" \
+  "${O}" "${PROJECT}/scRNAseq/study_config/annotation/TF_names_v_1.01.txt" \
+  /scratch/alpine/hzhu10@xsede.org/ISL1_scRNAseq/out_all/reference/msigdb_2026.1.Hs.csv.gz

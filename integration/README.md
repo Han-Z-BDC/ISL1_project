@@ -546,3 +546,33 @@ gene across the six curves, n_init 50, seed 1234).
   as the C1-C10 figures). Of the labelled lineage genes, D15 targets: PDX1, FOXO1, ISL1, LMO2, PBX3 (T1), ARX, PAX6
   (T5), MEIS3 (T6), PAX4 (T9, from C6); not bound at D15: ETV1, MAFB, FEV, MNX1, NEUROD4, NKX6-1, LHX1.
 
+#### TFs and enrichment of the direct targets per cluster
+
+`scripts/12_target_tf_enrich.R` / `.sb` (user, 2026-11-24): direct ISL1 target = a C1-C10 gene bound at any stage
+(`genes.tsv` bound_any; no KO expression criterion). TFs = Lambert 2018 list (as scRNAseq 7.3h) -> `target_TFs.csv`
+(per TF: cluster, bound / TSS-bound per stage, first-bound stage, sites) and `target_TF_counts.csv`. Over-representation
+(fgsea::fora) in MSigDB 2026.1 (the saved scRNAseq table, as 7.1o): GO BP / MF / CC, KEGG Medicus, KEGG Legacy,
+Reactome, Hallmark; universe = the 14,490 genes of `genes.tsv` (tested along the D15 lineages), sets of 15-500 universe
+genes, BH per cluster x collection -> `target_enrich.csv`, `isl1_target_enrich.pdf` (one page per collection, top 5
+terms per cluster with padj < 0.05).
+
+| Cluster | Targets | TFs | Terms padj < 0.05 | Leading terms |
+|---|---|---|---|---|
+| C1 | 280 | 16 | 46 | calcium ion binding, regulation of hormone levels, Hallmark pancreas beta cells, insulin secretion |
+| C2 | 132 | 11 | 57 | G2M checkpoint, E2F targets, chromosome segregation (cell cycle) |
+| C3 | 269 | 16 | 142 | ER lumen, Reactome IGF transport / uptake by IGFBPs, hemostasis, synaptic membrane |
+| C4 | 288 | 19 | 34 | GPCR ligand binding / signalling, peptide ligand receptors, peptide hormone metabolism |
+| C5 | 182 | 14 | 10 | vasculature development, EMT, ECM-receptor interaction, axon guidance |
+| C6 | 307 | 30 | 8 | EMT, KRAS signalling down, KEGG MODY, epithelial cell differentiation |
+| C7 | 185 | 8 | 6 | motile cilium, microtubule-based movement |
+| C8 | 350 | 20 | 17 | apoptosis, interferon gamma response, regulation of hormone levels, glycolysis / pentose phosphate |
+| C9 | 246 | 9 | 38 | cilium movement, axoneme assembly, motile cilium |
+| C10 | 118 | 11 | 2 | hypoxia, heterophilic cell-cell adhesion |
+
+Paper figure (user, 2026-11-24: top terms across all categories per cluster, as a compact GO dot plot): scRNAseq
+`analysis/scripts/fig_d15_target_enrich.R` (local) -> `plot/D15/trajectory/isl1_target_enrich_top.pdf` and
+`target_enrich_top.csv`. Per cluster, the padj < 0.05 terms of all collections pooled by padj, a term skipped when its
+target genes overlap an already chosen term's by Jaccard >= 0.5, top 6; columns = clusters, rows = the chosen terms
+[database], a dot wherever padj < 0.05 (size = target genes, colour = -log10 padj capped at 10); no grid, cells
+0.15 x 0.115 in. C7 and C10 have only 3 and 2 non-redundant terms.
+
