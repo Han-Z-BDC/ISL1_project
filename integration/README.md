@@ -540,4 +540,9 @@ gene across the six curves, n_init 50, seed 1234).
   flat), T5 = C4 124 (alpha rise), T4 = C3 109 + C1 30, T8 = C8 127, T10 = C10 47; the D15 targets do not form new
   patterns. Among the targets, the largest single pattern at k = 4 is T2 (34%): the ISL1-dependent beta and alpha
   rise of C1 and C4 together.
+- k = 10 figures (user, 2026-11-24: "use k = 10 and show me heatmap"): scRNAseq `fig_d15_gene_patterns.R` with
+  GP_CLUSTERS = `recluster_D15_targets/clusters_k10.csv`, GP_PREFIX = T, GP_TAG = `_D15_targets_k10` ->
+  `plot/D15/trajectory/recluster_D15_targets/gene_patterns_{heatmap,curves}_D15_targets_k10.pdf` (same style and size
+  as the C1-C10 figures). Of the labelled lineage genes, D15 targets: PDX1, FOXO1, ISL1, LMO2, PBX3 (T1), ARX, PAX6
+  (T5), MEIS3 (T6), PAX4 (T9, from C6); not bound at D15: ETV1, MAFB, FEV, MNX1, NEUROD4, NKX6-1, LHX1.
 

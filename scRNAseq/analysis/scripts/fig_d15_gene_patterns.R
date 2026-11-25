@@ -18,6 +18,9 @@
 #   gene_patterns_curves.pdf    mean z per cluster along beta / alpha / EC (control solid, KO dashed), IQR ribbon;
 #                               panels 0.55 x 0.72 in; red dashed line = KO stop on beta / alpha (KO 95th
 #                               percentile of Slingshot pseudotime, as ko_stop_density.pdf)
+# Other gene sets (user, 2026-11-24: the D15 ISL1 targets re-clustered at k = 10, integration step 12): GP_CLUSTERS = a
+#   csv with gene and cluster (a subset of the 3,118 genes), GP_PREFIX = cluster letter (e.g. T), GP_TAG = file-name
+#   suffix, GP_TITLE = title; the curves and z-scores are the same 7.3h curves, recomputed for the subset.
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_d15_gene_patterns.R
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(patchwork) })
 PLOT <- Sys.getenv("PLOT_DIR", "plot/D15/trajectory"); dir.create(PLOT, showWarnings = FALSE, recursive = TRUE)
@@ -32,11 +35,14 @@ pal <- fread("study_config/annotation/label_colours.tsv"); pal <- setNames(pal$c
 LCOL <- c(beta = unname(pal["pre_beta2"]), alpha = unname(pal["pre_alpha"]), EC = unname(pal["pre_EC"]))
 n_fmt <- function(n) trimws(format(as.integer(n), big.mark = ","))
 
-cl <- fread(file.path(GP, "gene_patterns_k10.csv"), select = c("gene", "cluster"))
+CLF <- Sys.getenv("GP_CLUSTERS", file.path(GP, "gene_patterns_k10.csv"))
+PFX <- Sys.getenv("GP_PREFIX", "C"); TAG <- Sys.getenv("GP_TAG", "")
+cl <- fread(CLF, select = c("gene", "cluster"))
+TITLE <- Sys.getenv("GP_TITLE", sprintf("D15 KO vs control trajectory genes (%s), k-means k = 10", n_fmt(nrow(cl))))
 cv <- fread(file.path(GP, "gene_pattern_curves.csv"), select = c("gene", "lineage", "genotype", "bin", "pseudotime",
                                                                  "cells", "smoothed"))
 cv <- cv[gene %in% cl$gene]
-stopifnot(nrow(cl) == 3118, uniqueN(cv$gene) == nrow(cl), setequal(unique(cv$lineage), LIN))
+stopifnot(TAG != "" || nrow(cl) == 3118, uniqueN(cv$gene) == nrow(cl), setequal(unique(cv$lineage), LIN))
 
 # ---- bins: drop those sparse in both genotypes; grey reason for the rest
 nb <- unique(cv[, .(lineage, genotype, bin, pseudotime, cells)])
@@ -64,7 +70,7 @@ cv <- merge(cv, pk[, .(gene, row)], by = "gene")
 HM_W <- 2.5; HM_H <- 3.5; LAB_W <- 0.5
 tf <- fread("study_config/annotation/TF_names_v_1.01.txt", header = FALSE)$V1
 cs <- pk[, .(n = .N, tfs = sum(gene %in% tf), top = max(row), bottom = min(row)), by = cluster]
-CLAB <- setNames(sprintf("C%d\n%s / %d TFs", cs$cluster, n_fmt(cs$n), cs$tfs), cs$cluster)
+CLAB <- setNames(sprintf("%s%d\n%s / %d TFs", PFX, cs$cluster, n_fmt(cs$n), cs$tfs), cs$cluster)
 cv[, clab := factor(CLAB[as.character(cluster)], levels = CLAB[order(cs$cluster)])]
 cv[, zc := pmax(pmin(z, ZLIM), -ZLIM)]
 grey <- cv[is.na(z), .(gene, curve, bin, row, clab, reason = fifelse(genotype == "KO" & lineage != "EC" & cells == 0,
@@ -81,7 +87,7 @@ hm <- ggplot(cv, aes(bin, row)) +
   facet_grid(clab ~ curve, scales = "free", space = "free", switch = "y", labeller = labeller(curve = CURVE_LAB)) +
   scale_x_continuous(expand = c(0, 0), breaks = NULL) + scale_y_continuous(expand = c(0, 0), breaks = NULL) +
   labs(x = "pseudotime (Slingshot, 10 equal-width bins;\nsparse start bins dropped)", y = NULL,
-       title = sprintf("D15 KO vs control trajectory genes (%s), k-means k = 10", n_fmt(nrow(cl))),
+       title = TITLE,
        subtitle = "z-score per gene across the six curves;\ndark grey = no KO cells (past the KO stop), light grey = < 15 cells") +
   theme_minimal(base_size = 7) +
   theme(panel.grid = element_blank(), panel.spacing.x = unit(0.06, "cm"), panel.spacing.y = unit(0.04, "cm"),
@@ -116,14 +122,14 @@ lb <- ggplot(lab) +
   coord_cartesian(clip = "off") +
   theme_void(base_size = 7) + theme(strip.text = element_blank(), panel.spacing.y = unit(0.04, "cm"))
 p <- hm + lb + plot_layout(widths = unit(c(HM_W, LAB_W), "in"), heights = unit(HM_H, "in"))
-f <- file.path(PLOT, "gene_patterns_heatmap.pdf")
+f <- file.path(PLOT, sprintf("gene_patterns_heatmap%s.pdf", TAG))
 ggsave(f, p, width = HM_W + LAB_W + 0.9, height = HM_H + 1.55, useDingbats = FALSE); cat("wrote", f, "\n")
 
 # ---- mean curves per cluster
 mc <- cv[!is.na(z), .(mean = mean(z), q1 = quantile(z, 0.25), q3 = quantile(z, 0.75)),
          by = .(cluster, lineage, genotype, bin, pseudotime)]
-mc[, `:=`(lineage = factor(lineage, levels = LIN), clab = factor(sprintf("C%d (%s)", cluster, n_fmt(cs$n[match(cluster, cs$cluster)])),
-                                                                  levels = sprintf("C%d (%s)", cs$cluster[order(cs$cluster)], n_fmt(cs$n[order(cs$cluster)]))))]
+mc[, `:=`(lineage = factor(lineage, levels = LIN), clab = factor(sprintf("%s%d (%s)", PFX, cluster, n_fmt(cs$n[match(cluster, cs$cluster)])),
+                                                                  levels = sprintf("%s%d (%s)", PFX, cs$cluster[order(cs$cluster)], n_fmt(cs$n[order(cs$cluster)]))))]
 # where KO stops (user, 2026-11-24: "as for the pseudotime histogram"): KO 95th percentile of pseudotime on the beta /
 # alpha lineage (curve weight >= 0.5), the dashed KO line of ko_stop_density.pdf
 TR <- "reports/trajectory/D15"
@@ -155,7 +161,7 @@ pc <- ggplot(mc, aes(pseudotime, mean, colour = lineage, fill = lineage, linetyp
         strip.text.x = element_text(face = "bold"), strip.placement = "outside", plot.title = element_text(face = "bold"),
         plot.title.position = "plot", legend.position = "top", panel.spacing.y = unit(0.15, "cm"),
         panel.spacing.x = unit(0.1, "cm"))
-f <- file.path(PLOT, "gene_patterns_curves.pdf")
+f <- file.path(PLOT, sprintf("gene_patterns_curves%s.pdf", TAG))
 # fixed panel size (user, 2026-11-24: the three lineages together as wide as one lineage was before, ~1.6 in)
 CURVE_W <- 0.55; CURVE_H <- 0.72   # inches per panel
 g <- ggplotGrob(pc); pp <- g$layout[grepl("^panel", g$layout$name), ]
