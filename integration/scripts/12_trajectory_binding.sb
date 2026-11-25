@@ -34,3 +34,6 @@ rm -r "${L}"
 "${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/12_trajectory_binding.R" timing "${O}"
 # each cluster vs the other trajectory clusters among the ISL1 targets (universe = C1-C10), per stage
 "${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/12_trajectory_binding.R" within "${O}"
+# k-means of the D15 ISL1 targets among C1-C10 (7.3h features), in the CellRank env as 7.3h
+/projects/hzhu10@xsede.org/software/anaconda/envs/cellrank/bin/python "${INT_DIR}/scripts/12_recluster_targets.py" \
+  "${SC_TRAJ}/gene_patterns/gene_pattern_curves.csv" "${O}/genes.tsv" "${O}"

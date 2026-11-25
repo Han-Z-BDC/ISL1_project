@@ -524,3 +524,20 @@ not, BH over 10 clusters x 3 stages; per stage a 10 x 2 chi-square on the target
   cluster at all three stages; C4 (alpha) only at D15 (at D18 / D22 70-72%, n.s.); C10 is the least bound at all
   stages; C8 is lower at D15 only. The same picture as against the background.
 
+Re-clustering of the D15 targets (user, 2026-11-24: "only take all the D15 direct targets among C1-C10 and redo the
+k-means clustering"): `scripts/12_recluster_targets.py` (CellRank env, as 7.3h) -> `results/12_trajectory_binding/
+recluster_D15_targets/` (`k.csv`, `clusters_k<k>.csv`, `crosstab_k<k>.csv`, `curves_k<k>.png`, k 4-12). Genes: the
+1,090 C1-C10 genes with a site called at D15; features and k-means exactly as 7.3h (smoothed binned curves, z per
+gene across the six curves, n_init 50, seed 1234).
+
+- Silhouette is highest at k = 4 (0.26) and falls with k (0.17 at k = 10); k = 4 and 5 are identical across seeds,
+  k >= 7 less stable (ARI 0.63-0.90).
+- k = 4 (new T1-T4, numbered by where the curves peak): T1 252 early genes falling on every lineage (C6 119, C5 76,
+  C2 54); T2 372 late rise on beta and alpha in control, lost in KO (C4 163, C1 133, C3 59); T3 286 rise to the EC
+  end, mid-path peak on beta / alpha kept in KO (C8 140, C3 69, C7 34, C10 27); T4 180 transient mid-path peak (C9
+  112, C7 41, C10 18).
+- k = 10 largely returns the original clusters (ARI 0.65 vs C1-C10): T1 = C1 114 + C4 27 (beta-led late rise, KO
+  flat), T5 = C4 124 (alpha rise), T4 = C3 109 + C1 30, T8 = C8 127, T10 = C10 47; the D15 targets do not form new
+  patterns. Among the targets, the largest single pattern at k = 4 is T2 (34%): the ISL1-dependent beta and alpha
+  rise of C1 and C4 together.
+
