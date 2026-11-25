@@ -855,6 +855,20 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   darker grey to red, one scale capped at the 99th percentile of expressing cells); FEATURE_ONLY skips the dot plot so
   the D15 endocrine dot plot is not overwritten; D15 endocrine point size 1.1 as its UMAPs. Genes must be in
   `figure_data/D15_genes.csv.gz` (fig_export_genes.py D15). Drawn (both plot types): ARX, PDX1, ETV1, LMO2, PAX6, FOXO1 (user, 2026-11-24).
+- ISL1 binding timing of C1 / C4 genes (user, 2026-11-24), from integration step 12 `genes.tsv` (bound = CUT&RUN
+  site at the TSS or ABC-linked, per stage; no KO expression criterion, bulk RNA-seq not used): C1 first bound after
+  D15 (bound D18 and / or D22, not D15) 132 of 352; C4 bound at D15 163 of 369, of which 7 lose binding later
+  (SLIT3, SOCS2, LINC02055: D15 + D18; CSRNP3, GPD1L, OSBPL10: D15 + D22; PCSK5: D15 only). Lists in
+  `reports/isl1_binding_C1_C4/` (git-ignored). Single-gene curves + feature plots for the 295 genes (C1 132, C4 kept
+  156, C4 lost 7) -> `plot/D15/isl1_binding/{C1_bound_after_D15,C4_bound_D15,C4_lost_after_D15}/`;
+  `figure_data/D15_genes.csv.gz` re-exported with them (339 genes).
+- D15 ISL1 target gene browser (user, 2026-11-24: "an html report where I can select genes (all genes from the
+  C1-C10 direct ISL1 targets) to plot in these two methods"): `analysis/scripts/fig_d15_gene_browser.R` +
+  `gene_browser_template.html` -> `reports/isl1_target_gene_browser.html` (one self-contained file, ~12 MB). Genes:
+  the 2,357 C1-C10 genes bound at any stage (step 12 bound_any). Curves computed as fig_d15_gene_curves.R (same
+  numbers); feature plots drawn in the browser from per-cell log1p on the D15 endocrine UMAP, capped at the 99th
+  percentile of expressing cells, stored as 8-bit levels of the cap. Search, cluster and binding-pattern filters,
+  several genes stacked. Expression from a separate export (`figure_data/D15_genes_targets.csv.gz`, 2,375 genes).
 
 ## Open items
 

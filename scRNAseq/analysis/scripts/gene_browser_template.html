@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ISL1 Target Gene Browser</title>
+<!-- Template for analysis/scripts/fig_d15_gene_browser.R: the R script replaces the DATA marker below. -->
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #dcdcd6; --accent: #b2182b;
+  --chip: #efefeb; --sel: #fbe9e7;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+.app { display: grid; grid-template-columns: 290px 1fr; height: 100vh; }
+aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+aside header { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
+h1 { font-size: 15px; margin: 0 0 2px; }
+.sub { color: var(--muted); font-size: 11.5px; }
+.controls { padding: 10px 14px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
+.controls input, .controls select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; color: var(--ink); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.count { color: var(--muted); font-size: 11.5px; }
+#list { overflow-y: auto; flex: 1; min-height: 0; }
+#list button { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #f1f1ee; background: none; padding: 5px 14px; font: inherit; color: inherit; cursor: pointer; }
+#list button:hover { background: var(--chip); }
+#list button.on { background: var(--sel); }
+#list .g { font-style: italic; font-weight: 600; }
+#list .c, #list .p { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+main { overflow-y: auto; padding: 14px 18px 40px; min-width: 0; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.bar button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; color: var(--ink); }
+.bar label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.note { color: var(--muted); font-size: 11.5px; max-width: 980px; margin: 0 0 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.card .hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.card .nm { font-size: 16px; font-weight: 700; font-style: italic; }
+.chip { background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 11.5px; }
+.st { display: inline-flex; gap: 3px; }
+.st span { border-radius: 4px; padding: 1px 6px; font-size: 11px; border: 1px solid var(--line); color: var(--muted); }
+.st span.b { background: #fde0dc; border-color: #f4a9a0; color: #7a1a10; }
+.st span.b.t { background: var(--accent); border-color: var(--accent); color: #fff; }
+.card .x { margin-left: auto; border: 0; background: none; font-size: 18px; color: var(--muted); cursor: pointer; }
+.figs { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.feat { display: flex; gap: 10px; align-items: flex-start; }
+.fp { text-align: left; }
+.fp .t { font-size: 11px; font-weight: 700; margin: 0 0 2px; }
+canvas { display: block; border-left: 1px solid #222; border-bottom: 1px solid #222; }
+.cbar { font-size: 10px; color: var(--ink); padding-top: 16px; }
+svg text { font-family: inherit; }
+.empty { color: var(--muted); padding: 40px 0; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; height: auto; }
+  aside { max-height: 50vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  main { padding: 12px 16px 40px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <header>
+    <h1>ISL1 target gene browser, D15</h1>
+    <div class="sub" id="meta"></div>
+  </header>
+  <div class="controls">
+    <input id="q" type="search" placeholder="Search gene (e.g. ARX, PAX6)" autocomplete="off">
+    <div class="row2">
+      <select id="fc" aria-label="Cluster"></select>
+      <select id="fb" aria-label="Binding pattern"></select>
+    </div>
+    <div class="count" id="cnt"></div>
+  </div>
+  <div id="list"></div>
+</aside>
+<main>
+  <div class="bar">
+    <button id="clear">Clear all</button>
+    <label>Dot size <input id="dot" type="range" min="0.5" max="2" step="0.1" value="0.8"></label>
+    <label><input id="single" type="checkbox"> Show one gene at a time</label>
+  </div>
+  <p class="note">Click genes on the left to add them (newest on top). <b>Trajectory</b>: Slingshot lineage cells with
+    curve weight &ge; 0.5, 10 pseudotime bins per lineage, curve-weighted mean log1p, no point with &lt; 15 cells,
+    3-bin moving average; control solid, ISL1 KO dashed; red dashed line = KO stop (KO 95th percentile of pseudotime).
+    <b>Feature plot</b>: D15 endocrine UMAP, the other genotype light grey, log1p capped at the 99th percentile of
+    expressing cells. <b>ISL1 binding</b> D15 / D18 / D22 (CUT&amp;RUN, integration step 12): pink = bound (ABC-linked
+    site), red = bound at the TSS.</p>
+  <div id="cards"></div>
+</main>
+</div>
+<script>
+/*__DATA__*/
+(() => {
+const D = DATA, C = D.cells, N = C.x.length;
+const SCALE = ["#bdbdbd", "#fcbba1", "#ef3b2c", "#99000d"], OTHER = "#ececec", KO_COL = "#d6604d";
+const LIN = ["beta", "alpha", "EC"];
+const byName = new Map(D.genes.map(g => [g.g, g]));
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString("en-US");
+$("meta").textContent = `${fmt(D.genes.length)} C1–C10 trajectory genes bound by ISL1 at any stage · ` +
+  `${fmt(D.nctr)} control + ${fmt(D.nko)} KO cells · built ${D.date}`;
+
+// ---- UMAP limits (square, data range + 4% per side, as the R figures)
+const xr = [Math.min(...C.x), Math.max(...C.x)], yr = [Math.min(...C.y), Math.max(...C.y)];
+const half = Math.max(xr[1] - xr[0], yr[1] - yr[0]) / 2 * 1.08, cx = (xr[0] + xr[1]) / 2, cy = (yr[0] + yr[1]) / 2;
+
+// ---- filters
+const pats = {}; D.genes.forEach(g => pats[g.b] = (pats[g.b] || 0) + 1);
+const pname = b => ["D15", "D18", "D22"].filter((d, i) => b[i] === "1").join("+") || "none";
+$("fc").innerHTML = `<option value="">All clusters</option>` +
+  Array.from({length: 10}, (_, i) => `<option value="${i + 1}">C${i + 1} (${D.genes.filter(g => g.c === i + 1).length})</option>`).join("");
+$("fb").innerHTML = `<option value="">Any binding</option>` + Object.keys(pats).sort().reverse()
+  .map(b => `<option value="${b}">${pname(b)} (${pats[b]})</option>`).join("");
+
+let shown = [];
+function renderList() {
+  const q = $("q").value.trim().toUpperCase(), c = +$("fc").value || 0, b = $("fb").value;
+  const hits = D.genes.filter(g => (!c || g.c === c) && (!b || g.b === b) && (!q || g.g.toUpperCase().includes(q)));
+  if (q) hits.sort((a, z) => (z.g.toUpperCase().startsWith(q)) - (a.g.toUpperCase().startsWith(q)) || a.g.localeCompare(z.g));
+  $("cnt").textContent = `${fmt(hits.length)} gene${hits.length === 1 ? "" : "s"}`;
+  $("list").innerHTML = hits.map(g => `<button data-g="${g.g}" class="${shown.includes(g.g) ? "on" : ""}">` +
+    `<span class="g">${g.g}</span><span class="c">C${g.c}</span><span class="p">${pname(g.b)}</span></button>`).join("");
+}
+["q", "fc", "fb"].forEach(id => $(id).addEventListener("input", renderList));
+$("q").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const q = $("q").value.trim().toUpperCase(), g = D.genes.find(g => g.g.toUpperCase() === q) || $("list").querySelector("button");
+  if (g) add(g.g || g.dataset.g);
+});
+$("list").addEventListener("click", e => { const b = e.target.closest("button"); if (b) add(b.dataset.g); });
+$("clear").addEventListener("click", () => { shown = []; sync(); });
+$("dot").addEventListener("input", () => drawAll());
+$("single").addEventListener("change", () => { if ($("single").checked) shown = shown.slice(0, 1); sync(); });
+
+function add(g) {
+  shown = [g, ...shown.filter(x => x !== g)];
+  if ($("single").checked) shown = shown.slice(0, 1);
+  sync();
+}
+function sync() {
+  try { history.replaceState(null, "", "#" + shown.join(",")); } catch (e) {}
+  renderList(); renderCards();
+}
+
+// ---- decode one gene's per-cell values (cell order of DATA.cells)
+const cache = new Map();
+function values(g) {
+  if (cache.has(g.g)) return cache.get(g.g);
+  const s = atob(g.e), v = new Float32Array(N), nb = Math.ceil(N / 8);
+  let k = nb;
+  for (let i = 0; i < N; i++)
+    if ((s.charCodeAt(i >> 3) >> (i & 7)) & 1) v[i] = s.charCodeAt(k++) / 255 * g.cap;
+  cache.set(g.g, v); return v;
+}
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const SC = SCALE.map(hex);
+function colour(t) {   // t in [0, 1] along the 4-colour scale
+  const p = Math.min(Math.max(t, 0), 1) * (SC.length - 1), i = Math.min(Math.floor(p), SC.length - 2), f = p - i;
+  const c = SC[i].map((a, k) => Math.round(a + (SC[i + 1][k] - a) * f));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// ---- feature plot (one genotype per canvas)
+const PANEL = 260;
+function drawFeature(cv, g, ko) {
+  const dpr = window.devicePixelRatio || 1, W = PANEL;
+  cv.width = W * dpr; cv.height = W * dpr; cv.style.width = cv.style.height = W + "px";
+  const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, W);
+  const r = 0.0092 * W * +$("dot").value;
+  const px = i => (C.x[i] - (cx - half)) / (2 * half) * W, py = i => W - (C.y[i] - (cy - half)) / (2 * half) * W;
+  const v = values(g), mine = [];
+  ctx.fillStyle = OTHER;
+  for (let i = 0; i < N; i++) {
+    if (C.ko[i] !== ko) { ctx.beginPath(); ctx.arc(px(i), py(i), r, 0, 2 * Math.PI); ctx.fill(); }
+    else mine.push(i);
+  }
+  mine.sort((a, b) => v[a] - v[b]);
+  for (const i of mine) {
+    ctx.fillStyle = colour(v[i] / g.cap);
+    ctx.beginPath(); ctx.arc(px(i), py(i), r, 0, 2 * Math.PI); ctx.fill();
+  }
+}
+function colourBar(g) {
+  const H = 90, w = 10, ticks = pretty(0, g.cap, 3).filter(t => t <= g.cap + 1e-9);
+  let s = `<svg width="56" height="${H + 30}" role="img" aria-label="colour scale"><text x="0" y="10" font-size="10">log1p</text>`;
+  s += `<defs><linearGradient id="lg_${g.g.replace(/\W/g, "_")}" x1="0" y1="1" x2="0" y2="0">` +
+    SCALE.map((c, i) => `<stop offset="${i / (SCALE.length - 1)}" stop-color="${c}"/>`).join("") + `</linearGradient></defs>`;
+  s += `<rect x="0" y="18" width="${w}" height="${H}" fill="url(#lg_${g.g.replace(/\W/g, "_")})"/>`;
+  for (const t of ticks) { const y = 18 + H - t / g.cap * H;
+    s += `<line x1="${w}" x2="${w + 3}" y1="${y}" y2="${y}" stroke="#333"/><text x="${w + 5}" y="${y + 3}" font-size="9.5">${+t.toFixed(2)}</text>`; }
+  return s + `</svg>`;
+}
+function pretty(lo, hi, n) {
+  const span = hi - lo || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n + 0.5) || 10 * mag;
+  const out = []; for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) out.push(+t.toFixed(10));
+  return out;
+}
+
+// ---- trajectory curves (three lineage panels, shared y, own x)
+function curveSVG(g) {
+  const PW = 112, PH = 104, L = 40, T = 42, GAP = 8, B = 30;
+  const all = []; LIN.forEach(l => ["ctr", "KO"].forEach(gt => g.cv[`${l}_${gt}`].forEach(v => v !== null && all.push(v))));
+  if (!all.length) return `<div class="empty">No bin with &ge; 15 cells.</div>`;
+  let lo = Math.min(...all), hi = Math.max(...all); const pad = (hi - lo || 0.1) * 0.05; lo -= pad; hi += pad;
+  const W = L + 3 * PW + 2 * GAP + 6, H = T + PH + B;
+  const y = v => T + PH - (v - lo) / (hi - lo) * PH;
+  let s = `<svg width="${W}" height="${H}" role="img" aria-label="${g.g} expression along the trajectories">`;
+  s += `<line x1="${L}" x2="${L + 22}" y1="10" y2="10" stroke="#333" stroke-width="1.4"/><text x="${L + 26}" y="13" font-size="10">Control</text>`;
+  s += `<line x1="${L + 80}" x2="${L + 102}" y1="10" y2="10" stroke="#333" stroke-width="1.4" stroke-dasharray="4 3"/><text x="${L + 106}" y="13" font-size="10">ISL1 KO</text>`;
+  s += `<line x1="${L + 164}" x2="${L + 186}" y1="10" y2="10" stroke="${KO_COL}" stroke-width="1" stroke-dasharray="3 3"/><text x="${L + 190}" y="13" font-size="10">KO stop</text>`;
+  for (const t of pretty(lo, hi, 4)) if (t >= lo && t <= hi)
+    s += `<line x1="${L - 3}" x2="${L}" y1="${y(t)}" y2="${y(t)}" stroke="#333"/><text x="${L - 5}" y="${y(t) + 3}" font-size="9.5" text-anchor="end">${t}</text>`;
+  s += `<text transform="translate(11 ${T + PH / 2}) rotate(-90)" font-size="10" text-anchor="middle">mean log1p</text>`;
+  LIN.forEach((l, k) => {
+    const x0 = L + k * (PW + GAP), m = D.mids[l], xs = [];
+    ["ctr", "KO"].forEach(gt => g.cv[`${l}_${gt}`].forEach((v, i) => v !== null && xs.push(m[i])));
+    if (D.stops[l] !== undefined) xs.push(D.stops[l]);
+    let a = Math.min(...xs), b = Math.max(...xs); const p = (b - a) * 0.05; a -= p; b += p;
+    const x = t => x0 + (t - a) / (b - a) * PW;
+    s += `<text x="${x0 + PW / 2}" y="${T - 6}" font-size="10.5" font-weight="700" text-anchor="middle">${l}</text>`;
+    s += `<line x1="${x0}" x2="${x0}" y1="${T}" y2="${T + PH}" stroke="#222"/><line x1="${x0}" x2="${x0 + PW}" y1="${T + PH}" y2="${T + PH}" stroke="#222"/>`;
+    for (const t of [0, 100, 200]) if (t >= a && t <= b)
+      s += `<line x1="${x(t)}" x2="${x(t)}" y1="${T + PH}" y2="${T + PH + 3}" stroke="#333"/><text x="${x(t)}" y="${T + PH + 13}" font-size="9.5" text-anchor="middle">${t}</text>`;
+    if (D.stops[l] !== undefined)
+      s += `<line x1="${x(D.stops[l])}" x2="${x(D.stops[l])}" y1="${T}" y2="${T + PH}" stroke="${KO_COL}" stroke-width="1" stroke-dasharray="3 3"/>`;
+    ["ctr", "KO"].forEach(gt => {
+      const v = g.cv[`${l}_${gt}`]; let d = "", pen = false;
+      v.forEach((u, i) => { if (u === null) { pen = false; return; } d += `${pen ? "L" : "M"}${x(m[i]).toFixed(1)},${y(u).toFixed(1)}`; pen = true; });
+      if (d) s += `<path d="${d}" fill="none" stroke="${D.lcol[l]}" stroke-width="1.8" stroke-linejoin="round" ${gt === "KO" ? 'stroke-dasharray="5 4"' : ""}/>`;
+    });
+  });
+  s += `<text x="${L + (3 * PW + 2 * GAP) / 2}" y="${H - 3}" font-size="10" text-anchor="middle">Slingshot pseudotime</text>`;
+  return s + `</svg>`;
+}
+
+function binding(g) {
+  return `<span class="st">` + ["D15", "D18", "D22"].map((d, i) =>
+    `<span class="${g.b[i] === "1" ? "b" : ""} ${g.t[i] === "1" ? "t" : ""}" title="${g.b[i] === "1" ? (g.t[i] === "1" ? "bound at the TSS" : "bound (ABC-linked site)") : "not bound"}">${d}</span>`).join("") + `</span>`;
+}
+function renderCards() {
+  const el = $("cards");
+  if (!shown.length) { el.innerHTML = `<div class="empty">Pick a gene on the left.</div>`; return; }
+  el.innerHTML = shown.map(n => { const g = byName.get(n); return `<section class="card" data-g="${n}">
+    <div class="hd"><span class="nm">${n}</span><span class="chip">C${g.c}</span>${binding(g)}
+      <span class="chip">${g.s} site${g.s === 1 ? "" : "s"}</span><span class="chip">${fmt(g.n)} expressing cells</span>
+      <button class="x" title="Remove" aria-label="Remove ${n}">&times;</button></div>
+    <div class="figs"><div>${curveSVG(g)}</div>
+      <div class="feat"><div class="fp"><div class="t">Control (${fmt(D.nctr)} cells)</div><canvas data-ko="0"></canvas></div>
+        <div class="fp"><div class="t">ISL1 KO (${fmt(D.nko)} cells)</div><canvas data-ko="1"></canvas></div>
+        <div class="cbar">${colourBar(g)}</div></div></div></section>`; }).join("");
+  el.querySelectorAll(".x").forEach(b => b.addEventListener("click", () => {
+    shown = shown.filter(x => x !== b.closest(".card").dataset.g); sync(); }));
+  drawAll();
+}
+function drawAll() {
+  document.querySelectorAll(".card").forEach(card => { const g = byName.get(card.dataset.g);
+    card.querySelectorAll("canvas").forEach(cv => drawFeature(cv, g, +cv.dataset.ko)); });
+}
+
+const init = decodeURIComponent(location.hash.slice(1)).split(",").filter(n => byName.has(n));
+shown = init.length ? init : ["ARX", "PAX6", "PCSK5"].filter(n => byName.has(n)).slice(0, 1);
+if (!shown.length) shown = [D.genes[0].g];
+renderList(); renderCards();
+})();
+</script>
+</body>
+</html>
