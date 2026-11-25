@@ -32,3 +32,5 @@ rm -r "${L}"
   "${SC_TRAJ}/pb_curve.csv" "${ABC_DIR}" "${ABC_GROUPS}"
 # when the genes become targets (first-bound class) and cluster x stage interaction (robust logistic GEE)
 "${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/12_trajectory_binding.R" timing "${O}"
+# each cluster vs the other trajectory clusters among the ISL1 targets (universe = C1-C10), per stage
+"${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/12_trajectory_binding.R" within "${O}"

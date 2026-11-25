@@ -67,7 +67,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 09 Target genes of the peak-call overlap classes | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB; needs CUT&RUN step 12) | `results/09_peak_overlap/`: `class_groups.tsv` (per class: step 08 VST and groups), `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb) |
 | 10 Pre-specified beta − alpha binding contrast | `scripts/10_beta_alpha_contrast.sb` (acpu, 1 CPU, 3 GB; `MODE=dry_run` now, `primary` for the unified time course) | `results/10_beta_alpha_contrast/`: `sets.tsv`, `set_sites.tsv`, `library_values.tsv`, `contrasts.tsv`, `site_level.tsv` |
 | 11 Direct-activated and direct-repressed genes with a stage-specific KO effect | `scripts/11_direct_stage.sb` (acpu, 2 CPUs, 7 GB; needs step 02; runs `11_direct_stage.R` for each label) | `results/11_activated_stage/`, `results/11_repressed_stage/`: `genes.tsv` (per gene of the label: pattern, LRT_interaction padj, scaled profile, clusters k2-k8, group: the k = 4 cluster or constant), `elbow.tsv`, `centers.tsv`, `patterns.tsv`, `groups.tsv` (per group: genes, median log2FC, significant on all days) |
-| 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters | `scripts/12_trajectory_binding.sb` (acpu, 4 CPUs, 15 GB; needs CUT&RUN steps 08 and 13, scRNAseq 7.3h / 7.3l) | `results/12_trajectory_binding/`: `genes.tsv` (per gene: cluster or background, bound per stage, TSS-bound), `binding_by_cluster.tsv` (fraction bound, odds ratio, BH FDR vs background), `tss.bed`, `tss_matrix.gz` (deepTools), `tss_signal.tsv` (per gene and day, ±500 bp), `genes_mode.tsv` and `binding_mode.tsv` (binding mode per stage: fraction, Fisher and adjusted odds ratios), `genes_timing.tsv`, `timing_tests.tsv`, `timing_classes.tsv`, `timing_overall.tsv` (first-bound stage, cluster x stage), `isl1_binding_by_cluster.pdf`, `isl1_binding_mode.pdf`, `isl1_target_timing.pdf`, `isl1_tss_heatmap.pdf`, `isl1_tss_profile.pdf` |
+| 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters | `scripts/12_trajectory_binding.sb` (acpu, 4 CPUs, 15 GB; needs CUT&RUN steps 08 and 13, scRNAseq 7.3h / 7.3l) | `results/12_trajectory_binding/`: `genes.tsv` (per gene: cluster or background, bound per stage, TSS-bound), `binding_by_cluster.tsv` (fraction bound, odds ratio, BH FDR vs background), `tss.bed`, `tss_matrix.gz` (deepTools), `tss_signal.tsv` (per gene and day, ±500 bp), `genes_mode.tsv` and `binding_mode.tsv` (binding mode per stage: fraction, Fisher and adjusted odds ratios), `genes_timing.tsv`, `timing_tests.tsv`, `timing_classes.tsv`, `timing_overall.tsv` (first-bound stage, cluster x stage), `within_clusters.tsv`, `within_chisq.tsv` (each cluster vs the other clusters), `isl1_binding_by_cluster.pdf`, `isl1_binding_mode.pdf`, `isl1_target_timing.pdf`, `isl1_target_within_clusters.pdf`, `isl1_tss_heatmap.pdf`, `isl1_tss_profile.pdf` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -507,4 +507,20 @@ tests are not independent; two tests instead:
   D15, without a significant class mix.
 - C10 (higher in KO) is enriched among never-bound genes (37% vs 23%, OR 2.0, FDR 2e-4) at every stage (no
   interaction).
+
+Each cluster against the other trajectory clusters (user, 2026-11-24): universe = the 3,118 C1-C10 genes only (no
+background); per stage, target = a TSS or ABC-enhancer site called that day. Per cluster, is its share of the targets
+different from its share of the genes: 2 x 2 Fisher's exact test, two-sided, cluster vs the other nine x target vs
+not, BH over 10 clusters x 3 stages; per stage a 10 x 2 chi-square on the target fraction. Figure
+`isl1_target_within_clusters.pdf` (stage panels 1.32 x 1.58 in, as `isl1_binding_mode.pdf`).
+
+| Stage | Chi-square p (10 clusters) | All C1-C10 bound | Enriched (FDR) | Depleted (FDR) |
+|---|---|---|---|---|
+| D15 | 2.7e-6 | 35% | C1 42% (OR 1.40, 0.02), C4 44% (OR 1.55, 0.003) | C8 30% (OR 0.76, 0.046), C10 25% (OR 0.60, 0.02) |
+| D18 | 5.2e-4 | 66% | C1 72% (OR 1.37, 0.046) | C10 53% (OR 0.56, 0.003) |
+| D22 | 1.1e-3 | 68% | C1 75% (OR 1.45, 0.02) | C10 58% (OR 0.62, 0.02) |
+
+- Among the trajectory genes, the target fraction differs between clusters at every stage. C1 (beta) is the most bound
+  cluster at all three stages; C4 (alpha) only at D15 (at D18 / D22 70-72%, n.s.); C10 is the least bound at all
+  stages; C8 is lower at D15 only. The same picture as against the background.
 

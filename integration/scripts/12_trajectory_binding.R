@@ -34,6 +34,11 @@
 #   and gene-clustered robust (sandwich) variance (base R; lme4 / geepack are not installed); Wald tests: all
 #   group x stage terms jointly, and per cluster its 2 terms (BH over clusters). A cluster x stage odds ratio > 1 =
 #   the cluster's enrichment among targets is larger at that stage than at D15.
+#        Rscript 12_trajectory_binding.R within <out dir>
+# within (user, 2026-11-24): universe = the C1-C10 genes only (no background). Per stage (target = TSS or ABC-enhancer
+#   site called that day) and cluster: is the cluster's share of the targets different from its share of the cluster
+#   genes, i.e. 2 x 2 Fisher's exact test, two-sided, cluster vs the other nine clusters x target vs not; BH over
+#   10 clusters x 3 stages. Per stage also a 10 x 2 chi-square (does the target fraction differ among the clusters).
 # Output in <out dir>: genes.tsv (gene, cluster, bound per stage, TSS / enhancer only), binding_by_cluster.tsv,
 #   tss.bed (computeMatrix regions), tss_matrix.gz (computeMatrix), tss_signal.tsv (per gene and day, +/- 500 bp),
 #   isl1_binding_by_cluster.pdf, isl1_tss_heatmap.pdf, isl1_tss_profile.pdf
@@ -413,4 +418,58 @@ if (mode == "timing") {
                     theme = theme(plot.title = element_text(face = "bold", size = 8), plot.subtitle = element_text(size = 6.5)))
   ggsave(file.path(od, "isl1_target_timing.pdf"), p, width = 6.4, height = 3.2, useDingbats = FALSE)
   cat("wrote", file.path(od, "isl1_target_timing.pdf"), "\n")
+}
+
+if (mode == "within") {
+  od <- a[2]
+  g <- fread(file.path(od, "genes.tsv"))[group != "background"]
+  CL <- sprintf("C%d", 1:10)
+  res <- rbindlist(lapply(DAYS, function(d) rbindlist(lapply(CL, function(cl) {
+    v <- g[[paste0("bound_", d)]]; inn <- g$group == cl
+    ft <- fisher.test(matrix(c(sum(v & inn), sum(!v & inn), sum(v & !inn), sum(!v & !inn)), 2))
+    data.table(stage = d, group = cl, n = sum(inn), n_target = sum(v & inn), frac = mean(v[inn]),
+               frac_other = mean(v[!inn]), frac_all = mean(v), share_of_targets = sum(v & inn) / sum(v),
+               share_of_genes = mean(inn), odds_ratio = unname(ft$estimate), p = ft$p.value)
+  }))))
+  res[, padj := p.adjust(p, "BH")]
+  chi <- rbindlist(lapply(DAYS, function(d) {
+    ct <- suppressWarnings(chisq.test(table(g$group, g[[paste0("bound_", d)]])))
+    data.table(stage = d, chisq = unname(ct$statistic), df = unname(ct$parameter), p = ct$p.value)
+  }))
+  fwrite(res, file.path(od, "within_clusters.tsv"), sep = "\t"); fwrite(chi, file.path(od, "within_chisq.tsv"), sep = "\t")
+  print(chi)
+  print(res[, .(stage, group, frac = round(frac, 3), others = round(frac_other, 3), share_t = round(share_of_targets, 3),
+                share_g = round(share_of_genes, 3), OR = round(odds_ratio, 2), padj = signif(padj, 2))])
+
+  star <- function(p) fifelse(p < 0.001, "***", fifelse(p < 0.01, "**", fifelse(p < 0.05, "*", "")))
+  res[, `:=`(group = factor(group, levels = rev(CL)), dir = factor(fifelse(padj < 0.05 & odds_ratio > 1, "enriched",
+                fifelse(padj < 0.05 & odds_ratio < 1, "depleted", "n.s.")), levels = c("enriched", "depleted", "n.s.")),
+             lab = sprintf("%.0f%%%s", 100 * frac, star(padj)))]
+  avg <- res[, .(frac_all = frac_all[1]), by = stage]
+  SL <- setNames(sprintf("%s\nchi-square p = %s", chi$stage, format.pval(chi$p, digits = 2)), chi$stage)
+  res[, stage := factor(SL[stage], levels = SL)]; avg[, stage := factor(SL[stage], levels = SL)]
+  ns <- g[, .N, by = group]; GL <- setNames(sprintf("%s (%s)", ns$group, ns$N), ns$group)
+  p <- ggplot(res, aes(frac, group, fill = dir)) + geom_col(width = 0.75) +
+    geom_vline(data = avg, aes(xintercept = frac_all), linetype = "dashed", linewidth = 0.3, colour = "grey30") +
+    geom_text(aes(x = pmax(frac, frac_all) + 0.03, label = lab), hjust = 0, size = 1.9) +
+    facet_grid(. ~ stage) +
+    scale_fill_manual(values = c(enriched = "#b2182b", depleted = "#2166ac", n.s. = "#bdbdbd"), drop = FALSE, name = NULL) +
+    scale_x_continuous(limits = c(0, 1.12), breaks = c(0, 0.5, 1), labels = c("0", "50%", "100%"), expand = c(0, 0)) +
+    scale_y_discrete(labels = GL) +
+    labs(x = "genes with an ISL1 site (TSS or ABC enhancer, sites called that day)", y = NULL,
+         title = "ISL1 targets: each cluster vs the other trajectory clusters",
+         subtitle = paste0("universe = the 3,118 C1-C10 genes; dashed = all C1-C10; Fisher's exact test, two-sided,\n",
+                           "cluster vs the other nine; BH over 10 clusters x 3 stages: * FDR < 0.05, ** < 0.01, *** < 0.001;\n",
+                           "chi-square: does the target fraction differ among the ten clusters")) +
+    theme_classic(base_size = 7) +
+    theme(strip.background = element_blank(), strip.text = element_text(face = "bold"), legend.position = "bottom",
+          plot.title = element_text(face = "bold"), plot.title.position = "plot", legend.key.size = unit(0.3, "cm"),
+          panel.spacing.x = unit(0.25, "cm"))
+  ga <- ggplotGrob(p); pp <- ga$layout[grepl("^panel", ga$layout$name), ]
+  for (i in unique(pp$l)) ga$widths[i] <- unit(1.32, "in")          # as isl1_binding_mode.pdf
+  for (i in unique(pp$t)) ga$heights[i] <- unit(1.58, "in")
+  w <- grid::convertWidth(sum(ga$widths), "in", valueOnly = TRUE); h <- grid::convertHeight(sum(ga$heights), "in", valueOnly = TRUE)
+  pdf(file.path(od, "isl1_target_within_clusters.pdf"), width = w, height = h, useDingbats = FALSE, bg = "white")
+  grid::grid.draw(ga); invisible(dev.off())
+  cat(sprintf("isl1_target_within_clusters.pdf: %.2f x %.2f in\n", w, h))
 }
