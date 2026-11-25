@@ -13,7 +13,8 @@
 #   endocrine_subclusters.csv, reports/figure_data/D15_genes_targets.csv.gz (fig_export_genes.py D15 with the gene
 #   list; copied under this name), reports/isl1_binding_C1_C4/step12_genes.tsv (integration step 12 genes.tsv),
 #   analysis/scripts/gene_browser_template.html
-# Output (git-ignored): reports/isl1_target_gene_browser.html (one self-contained file)
+# Output (git-ignored): reports/isl1_target_gene_browser.html (one self-contained file); reports/gene_browser_artifact/
+#   (isl1_gene_browser.html + gene_browser_data.json, the version published as a claude.ai Artifact)
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_d15_gene_browser.R
 suppressPackageStartupMessages({ library(data.table); library(jsonlite) })
 TR <- "reports/trajectory/D15"
@@ -92,3 +93,9 @@ parts <- strsplit(tpl, "/*__DATA__*/", fixed = TRUE)[[1]]; stopifnot(length(part
 html <- paste0(parts[1], "const DATA = ", js, ";", parts[2])
 writeLines(html, OUT)
 cat(sprintf("wrote %s (%.1f MB)\n", OUT, file.size(OUT) / 1e6))
+# Artifact version (user, 2026-11-24: "publish the gene browser as an artifact"): page without data + the data as
+# gene_browser_data.json beside it (fetched by the page)
+AD <- "reports/gene_browser_artifact"; dir.create(AD, showWarnings = FALSE)
+writeLines(paste0(parts[1], "const DATA = null;", parts[2]), file.path(AD, "isl1_gene_browser.html"))
+writeLines(js, file.path(AD, "gene_browser_data.json"))
+cat(sprintf("wrote %s/ (page + %.1f MB data)\n", AD, file.size(file.path(AD, "gene_browser_data.json")) / 1e6))
