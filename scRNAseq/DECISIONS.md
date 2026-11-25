@@ -854,7 +854,8 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   `plot/D15/feature_D15_endocrine/{gene}.pdf` + `png/{gene}_{ctr,KO}.png` (control | KO, other genotype light grey,
   darker grey to red, one scale capped at the 99th percentile of expressing cells); FEATURE_ONLY skips the dot plot so
   the D15 endocrine dot plot is not overwritten; D15 endocrine point size 1.1 as its UMAPs. Genes must be in
-  `figure_data/D15_genes.csv.gz` (fig_export_genes.py D15). Drawn (both plot types): ARX, PDX1, ETV1, LMO2, PAX6, FOXO1 (user, 2026-11-24).
+  `figure_data/D15_genes.csv.gz` (fig_export_genes.py D15). Drawn (both plot types): ARX, PDX1, ETV1, LMO2, PAX6, FOXO1 (user, 2026-11-24); the TFs of the integration step 12
+  TF summary: SIM1, PBX3, TBX3, HHEX, CREB3L2, FEV, ASCL2, LMX1A, MNX1, HEY2 (user, 2026-11-25).
 - ISL1 binding timing of C1 / C4 genes (user, 2026-11-24), from integration step 12 `genes.tsv` (bound = CUT&RUN
   site at the TSS or ABC-linked, per stage; no KO expression criterion, bulk RNA-seq not used): C1 first bound after
   D15 (bound D18 and / or D22, not D15) 132 of 352; C4 bound at D15 163 of 369, of which 7 lose binding later
