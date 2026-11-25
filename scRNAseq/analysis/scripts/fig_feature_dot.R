@@ -14,7 +14,9 @@
 # D15_endocrine (user, 2026-11-22): the 7.1d D15 endocrine subset with its r0.6 names (reports/labels/D15/
 #   endocrine_subclusters.csv + study_config/annotation/D15_endocrine_r0.6.tsv), its own 2D UMAP, expression from
 #   reports/figure_data/D15_genes.csv.gz; rows in lineage order (ENDO_ORDER, as fig_umap_labels.R).
-# DOT_ONLY=1: dot plot only, no feature plots.
+# DOT_ONLY=1: dot plot only, no feature plots. FEATURE_ONLY=1: feature plots only, no dot plot (user, 2026-11-24:
+#   single-gene D15 feature plots without overwriting the D15 endocrine dot plot).
+# D15_endocrine point size 1.1, as the D15 endocrine UMAPs (fig_umap_labels.R; user, 2026-11-23).
 # Usage (from scRNAseq/): Rscript analysis/scripts/fig_feature_dot.R D22 GCG ARX INS ...
 suppressPackageStartupMessages({ library(data.table); library(ggplot2); library(grid) })
 # output folder: plot/D22D40 (user, 2026-11-22: D22 / D40 figures in their own subfolder); override with PLOT_DIR
@@ -38,6 +40,7 @@ if (day == "D15_endocrine") {
   u <- s[, .(barcode, SCT_B_UMAP1 = UMAP1, SCT_B_UMAP2 = UMAP2)]
   e <- fread(cmd = "gzcat reports/figure_data/D15_genes.csv.gz")
   pal <- pal[c(ENDO_ORDER, setdiff(names(pal), ENDO_ORDER))]
+  POINT_SIZE <- 1.1
 } else {
   l <- fread(file.path("reports/labels", day, "labels.csv"))
   u <- fread(file.path("reports/labels", day, "sct_umaps.csv.gz")); setnames(u, 1, "barcode")
@@ -104,6 +107,7 @@ for (gn in if (Sys.getenv("DOT_ONLY") == "1") character(0) else genes) {
 if (Sys.getenv("DOT_ONLY") != "1") cat(sprintf("wrote %d feature plots to %s\n", length(genes), fd))
 
 # ---- dot plot
+if (Sys.getenv("FEATURE_ONLY") == "1") quit(save = "no")
 lv <- intersect(names(pal), unique(x$label))
 long <- melt(x[, c("label", "genotype", genes), with = FALSE], id.vars = c("label", "genotype"), variable.name = "gene")
 dp <- long[, .(pct = 100 * mean(value > 0), mean = mean(value), cells = .N), by = .(label, genotype, gene)]

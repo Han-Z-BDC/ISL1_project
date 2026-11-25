@@ -845,6 +845,17 @@ Cells kept after 1.3: 46,477 (per-sample table from `analysis/scripts/1.4_qc_cel
   of Slingshot pseudotime, curve weight >= 0.5: beta 151, alpha 158; as ko_stop_density.pdf). Clusters are not yet grouped or named for the paper; the
   line-wide genes are still in. Rerun on Alpine: `sbatch /scratch/alpine/hzhu10@xsede.org/fig_gp.sb`.
 
+- Single-gene D15 figures (user, 2026-11-24, ARX as the example): (1) `analysis/scripts/fig_d15_gene_curves.R GENE ...`
+  -> `plot/D15/trajectory/genes/{gene}_curve.pdf`: the gene along the beta / alpha / EC lineages, binned as 7.3h (curve
+  weight >= 0.5, 10 equal-width bins, curve-weighted mean log1p, 3-bin moving average, no point with < 15 cells),
+  control solid / KO dashed, colours = pre_beta2 / pre_alpha / pre_EC, red dashed line = KO stop on beta / alpha (KO
+  95th percentile), panels 0.55 x 0.72 in as gene_patterns_curves.pdf. (2) Feature plots with the D22 / D40 function:
+  `PLOT_DIR=plot/D15 FEATURE_ONLY=1 Rscript analysis/scripts/fig_feature_dot.R D15_endocrine GENE ...` ->
+  `plot/D15/feature_D15_endocrine/{gene}.pdf` + `png/{gene}_{ctr,KO}.png` (control | KO, other genotype light grey,
+  darker grey to red, one scale capped at the 99th percentile of expressing cells); FEATURE_ONLY skips the dot plot so
+  the D15 endocrine dot plot is not overwritten; D15 endocrine point size 1.1 as its UMAPs. Genes must be in
+  `figure_data/D15_genes.csv.gz` (fig_export_genes.py D15).
+
 ## Open items
 
 - Step 1.4 does not yet count the NF > 0.6 cells removed at the per-day merge.
