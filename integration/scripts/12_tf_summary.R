@@ -71,3 +71,47 @@ fwrite(d[, .(column, cluster, gene, bound_D15, bound_D18, bound_D22, tss_D15, ts
        file.path(od, "isl1_target_TF_summary.csv"))
 print(hd)
 cat("wrote", file.path(od, "isl1_target_TF_summary.pdf"), "\n")
+
+# ---- layout D (user, 2026-11-25: "I also want to try D, I need a plot that is narrow but tall"): ISL1 -> cluster ->
+# TF tree, C7 and C8 as separate nodes; node colour = within-cluster result (red enriched at any stage, blue depleted,
+# grey n.s.); TF dot filled = TSS site at any stage, open = enhancer only; "from D18 / D22" = first bound after D15.
+# Output: <step 12 out dir>/isl1_target_TF_network.pdf
+NODE_COL <- c(enriched = "#b2182b", depleted = "#2166ac", n.s. = "grey60")
+nd <- rbindlist(lapply(names(PICK), function(col) {
+  x <- d[column == col]; x[, .(n = .N, genes = list(gene)), by = cluster]
+}))
+nd[, state := sapply(cluster, function(cl) { w <- wi[group == cl & padj < 0.05]
+  if (!nrow(w)) "n.s." else if (any(w$odds_ratio > 1)) "enriched" else "depleted" })]
+GAP_BLOCK <- 1.3; GAP_IN <- 1                  # between columns of PICK / between clusters of one column
+y <- 0; lv <- list(); col_of <- d[, .(column = column[1]), by = cluster]
+for (i in seq_len(nrow(nd))) {
+  cl <- nd$cluster[i]; g <- nd$genes[[i]]
+  if (i > 1) y <- y - (if (col_of[cluster == cl, column] == col_of[cluster == nd$cluster[i - 1], column]) GAP_IN else GAP_BLOCK)
+  yy <- y - seq_along(g) + 1; y <- min(yy)
+  lv[[i]] <- data.table(cluster = cl, gene = g, yt = yy, yc = mean(yy))
+}
+lv <- rbindlist(lv)
+lv[tf, on = "gene", `:=`(tss = i.tss_D15 | i.tss_D18 | i.tss_D22, first = i.first_bound)]
+nodes <- unique(lv[, .(cluster, yc)])[nd, on = "cluster", state := i.state]
+yI <- mean(range(lv$yt)); xI <- 0; xC <- 1.1; xT <- 2.15
+pn <- ggplot() +
+  geom_segment(data = nodes, aes(x = xI, y = yI, xend = xC, yend = yc), colour = "grey60", linewidth = 0.4) +
+  geom_segment(data = lv, aes(x = xC, y = yc, xend = xT, yend = yt), colour = "grey55", linewidth = 0.25) +
+  geom_point(aes(xI, yI), size = 9, colour = "grey15") +
+  geom_text(aes(xI, yI, label = "ISL1"), colour = "white", fontface = "bold", size = 2.2) +
+  geom_point(data = nodes, aes(xC, yc, colour = state), size = 5.5) +
+  geom_text(data = nodes, aes(xC, yc, label = cluster), colour = "white", fontface = "bold", size = 1.9) +
+  geom_point(data = lv, aes(xT, yt, fill = tss), shape = 21, colour = COL, size = 1.3, stroke = 0.35) +
+  geom_text(data = lv, aes(xT + 0.13, yt, label = gene), hjust = 0, fontface = "italic", size = 2.1) +
+  geom_text(data = lv[first != "D15"], aes(xT + 1.5, yt, label = paste("from", first)), hjust = 0, size = 1.45,
+            colour = GREY) +
+  scale_colour_manual(values = NODE_COL, guide = "none") +
+  scale_fill_manual(values = c("TRUE" = COL, "FALSE" = "white"), guide = "none") +
+  scale_x_continuous(limits = c(-0.45, 4.75), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(min(lv$yt) - 2.6, 0.7), expand = c(0, 0)) +
+  annotate("text", x = -0.4, y = min(lv$yt) - 1, hjust = 0, vjust = 1, size = 1.45, colour = GREY, lineheight = 0.95,
+           label = paste("cluster: red = enriched among ISL1 targets,", "blue = depleted, grey = n.s.",
+                         "TF: filled = TSS site, open = enhancer only", sep = "\n")) +
+  theme_void(base_size = 6) + theme(plot.margin = margin(2, 2, 2, 2))
+ggsave(file.path(od, "isl1_target_TF_network.pdf"), pn, width = 1.9, height = 3.2, useDingbats = FALSE, bg = "white")
+cat("wrote", file.path(od, "isl1_target_TF_network.pdf"), "\n")

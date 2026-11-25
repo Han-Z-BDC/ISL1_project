@@ -591,4 +591,8 @@ stages first) then the best-lineage FDR of the 7.3l pseudobulk KO test:
 
 ISL1 itself is left out (user: many of its binding sites come from the ISL1 cDNA). C7 and C8 are shown together
 (user). FEV, MNX1 and HEY2 are first bound at D18; all five C7 + C8 TFs are enhancer-bound.
+Layout D as well (user, 2026-11-25: "a plot that is narrow but tall"): `isl1_target_TF_network.pdf` (1.9 x 3.2 in),
+same TFs as a tree ISL1 -> cluster -> TF, C7 and C8 as separate nodes; node colour = within-cluster result (red
+enriched at any stage, blue depleted, grey n.s.); TF dot filled = TSS site at any stage, open = enhancer only;
+"from D18" = first bound after D15.
 
