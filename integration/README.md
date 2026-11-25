@@ -592,8 +592,9 @@ stages first) then the best-lineage FDR of the 7.3l pseudobulk KO test:
 ISL1 itself is left out (user: many of its binding sites come from the ISL1 cDNA). C7 and C8 are shown together
 (user). FEV, MNX1 and HEY2 are first bound at D18; all five C7 + C8 TFs are enhancer-bound.
 Layout D as well (user, 2026-11-25: "a plot that is narrow but tall"; then "8 pt, 80 wide, 150 tall, upright", no
-"from D18" labels, no legend): `isl1_target_TF_network.pdf`, 80 x 150 pt, same TFs as a tree ISL1 -> cluster -> TF, C7
-and C8 as separate nodes; TF names Arial regular 8 pt upright, node labels Arial bold 5 pt (cairo_pdf, Arial embedded;
+"from D18" labels, no legend; then "horizontal, ISL1 at top and others pointing down"): `isl1_target_TF_network.pdf`,
+150 x 80 pt, same TFs as a top-down tree ISL1 -> cluster -> TF, C7 and C8 as separate nodes; TF names Arial regular
+8 pt, rotated 90 degrees under their dots, node labels Arial bold 5 pt (cairo_pdf, Arial embedded;
 the Arial files are in `~/.local/share/fonts` on Alpine). For the figure legend: node colour = within-cluster result
 (red enriched at any stage, blue depleted, grey n.s.); TF dot filled = TSS site at any stage, open = enhancer only.
 

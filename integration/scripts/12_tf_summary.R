@@ -73,10 +73,11 @@ print(hd)
 cat("wrote", file.path(od, "isl1_target_TF_summary.pdf"), "\n")
 
 # ---- layout D (user, 2026-11-25: "I also want to try D, I need a plot that is narrow but tall"; then "8 pt, 80 wide,
-# 150 tall, upright", no "from D18" labels and no legend): ISL1 -> cluster -> TF tree, C7 and C8 as separate nodes;
+# 150 tall, upright", no "from D18" labels and no legend; then "horizontal, ISL1 at top and others pointing down"):
+# ISL1 -> cluster -> TF tree drawn top-down, TF names below their dots rotated 90 degrees; C7 and C8 as separate nodes;
 # node colour = within-cluster result (red enriched at any stage, blue depleted, grey n.s.); TF dot filled = TSS site at
-# any stage, open = enhancer only (explained in the figure legend, not in the plot). Page 80 x 150 pt, TF names Arial
-# regular 8 pt upright, node labels Arial bold 5 pt; cairo_pdf with Arial embedded (Arial.ttf / Arial Bold.ttf copied
+# any stage, open = enhancer only (explained in the figure legend, not in the plot). Page 150 x 80 pt, TF names Arial
+# regular 8 pt (rotated), node labels Arial bold 5 pt; cairo_pdf with Arial embedded (Arial.ttf / Arial Bold.ttf copied
 # from the Mac to ~/.local/share/fonts on Alpine, found through fontconfig).
 # Output: <step 12 out dir>/isl1_target_TF_network.pdf
 NODE_COL <- c(enriched = "#b2182b", depleted = "#2166ac", n.s. = "grey60")
@@ -85,30 +86,31 @@ nd <- rbindlist(lapply(names(PICK), function(col) {
 }))
 nd[, state := sapply(cluster, function(cl) { w <- wi[group == cl & padj < 0.05]
   if (!nrow(w)) "n.s." else if (any(w$odds_ratio > 1)) "enriched" else "depleted" })]
-W_PT <- 80; H_PT <- 150; PITCH <- 8.8; GAP_BLOCK <- 5.4; GAP_IN <- 3.6   # all in pt
-y <- H_PT - 5; lv <- list(); col_of <- d[, .(column = column[1]), by = cluster]
+W_PT <- 150; H_PT <- 80; PITCH <- 8.8; GAP_BLOCK <- 5.4; GAP_IN <- 3.6   # all in pt
+x <- 6; lv <- list(); col_of <- d[, .(column = column[1]), by = cluster]
 for (i in seq_len(nrow(nd))) {
   cl <- nd$cluster[i]; g <- nd$genes[[i]]
-  if (i > 1) y <- y - PITCH - (if (col_of[cluster == cl, column] == col_of[cluster == nd$cluster[i - 1], column]) GAP_IN else GAP_BLOCK)
-  yy <- y - (seq_along(g) - 1) * PITCH; y <- min(yy)
-  lv[[i]] <- data.table(cluster = cl, gene = g, yt = yy, yc = mean(yy))
+  if (i > 1) x <- x + PITCH + (if (col_of[cluster == cl, column] == col_of[cluster == nd$cluster[i - 1], column]) GAP_IN else GAP_BLOCK)
+  xx <- x + (seq_along(g) - 1) * PITCH; x <- max(xx)
+  lv[[i]] <- data.table(cluster = cl, gene = g, xt = xx, xc = mean(xx))
 }
 lv <- rbindlist(lv)
-stopifnot(min(lv$yt) > 4)                                      # fits the page
+lv[, `:=`(xt = xt + (W_PT - max(xt) - min(xt)) / 2, xc = xc + (W_PT - max(xt) - min(xt)) / 2)]   # centre on the page
+stopifnot(min(lv$xt) > 3, max(lv$xt) < W_PT - 3)
 lv[tf, on = "gene", tss := i.tss_D15 | i.tss_D18 | i.tss_D22]
-nodes <- unique(lv[, .(cluster, yc)])[nd, on = "cluster", state := i.state]
-yI <- mean(range(lv$yt)); xI <- 8; xC <- 25; xT <- 39.5
+nodes <- unique(lv[, .(cluster, xc)])[nd, on = "cluster", state := i.state]
+xI <- mean(range(lv$xt)); yI <- 71; yC <- 52; yT <- 40.5
 PT <- ggplot2::.pt
 pn <- ggplot() +
-  geom_segment(data = nodes, aes(x = xI, y = yI, xend = xC, yend = yc), colour = "grey60", linewidth = 0.5 / PT * 1.07) +
-  geom_segment(data = lv, aes(x = xC, y = yc, xend = xT, yend = yt), colour = "grey55", linewidth = 0.35 / PT * 1.07) +
+  geom_segment(data = nodes, aes(x = xI, y = yI, xend = xc, yend = yC), colour = "grey60", linewidth = 0.5 / PT * 1.07) +
+  geom_segment(data = lv, aes(x = xc, y = yC, xend = xt, yend = yT), colour = "grey55", linewidth = 0.35 / PT * 1.07) +
   geom_point(aes(xI, yI), size = 17 / PT, colour = "grey15") +
   geom_text(aes(xI, yI, label = "ISL1"), colour = "white", fontface = "bold", size = 5 / PT, family = "Arial") +
-  geom_point(data = nodes, aes(xC, yc, colour = state), size = 11 / PT) +
-  geom_text(data = nodes, aes(xC, yc, label = cluster), colour = "white", fontface = "bold", size = 5 / PT,
+  geom_point(data = nodes, aes(xc, yC, colour = state), size = 11 / PT) +
+  geom_text(data = nodes, aes(xc, yC, label = cluster), colour = "white", fontface = "bold", size = 5 / PT,
             family = "Arial") +
-  geom_point(data = lv, aes(xT, yt, fill = tss), shape = 21, colour = COL, size = 3.2 / PT, stroke = 0.4) +
-  geom_text(data = lv, aes(xT + 2.6, yt, label = gene), hjust = 0, size = 8 / PT, family = "Arial") +
+  geom_point(data = lv, aes(xt, yT, fill = tss), shape = 21, colour = COL, size = 3.2 / PT, stroke = 0.4) +
+  geom_text(data = lv, aes(xt, yT - 2.6, label = gene), angle = 90, hjust = 1, size = 8 / PT, family = "Arial") +
   scale_colour_manual(values = NODE_COL, guide = "none") +
   scale_fill_manual(values = c("TRUE" = COL, "FALSE" = "white"), guide = "none") +
   scale_x_continuous(limits = c(0, W_PT), expand = c(0, 0)) +
@@ -118,5 +120,5 @@ stopifnot("Arial" %in% systemfonts::system_fonts()$family)
 cairo_pdf(file.path(od, "isl1_target_TF_network.pdf"), width = W_PT / 72, height = H_PT / 72, family = "Arial",
           bg = "white")
 print(pn); par(ps = 8); ew <- max(strwidth(lv$gene, units = "inches", family = "Arial")) * 72; invisible(dev.off())
-cat(sprintf("wrote %s (%d x %d pt; longest name ends at %.1f pt)\n", file.path(od, "isl1_target_TF_network.pdf"), W_PT,
-            H_PT, xT + 2.6 + ew))
+cat(sprintf("wrote %s (%d x %d pt; longest name ends at %.1f pt from the bottom)\n",
+            file.path(od, "isl1_target_TF_network.pdf"), W_PT, H_PT, yT - 2.6 - ew))
