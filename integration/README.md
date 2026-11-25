@@ -597,3 +597,10 @@ and C8 as separate nodes; TF names Arial regular 8 pt upright, node labels Arial
 the Arial files are in `~/.local/share/fonts` on Alpine). For the figure legend: node colour = within-cluster result
 (red enriched at any stage, blue depleted, grey n.s.); TF dot filled = TSS site at any stage, open = enhancer only.
 
+ABC links of these TFs (user, 2026-11-25: "subset the bedpe only containing enhancers linking to those genes"):
+`scripts/12_abc_bedpe_TFs.sh` -> `abc_bedpe_TFs/{ENP2,ENP3,early_SC_alpha}_TF_links.bedpe.gz` (columns of the ABC
+bedpe: enhancer, TSS, GENE|enhancer, ABC score) and `all_groups_TF_links.bedpe.gz` (plus the group in column 11).
+Groups ENP2, ENP3, early_SC_alpha (user; the ABC groups of CUT&RUN step 13); the 15 TFs of the summary; each gene's own
+promoter element (containing its TSS) dropped. Every TF has 1-10 enhancer links per group (CREB3L2 and FOXO1 the
+fewest; LMX1A, MNX1, FEV, ARX, SIM1 the most).
+
