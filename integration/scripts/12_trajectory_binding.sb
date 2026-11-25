@@ -30,3 +30,5 @@ rm -r "${L}"
 # binding mode per stage (TSS only / TSS + enhancer / enhancer only / all), Fisher and adjusted logistic regression
 "${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/12_trajectory_binding.R" mode "${O}" "${CNR_ABC}/links.tsv" \
   "${SC_TRAJ}/pb_curve.csv" "${ABC_DIR}" "${ABC_GROUPS}"
+# when the genes become targets (first-bound class) and cluster x stage interaction (robust logistic GEE)
+"${R_ENV}/bin/Rscript" "${INT_DIR}/scripts/12_trajectory_binding.R" timing "${O}"

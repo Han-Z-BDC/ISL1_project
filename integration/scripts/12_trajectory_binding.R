@@ -25,6 +25,15 @@
 #   category, category ~ group (background = reference) + log2(1 + ABC elements linked to the gene) + mean logCPM
 #   along the D15 lineages (7.3l), BH within a category over the cluster x stage terms. ABC elements = distinct non-self-promoter elements
 #   linked to the gene (ABC >= 0.02) in any of the ABC groups (the opportunity for an enhancer site).
+#        Rscript 12_trajectory_binding.R timing <out dir>
+# timing (user, 2026-11-24: are the clusters enriched among the ISL1 direct targets, and is it stage-specific): a target
+#   = gene with a TSS or ABC-enhancer site (as "bound"). 1 first bound: each gene's first stage with a site (D15 /
+#   first at D18 / first at D22 / never); per cluster vs background: chi-square on the 2 x 4 table (class mix), BH
+#   over clusters; per class Fisher's exact test (class vs not), BH within a class. 2 interaction: bound (gene x stage,
+#   3 rows per gene) ~ group * stage (background, D15 = reference), logistic GEE with an independence working model
+#   and gene-clustered robust (sandwich) variance (base R; lme4 / geepack are not installed); Wald tests: all
+#   group x stage terms jointly, and per cluster its 2 terms (BH over clusters). A cluster x stage odds ratio > 1 =
+#   the cluster's enrichment among targets is larger at that stage than at D15.
 # Output in <out dir>: genes.tsv (gene, cluster, bound per stage, TSS / enhancer only), binding_by_cluster.tsv,
 #   tss.bed (computeMatrix regions), tss_matrix.gz (computeMatrix), tss_signal.tsv (per gene and day, +/- 500 bp),
 #   isl1_binding_by_cluster.pdf, isl1_tss_heatmap.pdf, isl1_tss_profile.pdf
@@ -304,4 +313,104 @@ if (mode == "mode") {
   grid::grid.draw(ga); invisible(dev.off())
   cat(sprintf("isl1_binding_mode.pdf: %.2f x %.2f in\n", w, h))
   cat("wrote", file.path(od, "isl1_binding_mode.pdf"), "\n")
+}
+
+if (mode == "timing") {
+  od <- a[2]
+  g <- fread(file.path(od, "genes.tsv"))
+  GROUPS <- c(sprintf("C%d", 1:10), "background"); CL <- GROUPS[1:10]
+  FB <- c("D15", "first at D18", "first at D22", "never")
+  g[, first := fifelse(bound_D15, FB[1], fifelse(bound_D18, FB[2], fifelse(bound_D22, FB[3], FB[4])))]
+  g[, first := factor(first, levels = FB)]
+  fwrite(g[, .(gene, gene_id, group, bound_D15, bound_D18, bound_D22, first)], file.path(od, "genes_timing.tsv"), sep = "\t")
+  tab <- dcast(g[, .N, by = .(group, first)], group ~ first, value.var = "N", fill = 0)
+  print(tab[order(match(group, GROUPS))])
+  bgv <- unlist(tab[group == "background", ..FB])
+  # 1a class mix per cluster vs background
+  mix <- rbindlist(lapply(CL, function(cl) {
+    m <- rbind(unlist(tab[group == cl, ..FB]), bgv)
+    ct <- suppressWarnings(chisq.test(m))
+    data.table(group = cl, n = sum(m[1, ]), chisq = unname(ct$statistic), df = unname(ct$parameter), p_mix = ct$p.value)
+  }))
+  mix[, padj_mix := p.adjust(p_mix, "BH")]
+  # 1b per class
+  cls <- rbindlist(lapply(FB, function(k) rbindlist(lapply(CL, function(cl) {
+    v <- g$first == k; inn <- g$group == cl; bg <- g$group == "background"
+    ft <- fisher.test(matrix(c(sum(v & inn), sum(!v & inn), sum(v & bg), sum(!v & bg)), 2))
+    data.table(class = k, group = cl, n = sum(inn), n_class = sum(v & inn), frac = mean(v[inn]),
+               frac_background = mean(v[bg]), odds_ratio = unname(ft$estimate), p = ft$p.value)
+  }))))
+  cls[, padj := p.adjust(p, "BH"), by = class]
+  # 2 interaction: logistic GEE (independence), gene-clustered sandwich variance
+  long <- melt(g[, .(gene, group, D15 = bound_D15, D18 = bound_D18, D22 = bound_D22)], id.vars = c("gene", "group"),
+               variable.name = "stage", value.name = "bound")
+  long[, `:=`(group = relevel(factor(group), ref = "background"), stage = factor(stage, levels = DAYS),
+              bound = as.numeric(bound))]
+  fit <- glm(bound ~ group * stage, family = binomial, data = long)
+  X <- model.matrix(fit); r <- long$bound - fitted(fit)
+  B <- solve(crossprod(X * sqrt(fit$weights)))                            # (X'WX)^-1
+  U <- rowsum(X * r, long$gene, reorder = FALSE)                          # score per gene
+  V <- B %*% crossprod(U) %*% B; b <- coef(fit)
+  wald <- function(idx) { bb <- b[idx]; s <- as.numeric(t(bb) %*% solve(V[idx, idx, drop = FALSE]) %*% bb)
+                          c(stat = s, df = length(idx), p = pchisq(s, length(idx), lower.tail = FALSE)) }
+  ii <- grep(":", names(b))
+  ov <- wald(ii)
+  cat(sprintf("all cluster x stage terms: Wald chi2 = %.1f, df = %d, p = %.2g (robust, %d genes)\n", ov[1], ov[2], ov[3],
+              uniqueN(long$gene)))
+  inter <- rbindlist(lapply(CL, function(cl) {
+    k <- grep(sprintf("^group%s:", cl), names(b)); w <- wald(k)
+    data.table(group = cl, or_D18_vs_D15 = exp(b[sprintf("group%s:stageD18", cl)]),
+               or_D22_vs_D15 = exp(b[sprintf("group%s:stageD22", cl)]),
+               or_cluster_D15 = exp(b[sprintf("group%s", cl)]), wald_chi2 = w[1], p_interaction = w[3])
+  }))
+  inter[, padj_interaction := p.adjust(p_interaction, "BH")]
+  res <- merge(mix, inter, by = "group")[order(match(group, CL))]
+  fwrite(res, file.path(od, "timing_tests.tsv"), sep = "\t")
+  fwrite(cls[order(class, match(group, CL))], file.path(od, "timing_classes.tsv"), sep = "\t")
+  fwrite(data.table(test = "all cluster x stage terms", wald_chi2 = ov[1], df = ov[2], p = ov[3]),
+         file.path(od, "timing_overall.tsv"), sep = "\t")
+  print(res[, .(group, n, p_mix = signif(p_mix, 2), padj_mix = signif(padj_mix, 2), OR_D15 = round(or_cluster_D15, 2),
+                OR_D18vD15 = round(or_D18_vs_D15, 2), OR_D22vD15 = round(or_D22_vs_D15, 2),
+                padj_int = signif(padj_interaction, 2))])
+  print(cls[padj < 0.05, .(class, group, frac = round(frac, 3), bg = round(frac_background, 3), OR = round(odds_ratio, 2),
+                           padj = signif(padj, 2))])
+
+  # ---- figure: class mix per cluster (stacked) + per-class odds ratios
+  star <- function(p) fifelse(p < 0.001, "***", fifelse(p < 0.01, "**", fifelse(p < 0.05, "*", "")))
+  fr <- g[, .N, by = .(group, first)][, frac := N / sum(N), by = group]
+  fr[, `:=`(group = factor(group, levels = rev(GROUPS)), first = factor(first, levels = rev(FB)))]
+  ns <- g[, .N, by = group]
+  GL <- setNames(sprintf("%s (%s)", ns$group, format(ns$N, big.mark = ",", trim = TRUE)), ns$group)
+  lab <- res[, .(group = factor(group, levels = rev(GROUPS)), lab = sprintf("%s | %s", fifelse(star(padj_mix) == "", "ns",
+                 star(padj_mix)), fifelse(star(padj_interaction) == "", "ns", star(padj_interaction))))]
+  TCOL <- c("D15" = "#00441b", "first at D18" = "#41ab5d", "first at D22" = "#c7e9c0", "never" = "#e0e0e0")
+  p1 <- ggplot(fr, aes(frac, group, fill = first)) + geom_col(width = 0.75) +
+    geom_text(data = lab, aes(x = 1.02, y = group, label = lab), inherit.aes = FALSE, hjust = 0, size = 1.9) +
+    scale_fill_manual(values = TCOL, breaks = FB, name = "first bound") +
+    scale_x_continuous(limits = c(0, 1.32), breaks = c(0, 0.5, 1), labels = c("0", "50%", "100%"), expand = c(0, 0)) +
+    scale_y_discrete(labels = GL) +
+    labs(x = "genes", y = NULL) +
+    theme_classic(base_size = 7) +
+    theme(legend.position = "bottom", legend.key.size = unit(0.3, "cm"), plot.title = element_text(face = "bold"),
+          plot.title.position = "plot")
+  cl2 <- cls[, .(class = factor(class, levels = FB), group = factor(group, levels = rev(GROUPS)),
+                 l2 = pmax(pmin(log2(odds_ratio), 1.5), -1.5), lab = star(padj))]
+  p2 <- ggplot(cl2, aes(class, group, fill = l2)) + geom_tile(colour = "white", linewidth = 0.4) +
+    geom_text(aes(label = lab), size = 2, vjust = 0.75) +
+    scale_fill_gradient2(low = "#2166ac", mid = "#f7f7f7", high = "#b2182b", limits = c(-1.5, 1.5),
+                         name = "log2 OR\nvs background") +
+    scale_y_discrete(drop = FALSE, limits = rev(GROUPS)) +
+    labs(x = NULL, y = NULL) +
+    theme_minimal(base_size = 7) +
+    theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 40, hjust = 1), axis.text.y = element_blank(),
+          legend.key.size = unit(0.3, "cm"))
+  p <- p1 + p2 + plot_layout(widths = c(2.2, 1)) +
+    plot_annotation(title = "When the trajectory genes become ISL1 targets",
+                    subtitle = paste0("first stage with an ISL1 site (TSS or ABC enhancer). Bar labels: class mix vs ",
+                                      "background (chi-square) | change of enrichment\nacross stages (cluster x stage, ",
+                                      "robust logistic GEE). Tiles: odds ratio of each class vs background (Fisher, BH ",
+                                      "within a class).\nBH FDR * < 0.05, ** < 0.01, *** < 0.001"),
+                    theme = theme(plot.title = element_text(face = "bold", size = 8), plot.subtitle = element_text(size = 6.5)))
+  ggsave(file.path(od, "isl1_target_timing.pdf"), p, width = 6.4, height = 3.2, useDingbats = FALSE)
+  cat("wrote", file.path(od, "isl1_target_timing.pdf"), "\n")
 }

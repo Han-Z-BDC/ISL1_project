@@ -67,7 +67,7 @@ Run on Alpine from this folder with `sbatch`; outputs in `results/` (not in git)
 | 09 Target genes of the peak-call overlap classes | `scripts/09_peak_overlap.sb` (acpu, 2 CPUs, 7 GB; needs CUT&RUN step 12) | `results/09_peak_overlap/`: `class_groups.tsv` (per class: step 08 VST and groups), `gene_classes.tsv` and `gene_class_links.tsv` (gene level, GREAT and ±50 kb) |
 | 10 Pre-specified beta − alpha binding contrast | `scripts/10_beta_alpha_contrast.sb` (acpu, 1 CPU, 3 GB; `MODE=dry_run` now, `primary` for the unified time course) | `results/10_beta_alpha_contrast/`: `sets.tsv`, `set_sites.tsv`, `library_values.tsv`, `contrasts.tsv`, `site_level.tsv` |
 | 11 Direct-activated and direct-repressed genes with a stage-specific KO effect | `scripts/11_direct_stage.sb` (acpu, 2 CPUs, 7 GB; needs step 02; runs `11_direct_stage.R` for each label) | `results/11_activated_stage/`, `results/11_repressed_stage/`: `genes.tsv` (per gene of the label: pattern, LRT_interaction padj, scaled profile, clusters k2-k8, group: the k = 4 cluster or constant), `elbow.tsv`, `centers.tsv`, `patterns.tsv`, `groups.tsv` (per group: genes, median log2FC, significant on all days) |
-| 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters | `scripts/12_trajectory_binding.sb` (acpu, 4 CPUs, 15 GB; needs CUT&RUN steps 08 and 13, scRNAseq 7.3h / 7.3l) | `results/12_trajectory_binding/`: `genes.tsv` (per gene: cluster or background, bound per stage, TSS-bound), `binding_by_cluster.tsv` (fraction bound, odds ratio, BH FDR vs background), `tss.bed`, `tss_matrix.gz` (deepTools), `tss_signal.tsv` (per gene and day, ±500 bp), `genes_mode.tsv` and `binding_mode.tsv` (binding mode per stage: fraction, Fisher and adjusted odds ratios), `isl1_binding_by_cluster.pdf`, `isl1_binding_mode.pdf`, `isl1_tss_heatmap.pdf`, `isl1_tss_profile.pdf` |
+| 12 ISL1 binding of the D15 scRNA-seq trajectory gene clusters | `scripts/12_trajectory_binding.sb` (acpu, 4 CPUs, 15 GB; needs CUT&RUN steps 08 and 13, scRNAseq 7.3h / 7.3l) | `results/12_trajectory_binding/`: `genes.tsv` (per gene: cluster or background, bound per stage, TSS-bound), `binding_by_cluster.tsv` (fraction bound, odds ratio, BH FDR vs background), `tss.bed`, `tss_matrix.gz` (deepTools), `tss_signal.tsv` (per gene and day, ±500 bp), `genes_mode.tsv` and `binding_mode.tsv` (binding mode per stage: fraction, Fisher and adjusted odds ratios), `genes_timing.tsv`, `timing_tests.tsv`, `timing_classes.tsv`, `timing_overall.tsv` (first-bound stage, cluster x stage), `isl1_binding_by_cluster.pdf`, `isl1_binding_mode.pdf`, `isl1_target_timing.pdf`, `isl1_tss_heatmap.pdf`, `isl1_tss_profile.pdf` |
 
 Step 02 reads `timecourse_clusters_LRT_interaction.tsv`, which the bulk report builder writes on the Mac; it is
 copied to `bulkRNAseq_ISL1_KO_timecourse/results/DE_DESeq2/` on Alpine.
@@ -475,4 +475,36 @@ Results:
   after the adjustment in C3, C6-C10. C10 (higher in KO) is less bound in every category.
 - So the ISL1-dependent beta (C1) and alpha (C4) clusters are bound early (D15) and mainly through distal enhancers;
   no cluster is enriched for TSS binding.
+
+Enrichment among the ISL1 targets and its stage dependence (user, 2026-11-24). Among ISL1 targets (TSS or ABC
+enhancer site), a cluster's enrichment is the same 2 x 2 Fisher test as above (the test is symmetric), so the new
+question is whether it depends on the stage. Binding accumulates (most D15 sites stay at D18 / D22), so the per-stage
+tests are not independent; two tests instead:
+
+- First bound: each gene's first stage with a site (D15 / first at D18 / first at D22 / never). Per cluster: the class
+  mix vs the background (chi-square on 2 x 4, BH over clusters) and each class vs the background (Fisher, BH within a
+  class).
+- Cluster x stage: bound per gene and stage ~ group * stage (background and D15 = reference), logistic GEE with
+  independence working model and gene-clustered robust (sandwich) variance, written in base R (lme4 / geepack are not
+  installed); Wald tests of all 20 cluster x stage terms jointly and of each cluster's 2 terms (BH over clusters).
+- Figure `isl1_target_timing.pdf`: class mix per cluster (stacked) with the two test results, and the per-class odds
+  ratios.
+
+| Cluster | Bound from D15 | First at D18 | First at D22 | Never | Class mix FDR | Enrichment D15 (OR) | OR change D22 vs D15 | Interaction FDR |
+|---|---|---|---|---|---|---|---|---|
+| background | 33% | 33% | 11% | 23% | | | | |
+| C1 | 42% | 31% | 7% | 20% | 0.002 | 1.50 | 0.77 | 0.11 |
+| C4 | 44% | 27% | 7% | 22% | 2e-4 | 1.64 | 0.61 | 5e-4 |
+| C10 | 25% | 29% | 9% | 37% | 5e-4 | 0.69 | 0.77 | 0.27 |
+
+- The cluster x stage terms differ jointly (Wald chi2 = 64.4, 20 df, p = 1.5e-6): the clusters' enrichment among
+  targets changes with stage.
+- C1 (beta) and C4 (alpha) are enriched among the targets bound from D15 (OR 1.5 / 1.6) and depleted among those first
+  bound at D22 (OR 0.6): their genes become targets early. For C4 the enrichment shrinks significantly by D22 (OR
+  ratio 0.61, FDR 5e-4); C1 the same direction, not significant (0.77, FDR 0.11). As the background gains binding,
+  the early advantage of these clusters fades.
+- C2, C5, C6 and C8 also have a significant interaction (FDR 0.009-0.04), each with a lower odds ratio at D22 than at
+  D15, without a significant class mix.
+- C10 (higher in KO) is enriched among never-bound genes (37% vs 23%, OR 2.0, FDR 2e-4) at every stage (no
+  interaction).
 
