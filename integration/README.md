@@ -577,8 +577,8 @@ target genes overlap an already chosen term's by Jaccard >= 0.5, top 6; columns 
 0.15 x 0.115 in. C7 and C10 have only 3 and 2 non-redundant terms.
 
 Candidate TF summary (user, 2026-11-25: "show candidate TFs per cluster, focus on C1, C4 and C8 ... just a summary of
-TF names"):  (run at the end of ) -> 
-(3.4 x 1.45 in) and . Layout B (user): three columns of TF names, each with ISL1 binding at
+TF names"): `scripts/12_tf_summary.R` (run at the end of `12_target_tf_enrich.sb`) -> `isl1_target_TF_summary.pdf`
+(3.4 x 1.45 in) and `isl1_target_TF_summary.csv`. Layout B (user): three columns of TF names, each with ISL1 binding at
 D15 / D18 / D22 (filled = TSS site, open = enhancer only, grey = not bound); header = direct targets, TFs (ISL1 not
 counted) and the within-cluster result. TFs chosen by the user from a table ranked by binding (bound at D15 or at >= 2
 stages first) then the best-lineage FDR of the 7.3l pseudobulk KO test:
