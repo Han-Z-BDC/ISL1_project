@@ -74,10 +74,11 @@ cat("wrote", file.path(od, "isl1_target_TF_summary.pdf"), "\n")
 
 # ---- layout D (user, 2026-11-25: "I also want to try D, I need a plot that is narrow but tall"; then "8 pt, 80 wide,
 # 150 tall, upright", no "from D18" labels and no legend; then "horizontal, ISL1 at top and others pointing down"):
-# ISL1 -> cluster -> TF tree drawn top-down, TF names below their dots rotated 90 degrees; C7 and C8 as separate nodes;
+# ISL1 -> cluster -> TF tree drawn top-down; then "try the 45 degree version": TF names below their dots at 45 degrees;
+# C7 and C8 as separate nodes;
 # node colour = within-cluster result (red enriched at any stage, blue depleted, grey n.s.); TF dot filled = TSS site at
-# any stage, open = enhancer only (explained in the figure legend, not in the plot). Page 150 x 80 pt, TF names Arial
-# regular 8 pt (rotated), node labels Arial bold 5 pt; cairo_pdf with Arial embedded (Arial.ttf / Arial Bold.ttf copied
+# any stage, open = enhancer only (explained in the figure legend, not in the plot). Page 194 x 72 pt, TF names Arial
+# regular 8 pt at 45 degrees, node labels Arial bold 5 pt; cairo_pdf with Arial embedded (Arial.ttf / Arial Bold.ttf copied
 # from the Mac to ~/.local/share/fonts on Alpine, found through fontconfig).
 # Output: <step 12 out dir>/isl1_target_TF_network.pdf
 NODE_COL <- c(enriched = "#b2182b", depleted = "#2166ac", n.s. = "grey60")
@@ -86,8 +87,8 @@ nd <- rbindlist(lapply(names(PICK), function(col) {
 }))
 nd[, state := sapply(cluster, function(cl) { w <- wi[group == cl & padj < 0.05]
   if (!nrow(w)) "n.s." else if (any(w$odds_ratio > 1)) "enriched" else "depleted" })]
-W_PT <- 150; H_PT <- 80; PITCH <- 8.8; GAP_BLOCK <- 5.4; GAP_IN <- 3.6   # all in pt
-x <- 6; lv <- list(); col_of <- d[, .(column = column[1]), by = cluster]
+W_PT <- 194; H_PT <- 72; PITCH <- 11.5; GAP_BLOCK <- 5.4; GAP_IN <- 3.6   # all in pt; 11.5 x sin 45 = 8.1 pt between names
+x <- 14; lv <- list(); col_of <- d[, .(column = column[1]), by = cluster]
 for (i in seq_len(nrow(nd))) {
   cl <- nd$cluster[i]; g <- nd$genes[[i]]
   if (i > 1) x <- x + PITCH + (if (col_of[cluster == cl, column] == col_of[cluster == nd$cluster[i - 1], column]) GAP_IN else GAP_BLOCK)
@@ -95,11 +96,10 @@ for (i in seq_len(nrow(nd))) {
   lv[[i]] <- data.table(cluster = cl, gene = g, xt = xx, xc = mean(xx))
 }
 lv <- rbindlist(lv)
-lv[, `:=`(xt = xt + (W_PT - max(xt) - min(xt)) / 2, xc = xc + (W_PT - max(xt) - min(xt)) / 2)]   # centre on the page
 stopifnot(min(lv$xt) > 3, max(lv$xt) < W_PT - 3)
 lv[tf, on = "gene", tss := i.tss_D15 | i.tss_D18 | i.tss_D22]
 nodes <- unique(lv[, .(cluster, xc)])[nd, on = "cluster", state := i.state]
-xI <- mean(range(lv$xt)); yI <- 71; yC <- 52; yT <- 40.5
+xI <- mean(range(lv$xt)); yI <- 63; yC <- 46.5; yT <- 36
 PT <- ggplot2::.pt
 pn <- ggplot() +
   geom_segment(data = nodes, aes(x = xI, y = yI, xend = xc, yend = yC), colour = "grey60", linewidth = 0.5 / PT * 1.07) +
@@ -110,7 +110,7 @@ pn <- ggplot() +
   geom_text(data = nodes, aes(xc, yC, label = cluster), colour = "white", fontface = "bold", size = 5 / PT,
             family = "Arial") +
   geom_point(data = lv, aes(xt, yT, fill = tss), shape = 21, colour = COL, size = 3.2 / PT, stroke = 0.4) +
-  geom_text(data = lv, aes(xt, yT - 2.6, label = gene), angle = 90, hjust = 1, size = 8 / PT, family = "Arial") +
+  geom_text(data = lv, aes(xt + 1, yT - 3, label = gene), angle = 45, hjust = 1, vjust = 1, size = 8 / PT, family = "Arial") +
   scale_colour_manual(values = NODE_COL, guide = "none") +
   scale_fill_manual(values = c("TRUE" = COL, "FALSE" = "white"), guide = "none") +
   scale_x_continuous(limits = c(0, W_PT), expand = c(0, 0)) +
@@ -119,6 +119,9 @@ pn <- ggplot() +
 stopifnot("Arial" %in% systemfonts::system_fonts()$family)
 cairo_pdf(file.path(od, "isl1_target_TF_network.pdf"), width = W_PT / 72, height = H_PT / 72, family = "Arial",
           bg = "white")
-print(pn); par(ps = 8); ew <- max(strwidth(lv$gene, units = "inches", family = "Arial")) * 72; invisible(dev.off())
-cat(sprintf("wrote %s (%d x %d pt; longest name ends at %.1f pt from the bottom)\n",
-            file.path(od, "isl1_target_TF_network.pdf"), W_PT, H_PT, yT - 2.6 - ew))
+print(pn); par(ps = 8)
+w <- strwidth(lv$gene, units = "inches", family = "Arial") * 72; invisible(dev.off())
+r <- sqrt(0.5); left <- min(lv$xt + 1 - w * r); bottom <- min(yT - 3 - w * r - 6 * r)
+cat(sprintf("wrote %s (%d x %d pt; names reach x = %.1f, y = %.1f pt)\n", file.path(od, "isl1_target_TF_network.pdf"),
+            W_PT, H_PT, left, bottom))
+stopifnot(left > 0, bottom > 0, max(lv$xt) < W_PT - 3)
