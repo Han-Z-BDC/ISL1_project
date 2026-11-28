@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --job-name=tc_peak_annot
+#SBATCH --account=amc-general
+#SBATCH --partition=acpu
+#SBATCH --qos=cpu-normal
+#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=7G
+#SBATCH --output=/scratch/alpine/hzhu10@xsede.org/ISL1_cutnrun_timecourse/logs/peak_annotation.%j.out
+
+# Step 14: genomic class of each day's macs3_ge2 consensus peaks (and of the 50,000 random genome windows) for the
+# stacked bar plot (user, 2026-11-28): the step 10c HOMER annotation (no repeats, as it ran with GENES_GTF) plus
+# RepeatMasker (RMSK) at the window centre (the strongest summit), one class per peak in HOMER's priority order
+# promoter-TSS > TTS > exon > repeat > intron > intergenic (5'/3' UTR and non-coding counted as exon).
+# scripts/peak_annotation.R does the classes and the plot. Output: peak_annotation/
+#   sbatch --dependency=afterok:<10c job> scripts/14_peak_annotation.sb
+
+set -euo pipefail
+source /pl/active/ZhuLab_BDC/GitHub/ISL1_project/cutnrun_ISL1_timecourse/study_config/config.sh
+H=${OUT_DIR}/homer; O=${OUT_DIR}/peak_annotation
+mkdir -p "${O}"
+for s in D15 D18 D22 genome_random; do
+  bed=${H}/inputs/${s}.target.bed; [[ ${s} == genome_random ]] && bed=${H}/annotation/genome_random.bed
+  # window centre (1 bp) x RepeatMasker: peak, repeat name, family, class (first hit per peak)
+  awk 'BEGIN{OFS="\t"} {c = int(($2 + $3) / 2); print $1, c, c + 1, $4}' "${bed}" | sort -k1,1 -k2,2n \
+    | "${TOOLS}/bedtools" intersect -wa -wb -a - -b "${RMSK}" \
+    | awk 'BEGIN{OFS="\t"} !($4 in s) {s[$4] = 1; print $4, $8, $11, $12}' > "${O}/${s}.repeats.tsv"
+done
+"${DIFFBIND_TOOLS}/Rscript" "${STUDY_DIR}/scripts/peak_annotation.R" "${H}/annotation" "${O}"
